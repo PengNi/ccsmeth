@@ -555,6 +555,10 @@ def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
             else:
                 subreads_bwd.append((words, qlocs_to_ref, refpos2querypos))
 
+        # skip read which only have subreads in one strand
+        if args.two_strands and len(subreads_fwd) < 1 and len(subreads_bwd) < 1:
+            continue
+
         if len(subreads_fwd) >= args.depth:
             feature_list += _handle_one_strand_of_hole2(holeid, holechrom, "+", subreads_fwd, contigs, motifs, args)
         if len(subreads_bwd) >= args.depth:
@@ -730,6 +734,9 @@ def main():
                            help="MAPping Quality cutoff for selecting alignment items, default 30")
     p_extract.add_argument("--identity", type=float, default=0.8, required=False,
                            help="identity cutoff for selecting alignment items, default 0.8")
+    p_extract.add_argument("--two_strands", action="store_true", default=False, required=False,
+                           help="after quality (mapq, identity) control, if then only using CCS reads "
+                                "which have subreads in two strands")
     p_extract.add_argument("--depth", type=int, default=1, required=False,
                            help="(mean) depth (number of subreads) cutoff for "
                                 "selecting high-quality aligned reads/kmers "
