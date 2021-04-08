@@ -11,13 +11,177 @@ import re
 import random
 # from collections import Counter
 
-from utils.process_utils import display_args
-from utils.process_utils import codecv1_to_frame
-from utils.process_utils import generate_samtools_view_cmd
-from utils.process_utils import get_refloc_of_methysite_in_motif
-from utils.process_utils import get_motif_seqs
-from utils.ref_reader import DNAReference
-from utils.process_utils import complement_seq
+
+basepairs = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N',
+             'W': 'W', 'S': 'S', 'M': 'K', 'K': 'M', 'R': 'Y',
+             'Y': 'R', 'B': 'V', 'V': 'B', 'D': 'H', 'H': "D",
+             'Z': 'Z'}
+basepairs_rna = {'A': 'U', 'C': 'G', 'G': 'C', 'U': 'A', 'N': 'N',
+                 'W': 'W', 'S': 'S', 'M': 'K', 'K': 'M', 'R': 'Y',
+                 'Y': 'R', 'B': 'V', 'V': 'B', 'D': 'H', 'H': "D",
+                 'Z': 'Z'}
+iupac_alphabets = {'A': ['A'], 'T': ['T'], 'C': ['C'], 'G': ['G'],
+                   'R': ['A', 'G'], 'M': ['A', 'C'], 'S': ['C', 'G'],
+                   'Y': ['C', 'T'], 'K': ['G', 'T'], 'W': ['A', 'T'],
+                   'B': ['C', 'G', 'T'], 'D': ['A', 'G', 'T'],
+                   'H': ['A', 'C', 'T'], 'V': ['A', 'C', 'G'],
+                   'N': ['A', 'C', 'G', 'T']}
+iupac_alphabets_rna = {'A': ['A'], 'C': ['C'], 'G': ['G'], 'U': ['U'],
+                       'R': ['A', 'G'], 'M': ['A', 'C'], 'S': ['C', 'G'],
+                       'Y': ['C', 'U'], 'K': ['G', 'U'], 'W': ['A', 'U'],
+                       'B': ['C', 'G', 'U'], 'D': ['A', 'G', 'U'],
+                       'H': ['A', 'C', 'U'], 'V': ['A', 'C', 'G'],
+                       'N': ['A', 'C', 'G', 'U']}
+samtools_exec = "samtools"
+
+
+def _alphabet(letter, dbasepairs):
+    if letter in dbasepairs.keys():
+        return dbasepairs[letter]
+    return 'N'
+
+
+def complement_seq(base_seq, seq_type="DNA"):
+    rbase_seq = base_seq[::-1]
+    comseq = ''
+    try:
+        if seq_type == "DNA":
+            comseq = ''.join([_alphabet(x, basepairs) for x in rbase_seq])
+        elif seq_type == "RNA":
+            comseq = ''.join([_alphabet(x, basepairs_rna) for x in rbase_seq])
+        else:
+            raise ValueError("the seq_type must be DNA or RNA")
+    except Exception:
+        print('something wrong in the dna/rna sequence.')
+    return comseq
+
+
+class DNAReference:
+    def __init__(self, reffile):
+        self._contignames = []
+        self._contigs = {}  # contigname 2 contigseq
+        with open(reffile, 'r') as rf:
+            contigname = ''
+            contigseq = ''
+            for line in rf:
+                if line.startswith('>'):
+                    if contigname != '' and contigseq != '':
+                        self._contigs[contigname] = contigseq
+                        self._contignames.append(contigname)
+                    contigname = line.strip()[1:].split(' ')[0]
+                    contigseq = ''
+                else:
+                    # turn to upper case
+                    contigseq += line.strip().upper()
+            self._contigs[contigname] = contigseq
+            self._contignames.append(contigname)
+
+    def getcontigs(self):
+        return self._contigs
+
+    def getcontignames(self):
+        return self._contignames
+
+
+def get_refloc_of_methysite_in_motif(seqstr, motifset, methyloc_in_motif=0):
+    """
+
+    :param seqstr:
+    :param motifset:
+    :param methyloc_in_motif: 0-based
+    :return:
+    """
+    motifset = set(motifset)
+    strlen = len(seqstr)
+    motiflen = len(list(motifset)[0])
+    sites = []
+    for i in range(0, strlen - motiflen + 1):
+        if seqstr[i:i + motiflen] in motifset:
+            sites.append(i+methyloc_in_motif)
+    return sites
+
+
+def _convert_motif_seq(ori_seq, is_dna=True):
+    outbases = []
+    for bbase in ori_seq:
+        if is_dna:
+            outbases.append(iupac_alphabets[bbase])
+        else:
+            outbases.append(iupac_alphabets_rna[bbase])
+
+    def recursive_permute(bases_list):
+        if len(bases_list) == 1:
+            return bases_list[0]
+        elif len(bases_list) == 2:
+            pseqs = []
+            for fbase in bases_list[0]:
+                for sbase in bases_list[1]:
+                    pseqs.append(fbase + sbase)
+            return pseqs
+        else:
+            pseqs = recursive_permute(bases_list[1:])
+            pseq_list = [bases_list[0], pseqs]
+            return recursive_permute(pseq_list)
+    return recursive_permute(outbases)
+
+
+def get_motif_seqs(motifs, is_dna=True):
+    ori_motif_seqs = motifs.strip().split(',')
+
+    motif_seqs = []
+    for ori_motif in ori_motif_seqs:
+        motif_seqs += _convert_motif_seq(ori_motif.strip().upper(), is_dna)
+    return motif_seqs
+
+
+def generate_samtools_view_cmd(path_to_samtools):
+    samtools = samtools_exec
+    if path_to_samtools is not None:
+        samtools = os.path.abspath(path_to_samtools)
+    return samtools + " view -@ 5"
+
+
+def display_args(args, is_stderr=False):
+    def print_outputstr(outstr):
+        if is_stderr:
+            sys.stderr.write(outstr + "\n")
+        else:
+            print(outstr)
+    arg_vars = vars(args)
+    outputstr = "# ===============================================\n## parameters: "
+    print_outputstr(outputstr)
+    for arg_key in arg_vars.keys():
+        if arg_key != 'func':
+            outputstr = "{}:\n\t{}".format(arg_key, arg_vars[arg_key])
+            print_outputstr(outputstr)
+    print_outputstr("# ===============================================")
+
+
+def codecv1_to_frame():
+    _code2frames = dict()
+    for i in range(0, 64):
+        _code2frames[i] = i
+
+    frames = []
+    for frame in range(64, 190 + 1, 2):
+        frames.append(frame)
+    for i in range(64, 128):
+        _code2frames[i] = frames[i - 64]
+
+    frames = []
+    for frame in range(192, 444 + 1, 4):
+        frames.append(frame)
+    for i in range(128, 192):
+        _code2frames[i] = frames[i - 128]
+
+    frames = []
+    for frame in range(448, 952 + 1, 8):
+        frames.append(frame)
+    for i in range(192, 256):
+        _code2frames[i] = frames[i - 192]
+
+    return _code2frames
+
 
 code2frames = codecv1_to_frame()
 queen_size_border = 5000
@@ -180,10 +344,6 @@ def _extract_kmer_features(holeid, chrom, pos_min, pos_max, strand, ipd_mean, ip
     align_seq = contigs[chrom][pos_min:(pos_max+1)]
     if strand == "-":
         align_seq = complement_seq(align_seq)
-        ipd_mean = ipd_mean[::-1]
-        ipd_std = ipd_std[::-1]
-        pw_mean = pw_mean[::-1]
-        pw_std = pw_std[::-1]
         ipd_depth = ipd_depth[::-1]
     chromlen = len(contigs[chrom])
     if strand == "+":
@@ -206,18 +366,16 @@ def _extract_kmer_features(holeid, chrom, pos_min, pos_max, strand, ipd_mean, ip
             kmer_ipdm = ipd_mean[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
             if check_excpval(kmer_ipdm):
                 continue
-            kmer_ipds = ipd_std[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
-            kmer_pwm = pw_mean[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
-            kmer_pws = pw_std[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
+            # kmer_ipds = ipd_std[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
+            # kmer_pwm = pw_mean[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
+            # kmer_pws = pw_std[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
             kmer_depth = ipd_depth[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
             if np.mean(kmer_depth) < depth:
                 continue
 
-            feature = (chrom, abs_loc, strand, holeid, depth_all, kmer_seq, kmer_depth,
-                       kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws)
+            feature = (chrom, abs_loc, strand, holeid, depth_all, kmer_seq, kmer_depth)
 
             kmer_subr_ipds, kmer_subr_pws = [], []
-            excep_ipd, excep_pw = None, None
             for subreadinfo in subreads_info:
                 subr_ipd, subr_pw = subreadinfo
                 if strand == "-":
@@ -226,204 +384,16 @@ def _extract_kmer_features(holeid, chrom, pos_min, pos_max, strand, ipd_mean, ip
                 kmer_subr_ipd = subr_ipd[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
                 kmer_subr_pw = subr_pw[(offset_loc - num_bases):(offset_loc + num_bases + 1)]
                 if check_excpval(kmer_subr_ipd):
-                    if excep_ipd is None:
-                        excep_ipd = kmer_subr_ipd
-                        excep_pw = kmer_subr_pw
                     continue
                 kmer_subr_ipds.append(kmer_subr_ipd)
                 kmer_subr_pws.append(kmer_subr_pw)
 
-            if len(kmer_subr_ipds) > 0:
-                if len(kmer_subr_ipds) > num_subreads:
-                    random.seed(seed)
-                    seled_idxs = sorted(random.sample(range(len(kmer_subr_ipds)), num_subreads))
-                    # print(holeid, offset_loc, len(kmer_subr_ipds), seled_idxs)
-                    kmer_subr_ipds = [kmer_subr_ipds[idx] for idx in seled_idxs]
-                    kmer_subr_pws = [kmer_subr_pws[idx] for idx in seled_idxs]
-                feature = feature + (kmer_subr_ipds, kmer_subr_pws)
-            else:
-                excep_ipd = [x if x != exceptval else 0.0 for x in excep_ipd]
-                excep_pw = [x if x != exceptval else 0.0 for x in excep_pw]
-                feature = feature + ([excep_ipd, ], [excep_pw, ])
+            if len(kmer_subr_ipds) < depth:
+                continue
+            feature = feature + (kmer_subr_ipds, kmer_subr_pws)
             feature = feature + (label, )
             feature_list.append(feature)
     return feature_list
-
-
-# # https://stackoverflow.com/questions/1518522/find-the-most-common-element-in-a-list
-# # data.most_common(1)[0][0] always return one same item in the lst, no matter lst is sorted or not, even shuffled.
-# # but item returned by data.most_common(1)[0][0] can't be certained
-# # use max(lst, key=data.get) can return the element that occurs first in the list in case of ties:
-# def _most_common(lst):
-#     data = Counter(lst)
-#     return max(lst, key=data.get)
-#
-#
-# def _handle_one_strand_of_hole(holeid, ccs_strand, subreads_lines, contigs, motifs, args):
-#     # # skip inaccurate alignments?
-#     # chrom2starts, chroms = {}, []
-#     # for words in subreads_lines:
-#     #     chrom = words[2]
-#     #     chroms.append(chrom)
-#     #     start = int(words[3]) - 1
-#     #     if chrom not in chrom2starts.keys():
-#     #         chrom2starts[chrom] = []
-#     #     chrom2starts[chrom].append(start)
-#     #
-#     # chroms = sorted(chroms)  # sort to make sure that _most_common() always return the smallest number/item when ties
-#     # chrom_most = _most_common(chroms)
-#     # start_median = np.median(chrom2starts[chrom_most])
-#
-#     # allow multi alignments ====  newly added
-#     # not only use chrom_most
-#     chrom2lines = {}
-#     chrom2starts = {}
-#     for sridx in range(len(subreads_lines)):
-#         words = subreads_lines[sridx]
-#         chrom = words[2]
-#         start = int(words[3]) - 1
-#         if chrom not in chrom2lines.keys():
-#             chrom2lines[chrom] = []
-#             chrom2starts[chrom] = []
-#         chrom2lines[chrom].append(sridx)
-#         chrom2starts[chrom].append(start)
-#     # ===========================
-#
-#     # ===================== newly added
-#     feature_list = []
-#     for holechrom in chrom2lines.keys():
-#         chromlineidxs = chrom2lines[holechrom]
-#         start_median = np.median(chrom2starts[holechrom])
-#     # =================================
-#
-#         refpos2ipd, refpos2pw = {}, {}
-#         refposes = set()
-#         subreads_info = []
-#         depth_all = len(subreads_lines)
-#         # for words in subreads_lines:
-#         # ===================== newly added
-#         for clidx in chromlineidxs:
-#             words = subreads_lines[clidx]
-#         # =================================
-#
-#             subread_id, flag, chrom, start, cigar, seq = words[0], int(words[1]), words[2], int(words[3]) - 1, \
-#                                                          words[5], words[9]
-#             strand = "+" if flag == 0 else "-"
-#             assert (strand == ccs_strand)
-#
-#             # # skip inaccurate alignments?
-#             # if chrom != chrom_most:
-#             #     # print(holeid, subread_id, chrom, chrom_most, "chrom!=chrom_most")
-#             #     continue
-#             # if abs(start - start_median) > 100e3:
-#             #     # print(holeid, subread_id, start, start_median, "start - start_median too far")
-#             #     continue
-#             # ===================== newly added
-#             if abs(start - start_median) > 100e3:
-#                 # print(holeid, holechrom, subread_id, start, start_median, "start - start_median too far")
-#                 continue
-#             # =================================
-#
-#             ipd, pw = [], []
-#             for i in range(11, len(words)):
-#                 if words[i].startswith("ip:B:C,"):
-#                     ipd = [int(ipdval) for ipdval in words[i].split(",")[1:]]
-#                 elif words[i].startswith("pw:B:C,"):
-#                     pw = [int(pwval) for pwval in words[i].split(",")[1:]]
-#             if len(ipd) == 0 or len(pw) == 0:
-#                 # print(holeid, subread_id, "no ipd")
-#                 continue
-#             if not args.no_decode:
-#                 ipd = [code2frames[ipdval] for ipdval in ipd]
-#                 pw = [code2frames[pwval] for pwval in pw]
-#             ipd = _normalize_signals(ipd, args.norm)
-#             pw = _normalize_signals(pw, args.norm)
-#             if strand == "-":
-#                 ipd = ipd[::-1]
-#                 pw = pw[::-1]
-#
-#             identity, qlocs_to_ref, refpos2querypos = _parse_cigar(cigar)
-#             if identity < args.identity:
-#                 # print(holeid, holechrom, subread_id, identity, "identity too low")
-#                 continue
-#             for rpos in refpos2querypos.keys():
-#                 qpos = refpos2querypos[rpos]
-#                 if (start+rpos) not in refposes:
-#                     refposes.add((start+rpos))
-#                     refpos2ipd[(start+rpos)] = []
-#                     refpos2pw[(start+rpos)] = []
-#                 refpos2ipd[(start+rpos)].append(ipd[qpos])
-#                 refpos2pw[(start+rpos)].append(pw[qpos])
-#
-#             # to handle missing values (deletion in cigar, -1),
-#             # append 1000 in the ipd/pw for index -1
-#             subread_ipd = [np.insert(ipd, len(ipd), exceptval)[idx] for idx in qlocs_to_ref]
-#             subread_pw = [np.insert(pw, len(pw), exceptval)[idx] for idx in qlocs_to_ref]
-#             subreads_info.append((start, subread_ipd, subread_pw))
-#
-#         # calculate mean/std of ipd/pw
-#         if len(refposes) == 0:
-#             # return []
-#             continue  # newly added
-#
-#         refpos_max = np.max(list(refposes))
-#         refpos_min = np.min(list(refposes))
-#         ref_len = refpos_max - refpos_min + 1
-#         ipd_mean, ipd_std, pw_mean, pw_std = [exceptval] * ref_len, [exceptval] * ref_len, \
-#                                              [exceptval] * ref_len, [exceptval] * ref_len
-#         ipd_depth = [0] * ref_len
-#         for idx in range(0, ref_len):
-#             if (idx + refpos_min) in refposes:
-#                 ipd_m, ipd_s = _cal_mean_n_std(refpos2ipd[idx + refpos_min])
-#                 pw_m, pw_s = _cal_mean_n_std(refpos2pw[idx + refpos_min])
-#                 ipd_mean[idx] = ipd_m
-#                 ipd_std[idx] = ipd_s
-#                 pw_mean[idx] = pw_m
-#                 pw_std[idx] = pw_s
-#                 ipd_depth[idx] = len(refpos2ipd[idx + refpos_min])
-#         del refpos2ipd
-#         del refpos2pw
-#         del refposes
-#
-#         # paddle subreads ipd/pw list to align ref
-#         for idx in range(0, len(subreads_info)):
-#             start, subread_ipd, subread_pw = subreads_info[idx]
-#             pad_left = start - refpos_min
-#             pad_right = refpos_max + 1 - (start + len(subread_ipd))
-#             subread_ipd = [exceptval] * pad_left + subread_ipd + [exceptval] * pad_right
-#             subread_pw = [exceptval] * pad_left + subread_pw + [exceptval] * pad_right
-#             subreads_info[idx] = (subread_ipd, subread_pw)
-#
-#         # feature_list = _extract_kmer_features(holeid, chrom_most, refpos_min, refpos_max, ccs_strand,
-#         #                                       ipd_mean, ipd_std, pw_mean, pw_std, ipd_depth, depth_all,
-#         #                                       subreads_info, motifs, args.mod_loc, args.seq_len,
-#         #                                       args.methy_label, args.depthx, args.num_subreads, args.seed,
-#         #                                       contigs)
-#         feature_list += _extract_kmer_features(holeid, holechrom, refpos_min, refpos_max, ccs_strand,
-#                                                ipd_mean, ipd_std, pw_mean, pw_std, ipd_depth, depth_all,
-#                                                subreads_info, motifs, args.mod_loc, args.seq_len,
-#                                                args.methy_label, args.depthx, args.num_subreads, args.seed,
-#                                                contigs)
-#
-#     return feature_list
-#
-#
-# def handle_one_hole(hole_aligninfo, contigs, motifs, args):
-#     holeid, hole_aligns = hole_aligninfo
-#     subreads_fwd, subreads_bwd = [], []
-#     for words in hole_aligns:
-#         flag = int(words[1])
-#         assert (flag == 0 or flag == 16)
-#         if flag == 0:
-#             subreads_fwd.append(words)
-#         else:
-#             subreads_bwd.append(words)
-#     feature_list = []
-#     if len(subreads_fwd) >= args.depth:
-#         feature_list += _handle_one_strand_of_hole(holeid, "+", subreads_fwd, contigs, motifs, args)
-#     if len(subreads_bwd) >= args.depth:
-#         feature_list += _handle_one_strand_of_hole(holeid, "-", subreads_bwd, contigs, motifs, args)
-#     return feature_list
 
 
 def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, contigs, motifs, args):
@@ -457,10 +427,6 @@ def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, c
             ipd = ipd[::-1]
             pw = pw[::-1]
 
-        # identity, qlocs_to_ref, refpos2querypos = _parse_cigar(cigar)
-        # if identity < args.identity:
-        #     # print(holeid, holechrom, subread_id, identity, "identity too low")
-        #     continue
         for rpos in refpos2querypos.keys():
             qpos = refpos2querypos[rpos]
             if (start+rpos) not in refposes:
@@ -511,7 +477,7 @@ def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, c
     feature_list = _extract_kmer_features(holeid, holechrom, refpos_min, refpos_max, ccs_strand,
                                           ipd_mean, ipd_std, pw_mean, pw_std, ipd_depth, depth_all,
                                           subreads_info, motifs, args.mod_loc, args.seq_len,
-                                          args.methy_label, args.depth, args.num_subreads, args.seed,
+                                          args.methy_label, args.depth, None, args.seed,
                                           contigs)
 
     return feature_list
@@ -555,14 +521,11 @@ def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
             else:
                 subreads_bwd.append((words, qlocs_to_ref, refpos2querypos))
 
-        # skip read which only have subreads in one strand
-        if args.two_strands and len(subreads_fwd) < 1 and len(subreads_bwd) < 1:
+        if args.two_strands and len(subreads_fwd) < args.depth and len(subreads_bwd) < args.depth:
             continue
 
-        if len(subreads_fwd) >= args.depth:
-            feature_list += _handle_one_strand_of_hole2(holeid, holechrom, "+", subreads_fwd, contigs, motifs, args)
-        if len(subreads_bwd) >= args.depth:
-            feature_list += _handle_one_strand_of_hole2(holeid, holechrom, "-", subreads_bwd, contigs, motifs, args)
+        feature_list += _handle_one_strand_of_hole2(holeid, holechrom, "+", subreads_fwd, contigs, motifs, args)
+        feature_list += _handle_one_strand_of_hole2(holeid, holechrom, "-", subreads_bwd, contigs, motifs, args)
     return feature_list
 
 
@@ -573,13 +536,9 @@ def _features_to_str(features):
     :return:
     """
     chrom, abs_loc, strand, holeid, depth_all, kmer_seq, kmer_depth, \
-        kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_subr_ipds, kmer_subr_pws, label = features
+        kmer_subr_ipds, kmer_subr_pws, label = features
 
     kmer_depth_str = ",".join([str(x) for x in kmer_depth])
-    kmer_ipdm_str = ",".join([str(x) for x in kmer_ipdm])
-    kmer_ipds_str = ",".join([str(x) for x in kmer_ipds])
-    kmer_pwm_str = ",".join([str(x) for x in kmer_pwm])
-    kmer_pws_str = ",".join([str(x) for x in kmer_pws])
 
     if kmer_subr_ipds != "-":
         kmer_subr_ipds_str = ";".join([",".join([str(x) for x in y]) for y in kmer_subr_ipds])
@@ -589,8 +548,7 @@ def _features_to_str(features):
         kmer_subr_pws_str = kmer_subr_pws
 
     return "\t".join([chrom, str(abs_loc), strand, str(holeid), str(depth_all), kmer_seq,
-                      kmer_depth_str, kmer_ipdm_str, kmer_ipds_str, kmer_pwm_str, kmer_pws_str,
-                      kmer_subr_ipds_str, kmer_subr_pws_str, str(label)])
+                      kmer_depth_str, kmer_subr_ipds_str, kmer_subr_pws_str, str(label)])
 
 
 def _worker_extract(hole_align_q, featurestr_q, contigs, motifs, args):
@@ -697,7 +655,8 @@ def extract_subreads_features(args):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    parser = argparse.ArgumentParser("extract features with info of all subreads, and only keep reads with "
+                                     "subread_depth >= 30, step1")
     p_input = parser.add_argument_group("INPUT")
     p_input.add_argument("--input", "-i", type=str, required=True,
                          help="alignment results in bam/sam format. "
@@ -737,18 +696,16 @@ def main():
     p_extract.add_argument("--two_strands", action="store_true", default=False, required=False,
                            help="after quality (mapq, identity) control, if then only using CCS reads "
                                 "which have subreads in two strands")
-    p_extract.add_argument("--depth", type=int, default=1, required=False,
+    p_extract.add_argument("--depth", type=int, default=30, required=False,
                            help="(mean) depth (number of subreads) cutoff for "
                                 "selecting high-quality aligned reads/kmers "
-                                "per strand of a CCS, default 1.")
+                                "per strand of a CCS, default 30.")
     p_extract.add_argument("--norm", action="store", type=str, choices=["zscore", "min-mean", "min-max", "mad"],
                            default="zscore", required=False,
                            help="method for normalizing ipd/pw in subread level. "
                                 "zscore, min-mean, min-max or mad, default zscore")
     p_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                            help="not use CodecV1 to decode ipd/pw")
-    p_extract.add_argument("--num_subreads", type=int, default=10, required=False,
-                           help="info of max num of subreads to be extracted to output, default 10")
     p_extract.add_argument("--seed", type=int, default=111, required=False,
                            help="seed for randomly selecting subreads, default 111")
     p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,

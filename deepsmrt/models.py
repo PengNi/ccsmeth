@@ -6,12 +6,11 @@ from __future__ import absolute_import
 import torch
 import torch.nn as nn
 import torch.autograd as autograd
-import torch.utils
-import torch.utils.checkpoint
+import torch.nn.functional as F
 
 from utils.constants_torch import use_cuda
 
-import math
+# import math
 
 
 # BiLSTM ===============================================================
@@ -52,10 +51,10 @@ class ModelBiLSTM(nn.Module):
             self.fc1 = nn.Linear(self.hidden_size * 4, self.hidden_size)  # 2 for bidirection
         else:
             self.fc1 = nn.Linear(self.hidden_size * 2, self.hidden_size)  # 2 for bidirection
+        self.relu = nn.ReLU()
         self.dropout2 = nn.Dropout(p=dropout_rate)
         self.fc2 = nn.Linear(self.hidden_size, self.num_classes)
 
-        self.relu = nn.ReLU()
         self.softmax = nn.Softmax(1)
 
     def get_model_type(self):
@@ -113,6 +112,117 @@ class ModelBiLSTM(nn.Module):
         out = self.relu(out)
         out = self.dropout2(out)
         out = self.fc2(out)
+
+        return out, self.softmax(out)
+
+
+# BiLSTM ===============================================================
+class ModelAttBiLSTM(nn.Module):
+    def __init__(self, seq_len=21, num_layers=3, num_classes=2,
+                 dropout_rate=0.5, hidden_size=256,
+                 vocab_size=16, embedding_size=4,
+                 rnn="lstm"):
+        super(ModelAttBiLSTM, self).__init__()
+        self.model_type = 'AttBiLSTM'
+
+        self.seq_len = seq_len
+        self.num_layers = num_layers
+        self.num_classes = num_classes
+        self.hidden_size = hidden_size
+
+        self.embed = nn.Embedding(vocab_size, embedding_size)  # for dna/rna base
+
+        self.feas_ccs = 4
+        if rnn == "lstm":
+            self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
+                               dropout=dropout_rate, batch_first=True, bidirectional=True)
+        elif rnn == "gru":
+            self.rnn = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
+                              dropout=dropout_rate, batch_first=True, bidirectional=True)
+        else:
+            raise ValueError("rnn not set right!")
+
+        # self.dropout1 = nn.Dropout(p=dropout_rate)
+        # self.fc1 = nn.Linear(self.hidden_size * 2, self.hidden_size)  # 2 for bidirection
+        # self.relu = nn.ReLU()
+        # self.dropout2 = nn.Dropout(p=dropout_rate)
+        # self.fc2 = nn.Linear(self.hidden_size, self.num_classes)
+        self.dropout1 = nn.Dropout(p=dropout_rate)
+        self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
+
+        # for attention_net2
+        self._att2_proj = nn.Linear(self.hidden_size * 2, self.hidden_size * 2)
+        self._att2_tanh = nn.Tanh()
+        self._att2_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
+        self._att2_softmax = nn.Softmax(dim=1)
+
+        self.softmax = nn.Softmax(1)
+
+    def get_model_type(self):
+        return self.model_type
+
+    def init_hidden(self, batch_size, num_layers, hidden_size):
+        # Set initial states
+        h0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+        c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+        if use_cuda:
+            h0 = h0.cuda()
+            c0 = c0.cuda()
+        return h0, c0
+
+    # https://github.com/graykode/nlp-tutorial/blob/master/4-3.Bi-LSTM(Attention)/Bi-LSTM(Attention).py
+    # https://github.com/zhijing-jin/pytorch_RelationExtraction_AttentionBiLSTM/blob/master/model.py
+    # lstm_output : [batch_size, seq_len, n_hidden * num_directions(=2)], F matrix
+    def attention_net(self, rnn_output, final_state):
+        # hidden : [2, batch_size, n_hid]
+        # hidden = final_state.view(-1, self.hidden_size * 2, 1)
+        hidden = final_state.permute(1, 0, 2).reshape(-1, self.hidden_size * 2, 1)
+
+        attn_weights = torch.bmm(rnn_output, hidden).squeeze(2)  # attn_weights : [batch_size, seq_len]
+        soft_attn_weights = F.softmax(attn_weights, 1)
+        # [batch_size, n_hidden * num_directions(=2), seq_len] * [batch_size, seq_len] =
+        # [batch_size, n_hidden * num_directions(=2), 1]
+        attout = torch.bmm(rnn_output.transpose(1, 2), soft_attn_weights.unsqueeze(2)).squeeze(2)
+        # attout: [batch_size, n_hidden * num_directions(=2)]
+        return attout
+
+    # https://www.dazhuanlan.com/2019/12/16/5df6a2a0b9dde/
+    # https://github.com/Cheneng/HiararchicalAttentionGRU/blob/master/model/HiararchicalATT.py
+    # https://github.com/uvipen/Hierarchical-attention-networks-pytorch/blob/master/src/word_att_model.py
+    def attention_net2(self, rnn_output):
+        # lstm_output : [N, L, n_hid * 2]
+        Hw = self._att2_tanh(self._att2_proj(rnn_output))  # (N, L, n_hid * 2)
+        w_score = self._att2_softmax(Hw.matmul(self._att2_context_vector))  # (N, L, 1)
+        # return torch.mul(rnn_output, w_score)  # (N, L, n_hid * 2)
+        return torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, n_hid * 2)
+
+    def forward(self, kmer, ipd_means, ipd_stds, pw_means, pw_stds, ipd_subs, pw_subs):
+        # kmer, ipd means, ipd_stds, pw_means, pw_stds, ipd_subs, pw_subs as features
+        kmer_embed = self.embed(kmer.long())
+        ipd_means = torch.reshape(ipd_means, (-1, self.seq_len, 1)).float()
+        pw_means = torch.reshape(pw_means, (-1, self.seq_len, 1)).float()
+        ipd_stds = torch.reshape(ipd_stds, (-1, self.seq_len, 1)).float()
+        pw_stds = torch.reshape(pw_stds, (-1, self.seq_len, 1)).float()
+        out1 = torch.cat((kmer_embed, ipd_means, ipd_stds, pw_means, pw_stds), 2)  # (N, L, C)
+        out, (h_n, c_n) = self.rnn(out1, self.init_hidden(out1.size(0),
+                                                          self.num_layers,
+                                                          self.hidden_size))  # (N, L, nhid*2)
+
+        # # attention_net ======
+        # # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
+        # h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
+        # out = self.attention_net(out, h_n)
+
+        # attention_net2 ======
+        out = self.attention_net2(out)
+
+        # out = self.dropout1(out)
+        # out = self.fc1(out)
+        # out = self.relu(out)
+        # out = self.dropout2(out)
+        # out = self.fc2(out)
+        out = self.dropout1(out)
+        out = self.fc1(out)
 
         return out, self.softmax(out)
 

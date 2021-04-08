@@ -26,6 +26,7 @@ import random
 
 from models import ModelBiLSTM
 from models import ModelResNet18
+from models import ModelAttBiLSTM
 
 from utils.process_utils import base2code_dna
 from utils.process_utils import code2base_dna
@@ -307,6 +308,10 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
     elif args.model_type == "resnet18":
         model = ModelResNet18(args.class_num, args.dropout_rate, args.num_subreads,
                               str2bool(args.is_ccs), str2bool(args.is_stds), str2bool(args.is_subreads))
+    elif args.model_type == "attbilstm":
+        model = ModelAttBiLSTM(args.seq_len, args.layernum, args.class_num,
+                               args.dropout_rate, args.hid_rnn,
+                               args.n_vocab, args.n_embed)
     else:
         raise ValueError("model_type not right!")
 
@@ -335,7 +340,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
             features_batch_q.put("kill")
             break
 
-        if args.model_type in {"bilstm", }:
+        if args.model_type in {"bilstm", "attbilstm"}:
             pred_str, accuracy, batch_num = _call_mods(features_batch, model, args.batch_size)
         elif args.model_type in {"resnet18", }:
             pred_str, accuracy, batch_num = _call_mods2(features_batch, model, args.batch_size)
@@ -385,7 +390,7 @@ def call_mods(args):
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()
-        if args.model_type in {"bilstm", }:
+        if args.model_type in {"bilstm", "attbilstm"}:
             p_rf = mp.Process(target=_read_features_file, args=(input_path, features_batch_q,
                                                                 args.batch_size, args.num_subreads))
         elif args.model_type in {"resnet18", }:
@@ -455,10 +460,10 @@ def main():
 
     # model input
     p_call.add_argument('--model_type', type=str, default="bilstm",
-                        choices=["bilstm", "resnet18"],
+                        choices=["bilstm", "resnet18", "attbilstm"],
                         required=False,
                         help="type of model to use, 'bilstm', 'resnet18',"
-                             " default: bilstm")
+                             " 'attbilstm', default: bilstm")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
 

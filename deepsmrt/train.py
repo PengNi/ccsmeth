@@ -17,6 +17,7 @@ from dataloader import clear_linecache
 
 from models import ModelBiLSTM
 from models import ModelResNet18
+from models import ModelAttBiLSTM
 
 from utils.constants_torch import use_cuda
 from utils.process_utils import display_args
@@ -34,7 +35,7 @@ def train(args):
         print("GPU is not available!")
 
     print("reading data..")
-    if args.model_type in {"bilstm", }:
+    if args.model_type in {"bilstm", "attbilstm"}:
         train_dataset = FeaData(args.train_file, max_subreads=args.num_subreads)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
@@ -80,6 +81,10 @@ def train(args):
     elif args.model_type == "resnet18":
         model = ModelResNet18(args.class_num, args.dropout_rate, args.num_subreads,
                               str2bool(args.is_ccs), str2bool(args.is_stds), str2bool(args.is_subreads))
+    elif args.model_type == "attbilstm":
+        model = ModelAttBiLSTM(args.seq_len, args.layernum, args.class_num,
+                               args.dropout_rate, args.hid_rnn,
+                               args.n_vocab, args.n_embed)
     else:
         raise ValueError("model_type not right!")
 
@@ -111,7 +116,7 @@ def train(args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"bilstm", }:
+            if args.model_type in {"bilstm", "attbilstm"}:
                 _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, ipd_subs, pw_subs, labels = sfeatures
                 if use_cuda:
                     kmer = kmer.cuda()
@@ -151,7 +156,7 @@ def train(args):
                 with torch.no_grad():
                     vlosses, vaccus, vprecs, vrecas = [], [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"bilstm", }:
+                        if args.model_type in {"bilstm", "attbilstm"}:
                             _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
                                 vipd_subs, vpw_subs, vlabels = vsfeatures
                             if use_cuda:
@@ -233,10 +238,10 @@ def main():
 
     # model input
     parser.add_argument('--model_type', type=str, default="bilstm",
-                        choices=["bilstm", "resnet18"],
+                        choices=["bilstm", "resnet18", "attbilstm"],
                         required=False,
                         help="type of model to use, 'bilstm', 'resnet18',"
-                             " default: bilstm")
+                             " 'attbilstm', default: bilstm")
     parser.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
 
