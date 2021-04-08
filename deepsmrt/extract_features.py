@@ -747,8 +747,8 @@ def main():
                                 "zscore, min-mean, min-max or mad, default zscore")
     p_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                            help="not use CodecV1 to decode ipd/pw")
-    p_extract.add_argument("--num_subreads", type=int, default=10, required=False,
-                           help="info of max num of subreads to be extracted to output, default 10")
+    p_extract.add_argument("--num_subreads", type=int, default=5, required=False,
+                           help="info of max num of subreads to be extracted to output, default 5")
     p_extract.add_argument("--seed", type=int, default=111, required=False,
                            help="seed for randomly selecting subreads, default 111")
     p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,

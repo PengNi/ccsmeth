@@ -54,9 +54,6 @@ def _read_features_file(features_file, features_batch_q, batch_num=512, max_subr
         pw_stds = []
         labels = []
 
-        ipds_subreads = []
-        pws_subreads = []
-
         for line in rf:
             words = line.strip().split("\t")
 
@@ -68,30 +65,10 @@ def _read_features_file(features_file, features_batch_q, batch_num=512, max_subr
             pw_means.append(np.array([float(x) for x in words[9].split(",")]))
             pw_stds.append(np.array([float(x) for x in words[10].split(",")]))
 
-            try:
-                ipd_subs = [[float(y) for y in str(x).split(",")] for x in words[11].split(";")]
-                pw_subs = [[float(y) for y in str(x).split(",")] for x in words[12].split(";")]
-            except ValueError:
-                ipd_subs = [[0.0] * len(kmer)]
-                pw_subs = [[0.0] * len(kmer)]
-            assert (len(ipd_subs) == len(pw_subs))
-            sub_idxs = list(range(len(ipd_subs)))
-            random.shuffle(sub_idxs)
-            ipd_subs = [ipd_subs[idx] for idx in sub_idxs]
-            pw_subs = [pw_subs[idx] for idx in sub_idxs]
-            if len(ipd_subs) < max_subreads:
-                fold = max_subreads // len(ipd_subs)
-                remainder = max_subreads % len(ipd_subs)
-                ipd_subs = ipd_subs * fold + ipd_subs[:remainder]
-                pw_subs = pw_subs * fold + pw_subs[:remainder]
-            ipds_subreads.append(np.array(ipd_subs[:max_subreads], dtype=np.float))
-            pws_subreads.append(np.array(pw_subs[:max_subreads], dtype=np.float))
-
             labels.append(int(words[13]))
 
             if len(sampleinfo) == batch_num:
-                features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds,
-                                      ipds_subreads, pws_subreads, labels))
+                features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels))
                 while features_batch_q.qsize() > queen_size_border:
                     time.sleep(time_wait)
                 sampleinfo = []
@@ -101,12 +78,9 @@ def _read_features_file(features_file, features_batch_q, batch_num=512, max_subr
                 pw_means = []
                 pw_stds = []
                 labels = []
-                ipds_subreads = []
-                pws_subreads = []
                 b_num += 1
         if len(sampleinfo) > 0:
-            features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds,
-                                  ipds_subreads, pws_subreads, labels))
+            features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels))
     features_batch_q.put("kill")
     print("read_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
@@ -119,7 +93,6 @@ def _read_features_file2(features_file, features_batch_q, batch_num=512, max_sub
         kmers = []
         mats_ccs_mean = []
         mats_ccs_std = []
-        mats_subs = []
         labels = []
 
         for line in rf:
@@ -148,44 +121,20 @@ def _read_features_file2(features_file, features_batch_q, batch_num=512, max_sub
             pw_s_mat[0, np.arange(len(kmer)), kmer] = pw_stds
             mats_ccs_std.append(np.concatenate((ipd_s_mat, pw_s_mat), axis=0))  # (C=2, H, W)
 
-            ipd_subs = [[float(y) for y in str(x).split(",")] for x in words[11].split(";")]
-            pw_subs = [[float(y) for y in str(x).split(",")] for x in words[12].split(";")]
-            assert (len(ipd_subs) == len(pw_subs))
-            sub_idxs = list(range(len(ipd_subs)))
-            random.shuffle(sub_idxs)
-            ipd_subs = [ipd_subs[idx] for idx in sub_idxs]
-            pw_subs = [pw_subs[idx] for idx in sub_idxs]
-            if len(ipd_subs) < max_subreads:
-                fold = max_subreads // len(ipd_subs)
-                remainder = max_subreads % len(ipd_subs)
-                ipd_subs = ipd_subs * fold + ipd_subs[:remainder]
-                pw_subs = pw_subs * fold + pw_subs[:remainder]
-            ipd_subs = np.array(ipd_subs[:max_subreads])
-            pw_subs = np.array(pw_subs[:max_subreads])
-
-            ipdmat_subs = np.zeros((max_subreads, height, width), dtype=np.float)
-            pwmat_subs = np.zeros((max_subreads, height, width), dtype=np.float)
-            for idx in range(max_subreads):
-                ipdmat_subs[idx, np.arange(len(kmer)), kmer] = ipd_subs[idx]
-                pwmat_subs[idx, np.arange(len(kmer)), kmer] = pw_subs[idx]
-            mat_subs = np.concatenate((ipdmat_subs, pwmat_subs), axis=0)  # (C=2*max_subreads, H, W)
-            mats_subs.append(mat_subs)
-
             labels.append(int(words[13]))
 
             if len(sampleinfo) == batch_num:
-                features_batch_q.put((sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, mats_subs, labels))
+                features_batch_q.put((sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels))
                 while features_batch_q.qsize() > queen_size_border:
                     time.sleep(time_wait)
                 sampleinfo = []
                 kmers = []
                 mats_ccs_mean = []
                 mats_ccs_std = []
-                mats_subs = []
                 labels = []
                 b_num += 1
         if len(sampleinfo) > 0:
-            features_batch_q.put((sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, mats_subs, labels))
+            features_batch_q.put((sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels))
     features_batch_q.put("kill")
     print("read_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
@@ -194,7 +143,7 @@ def _call_mods(features_batch, model, batch_size):
     # features_batch: 1. if from _read_features_file(), has 1 * args.batch_size samples
     # --------------: 2. if from _read_features_from_fast5s(), has uncertain number of samples
     sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, \
-        ipds_subreads, pws_subreads, labels = features_batch
+        labels = features_batch
     labels = np.reshape(labels, (len(labels)))
 
     pred_str = []
@@ -209,12 +158,9 @@ def _call_mods(features_batch, model, batch_size):
         b_pw_means = pw_means[batch_s:batch_e]
         b_pw_stds = pw_stds[batch_s:batch_e]
         b_labels = labels[batch_s:batch_e]
-        b_ipds_subreads = ipds_subreads[batch_s:batch_e]
-        b_pws_subreads = pws_subreads[batch_s:batch_e]
         if len(b_sampleinfo) > 0:
             voutputs, vlogits = model(FloatTensor(b_kmers), FloatTensor(b_ipd_means), FloatTensor(b_ipd_stds),
-                                      FloatTensor(b_pw_means), FloatTensor(b_pw_stds),
-                                      FloatTensor(b_ipds_subreads), FloatTensor(b_pws_subreads))
+                                      FloatTensor(b_pw_means), FloatTensor(b_pw_stds))
             _, vpredicted = torch.max(vlogits.data, 1)
             if use_cuda:
                 vlogits = vlogits.cpu()
@@ -248,7 +194,7 @@ def _call_mods(features_batch, model, batch_size):
 def _call_mods2(features_batch, model, batch_size):
     # features_batch: 1. if from _read_features_file(), has 1 * args.batch_size samples
     # --------------: 2. if from _read_features_from_fast5s(), has uncertain number of samples
-    sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, mats_subs, labels = features_batch
+    sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels = features_batch
     labels = np.reshape(labels, (len(labels)))
 
     pred_str = []
@@ -260,11 +206,9 @@ def _call_mods2(features_batch, model, batch_size):
         b_kmers = kmers[batch_s:batch_e]
         b_mats_ccs_mean = mats_ccs_mean[batch_s:batch_e]
         b_mats_ccs_std = mats_ccs_std[batch_s:batch_e]
-        b_mats_subs = mats_subs[batch_s:batch_e]
         b_labels = labels[batch_s:batch_e]
         if len(b_sampleinfo) > 0:
-            voutputs, vlogits = model(FloatTensor(b_mats_ccs_mean), FloatTensor(b_mats_ccs_std),
-                                      FloatTensor(b_mats_subs))
+            voutputs, vlogits = model(FloatTensor(b_mats_ccs_mean), FloatTensor(b_mats_ccs_std))
             _, vpredicted = torch.max(vlogits.data, 1)
             if use_cuda:
                 vlogits = vlogits.cpu()

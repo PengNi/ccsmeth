@@ -26,7 +26,7 @@ from utils.process_utils import str2bool
 
 def train(args):
     total_start = time.time()
-    # torch.manual_seed(args.seed)
+    torch.manual_seed(args.seed)
 
     print("[train]start..")
     if use_cuda:
@@ -36,22 +36,22 @@ def train(args):
 
     print("reading data..")
     if args.model_type in {"bilstm", "attbilstm"}:
-        train_dataset = FeaData(args.train_file, max_subreads=args.num_subreads)
+        train_dataset = FeaData(args.train_file)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
                                                    shuffle=True)
 
-        valid_dataset = FeaData(args.valid_file, max_subreads=args.num_subreads)
+        valid_dataset = FeaData(args.valid_file)
         valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
     elif args.model_type in {"resnet18", }:
-        train_dataset = FeaData2(args.train_file, max_subreads=args.num_subreads)
+        train_dataset = FeaData2(args.train_file)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
                                                    shuffle=True)
 
-        valid_dataset = FeaData2(args.valid_file, max_subreads=args.num_subreads)
+        valid_dataset = FeaData2(args.valid_file)
         valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
@@ -74,13 +74,9 @@ def train(args):
         model = ModelBiLSTM(args.seq_len, args.layernum, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
-                            args.num_subreads,
-                            is_ccs=str2bool(args.is_ccs), is_stds=str2bool(args.is_stds),
-                            is_subreads=str2bool(args.is_subreads),
-                            is_kmer=str2bool(args.is_kmer))
+                            is_stds=str2bool(args.is_stds))
     elif args.model_type == "resnet18":
-        model = ModelResNet18(args.class_num, args.dropout_rate, args.num_subreads,
-                              str2bool(args.is_ccs), str2bool(args.is_stds), str2bool(args.is_subreads))
+        model = ModelResNet18(args.class_num, args.dropout_rate, str2bool(args.is_stds))
     elif args.model_type == "attbilstm":
         model = ModelAttBiLSTM(args.seq_len, args.layernum, args.class_num,
                                args.dropout_rate, args.hid_rnn,
@@ -117,29 +113,26 @@ def train(args):
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
             if args.model_type in {"bilstm", "attbilstm"}:
-                _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, ipd_subs, pw_subs, labels = sfeatures
+                _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, labels = sfeatures
                 if use_cuda:
                     kmer = kmer.cuda()
                     ipd_means = ipd_means.cuda()
                     ipd_stds = ipd_stds.cuda()
                     pw_means = pw_means.cuda()
                     pw_stds = pw_stds.cuda()
-                    ipd_subs = ipd_subs.cuda()
-                    pw_subs = pw_subs.cuda()
                     labels = labels.cuda()
                 # Forward pass
-                outputs, logits = model(kmer, ipd_means, ipd_stds, pw_means, pw_stds, ipd_subs, pw_subs)
+                outputs, logits = model(kmer, ipd_means, ipd_stds, pw_means, pw_stds)
                 loss = criterion(outputs, labels)
                 tlosses.append(loss.detach().item())
             elif args.model_type in {"resnet18", }:
-                _, _, mats_ccs_mean, mats_ccs_std, mats_subs, labels = sfeatures
+                _, _, mats_ccs_mean, mats_ccs_std, labels = sfeatures
                 if use_cuda:
                     mats_ccs_mean = mats_ccs_mean.cuda()
                     mats_ccs_std = mats_ccs_std.cuda()
-                    mats_subs = mats_subs.cuda()
                     labels = labels.cuda()
                 # Forward pass
-                outputs, logits = model(mats_ccs_mean, mats_ccs_std, mats_subs)
+                outputs, logits = model(mats_ccs_mean, mats_ccs_std)
                 loss = criterion(outputs, labels)
                 tlosses.append(loss.detach().item())
             else:
@@ -158,28 +151,24 @@ def train(args):
                     for vi, vsfeatures in enumerate(valid_loader):
                         if args.model_type in {"bilstm", "attbilstm"}:
                             _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
-                                vipd_subs, vpw_subs, vlabels = vsfeatures
+                                vlabels = vsfeatures
                             if use_cuda:
                                 vkmer = vkmer.cuda()
                                 vipd_means = vipd_means.cuda()
                                 vipd_stds = vipd_stds.cuda()
                                 vpw_means = vpw_means.cuda()
                                 vpw_stds = vpw_stds.cuda()
-                                vipd_subs = vipd_subs.cuda()
-                                vpw_subs = vpw_subs.cuda()
                                 vlabels = vlabels.cuda()
-                            voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds,
-                                                      vipd_subs, vpw_subs)
+                            voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds)
                             vloss = criterion(voutputs, vlabels)
                         elif args.model_type in {"resnet18", }:
-                            _, _, vmats_ccs_mean, vmats_ccs_std, vmats_subs, vlabels = vsfeatures
+                            _, _, vmats_ccs_mean, vmats_ccs_std, vlabels = vsfeatures
                             if use_cuda:
                                 vmats_ccs_mean = vmats_ccs_mean.cuda()
                                 vmats_ccs_std = vmats_ccs_std.cuda()
-                                vmats_subs = vmats_subs.cuda()
                                 vlabels = vlabels.cuda()
                             # Forward pass
-                            voutputs, vlogits = model(vmats_ccs_mean, vmats_ccs_std, vmats_subs)
+                            voutputs, vlogits = model(vmats_ccs_mean, vmats_ccs_std)
                             vloss = criterion(voutputs, vlabels)
                         else:
                             raise ValueError("model_type not right!")
@@ -246,20 +235,12 @@ def main():
                         help="len of kmer. default 21")
 
     # model param
-    parser.add_argument('--is_ccs', type=str, default="yes", required=False,
-                        help="if using features at ccs level, yes or no. default yes.")
     parser.add_argument('--is_stds', type=str, default="yes", required=False,
                         help="if using std features at ccs level, yes or no. default yes.")
-    parser.add_argument('--is_subreads', type=str, default="yes", required=False,
-                        help="if using features at subreads level, yes or no. default yes.")
-    parser.add_argument("--num_subreads", type=int, default=5, required=False,
-                        help="info of num of subreads to be used for training, default 5")
     parser.add_argument('--class_num', type=int, default=2, required=False)
     parser.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
     # BiLSTM model param
-    parser.add_argument('--is_kmer', type=str, default="yes", required=False,
-                        help="if combiniing kmer features at subreads level, yes or no. default yes.")
     parser.add_argument('--layernum', type=int, default=3,
                         required=False, help="lstm layer num, default 3")
     parser.add_argument('--hid_rnn', type=int, default=256, required=False,
@@ -268,18 +249,6 @@ def main():
                         help="base_seq vocab_size (15 base kinds from iupac)")
     parser.add_argument('--n_embed', type=int, default=4, required=False,
                         help="base_seq embedding_size")
-
-    # ResNet model param
-    parser.add_argument('--init_channels', type=int, default=2, required=False,
-                        help="resnet18, input channels")
-
-    # # transformer model param
-    # parser.add_argument('--layernum_trans', type=int, default=6,
-    #                     required=False, help="trans encoder layer num, default 6")
-    # parser.add_argument('--d_model', type=int, default=256, required=False)
-    # parser.add_argument('--hid_trans', type=int, default=1024, required=False,
-    #                     help="transfomer encoder hidden size")
-    # parser.add_argument('--n_head', type=int, default=4, required=False)
 
     # model training
     parser.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD"],
@@ -292,8 +261,8 @@ def main():
                         required=False, help="min epoch num, default 10")
     parser.add_argument('--step_interval', type=int, default=500, required=False)
     parser.add_argument('--pos_weight', type=float, default=1.0, required=False)
-    # parser.add_argument('--seed', type=int, default=1234,
-    #                     help='random seed')
+    parser.add_argument('--seed', type=int, default=1234,
+                        help='random seed')
 
     args = parser.parse_args()
 
