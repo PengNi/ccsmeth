@@ -14,15 +14,15 @@ from utils.constants_torch import use_cuda
 
 
 # BiLSTM ===============================================================
-class ModelBiLSTM(nn.Module):
+class ModelRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
                  vocab_size=16, embedding_size=4,
                  is_stds=True,
-                 rnn="lstm"):
-        super(ModelBiLSTM, self).__init__()
+                 model_type="bilstm"):
+        super(ModelRNN, self).__init__()
 
-        self.model_type = 'BiRNN'
+        self.model_type = model_type
 
         self.seq_len = seq_len
         self.num_layers = num_layers
@@ -33,14 +33,14 @@ class ModelBiLSTM(nn.Module):
 
         self.is_stds = is_stds
         self.feas_ccs = 4 if self.is_stds else 2
-        if rnn == "lstm":
+        if self.model_type == "bilstm":
             self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
-        elif rnn == "gru":
+        elif self.model_type == "bigru":
             self.rnn = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                               dropout=dropout_rate, batch_first=True, bidirectional=True)
         else:
-            raise ValueError("rnn not set right!")
+            raise ValueError("model_type not set right!")
 
         self.dropout1 = nn.Dropout(p=dropout_rate)
         self.fc1 = nn.Linear(self.hidden_size * 2, self.hidden_size)  # 2 for bidirection
@@ -91,14 +91,14 @@ class ModelBiLSTM(nn.Module):
 
 
 # BiLSTM ===============================================================
-class ModelAttBiLSTM(nn.Module):
+class ModelAttRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
                  vocab_size=16, embedding_size=4,
                  is_stds=True,
-                 rnn="lstm"):
-        super(ModelAttBiLSTM, self).__init__()
-        self.model_type = 'AttBiRNN'
+                 model_type="attbilstm"):
+        super(ModelAttRNN, self).__init__()
+        self.model_type = model_type
 
         self.seq_len = seq_len
         self.num_layers = num_layers
@@ -109,14 +109,14 @@ class ModelAttBiLSTM(nn.Module):
 
         self.is_stds = is_stds
         self.feas_ccs = 4 if self.is_stds else 2
-        if rnn == "lstm":
+        if self.model_type == "attbilstm":
             self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
-        elif rnn == "gru":
+        elif self.model_type == "attbigru":
             self.rnn = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                               dropout=dropout_rate, batch_first=True, bidirectional=True)
         else:
-            raise ValueError("rnn not set right!")
+            raise ValueError("model_type not set right!")
 
         # self.dropout1 = nn.Dropout(p=dropout_rate)
         # self.fc1 = nn.Linear(self.hidden_size * 2, self.hidden_size)  # 2 for bidirection
@@ -131,6 +131,11 @@ class ModelAttBiLSTM(nn.Module):
         self._att2_tanh = nn.Tanh()
         self._att2_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
         self._att2_softmax = nn.Softmax(dim=1)
+
+        # for attention_net3
+        self._att3_proj = nn.Linear(self.hidden_size * 2, self.hidden_size * 2)
+        self._att3_tanh = nn.Tanh()
+        self._att3_softmax = nn.Softmax(dim=1)
 
         self.softmax = nn.Softmax(1)
 
@@ -148,11 +153,11 @@ class ModelAttBiLSTM(nn.Module):
 
     # https://github.com/graykode/nlp-tutorial/blob/master/4-3.Bi-LSTM(Attention)/Bi-LSTM(Attention).py
     # https://github.com/zhijing-jin/pytorch_RelationExtraction_AttentionBiLSTM/blob/master/model.py
-    # lstm_output : [batch_size, seq_len, n_hidden * num_directions(=2)], F matrix
     def attention_net(self, rnn_output, final_state):
-        # hidden : [2, batch_size, n_hid]
-        # hidden = final_state.view(-1, self.hidden_size * 2, 1)
-        hidden = final_state.permute(1, 0, 2).reshape(-1, self.hidden_size * 2, 1)
+        # lstm_output : [batch_size, seq_len, n_hidden * num_directions(=2)]
+        # final_state : [2, batch_size, n_hid]
+        hidden = final_state.view(-1, self.hidden_size * 2, 1)
+        # hidden = final_state.permute(1, 0, 2).reshape(-1, self.hidden_size * 2, 1)  # (N, 2 * n_hid, 1)
 
         attn_weights = torch.bmm(rnn_output, hidden).squeeze(2)  # attn_weights : [batch_size, seq_len]
         soft_attn_weights = F.softmax(attn_weights, 1)
@@ -172,6 +177,16 @@ class ModelAttBiLSTM(nn.Module):
         # return torch.mul(rnn_output, w_score)  # (N, L, n_hid * 2)
         return torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, n_hid * 2)
 
+    def attention_net3(self, rnn_output, final_state):
+        # final_state : [2, batch_size, n_hid]
+        hidden = final_state.view(-1, self.hidden_size * 2, 1)
+        # hidden = final_state.permute(1, 0, 2).reshape(-1, self.hidden_size * 2, 1)  # (N, 2 * n_hid, 1)
+
+        # lstm_output : [N, L, n_hid * 2]
+        Hw = self._att3_tanh(self._att3_proj(rnn_output))  # (N, L, n_hid * 2)
+        w_score = self._att3_softmax(Hw.matmul(hidden))  # (N, L, 1)
+        return torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, n_hid * 2)
+
     def forward(self, kmer, ipd_means, ipd_stds, pw_means, pw_stds):
         # kmer, ipd means, ipd_stds, pw_means, pw_stds as features
         kmer_embed = self.embed(kmer.long())
@@ -188,19 +203,24 @@ class ModelAttBiLSTM(nn.Module):
                                                           self.num_layers,
                                                           self.hidden_size))  # (N, L, nhid*2)
 
-        # # attention_net ======
-        # # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
-        # h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
-        # out = self.attention_net(out, h_n)
+        # attention_net ======
+        # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
+        h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
+        out = self.attention_net(out, h_n)
 
-        # attention_net2 ======
-        out = self.attention_net2(out)
+        # # attention_net2 ======
+        # out = self.attention_net2(out)
+
+        # # attention_net3 ======
+        # h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
+        # out = self.attention_net3(out, h_n)
 
         # out = self.dropout1(out)
         # out = self.fc1(out)
         # out = self.relu(out)
         # out = self.dropout2(out)
         # out = self.fc2(out)
+
         out = self.dropout1(out)
         out = self.fc1(out)
 

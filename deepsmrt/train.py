@@ -15,9 +15,9 @@ from dataloader import FeaData
 from dataloader import FeaData2
 from dataloader import clear_linecache
 
-from models import ModelBiLSTM
+from models import ModelRNN
+from models import ModelAttRNN
 from models import ModelResNet18
-from models import ModelAttBiLSTM
 
 from utils.constants_torch import use_cuda
 from utils.process_utils import display_args
@@ -35,7 +35,7 @@ def train(args):
         print("GPU is not available!")
 
     print("reading data..")
-    if args.model_type in {"bilstm", "attbilstm"}:
+    if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
         train_dataset = FeaData(args.train_file)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
@@ -70,17 +70,20 @@ def train(args):
                     os.remove(model_dir + "/" + mfile)
         model_dir += "/"
 
-    if args.model_type == "bilstm":
-        model = ModelBiLSTM(args.seq_len, args.layernum, args.class_num,
+    if args.model_type in {"bilstm", "bigru", }:
+        model = ModelRNN(args.seq_len, args.layernum, args.class_num,
+                         args.dropout_rate, args.hid_rnn,
+                         args.n_vocab, args.n_embed,
+                         is_stds=str2bool(args.is_stds),
+                         model_type=args.model_type)
+    elif args.model_type in {"attbilstm", "attbigru", }:
+        model = ModelAttRNN(args.seq_len, args.layernum, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
-                            is_stds=str2bool(args.is_stds))
+                            is_stds=str2bool(args.is_stds),
+                            model_type=args.model_type)
     elif args.model_type == "resnet18":
         model = ModelResNet18(args.class_num, args.dropout_rate, str2bool(args.is_stds))
-    elif args.model_type == "attbilstm":
-        model = ModelAttBiLSTM(args.seq_len, args.layernum, args.class_num,
-                               args.dropout_rate, args.hid_rnn,
-                               args.n_vocab, args.n_embed)
     else:
         raise ValueError("model_type not right!")
 
@@ -106,13 +109,16 @@ def train(args):
     total_step = len(train_loader)
     print("total_step: {}".format(total_step))
     curr_best_accuracy = 0
+    curr_lowest_loss = 99999999
+    epoch_best_acc, epoch_lowest_loss = 0, 0
     model.train()
     for epoch in range(args.max_epoch_num):
-        curr_best_accuracy_epoch = 0
+        curr_epoch_acc = 0
+        curr_epoch_loss = 99999999
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"bilstm", "attbilstm"}:
+            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
                 _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, labels = sfeatures
                 if use_cuda:
                     kmer = kmer.cuda()
@@ -143,75 +149,78 @@ def train(args):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
+        # use validation set to decide if saveing model after each epoch
+        model.eval()
+        with torch.no_grad():
+            vlosses, vaccus, vprecs, vrecas = [], [], [], []
+            for vi, vsfeatures in enumerate(valid_loader):
+                if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+                    _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
+                        vlabels = vsfeatures
+                    if use_cuda:
+                        vkmer = vkmer.cuda()
+                        vipd_means = vipd_means.cuda()
+                        vipd_stds = vipd_stds.cuda()
+                        vpw_means = vpw_means.cuda()
+                        vpw_stds = vpw_stds.cuda()
+                        vlabels = vlabels.cuda()
+                    voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds)
+                    vloss = criterion(voutputs, vlabels)
+                elif args.model_type in {"resnet18", }:
+                    _, _, vmats_ccs_mean, vmats_ccs_std, vlabels = vsfeatures
+                    if use_cuda:
+                        vmats_ccs_mean = vmats_ccs_mean.cuda()
+                        vmats_ccs_std = vmats_ccs_std.cuda()
+                        vlabels = vlabels.cuda()
+                    # Forward pass
+                    voutputs, vlogits = model(vmats_ccs_mean, vmats_ccs_std)
+                    vloss = criterion(voutputs, vlabels)
+                else:
+                    raise ValueError("model_type not right!")
 
-            if (i + 1) % args.step_interval == 0:
-                model.eval()
-                with torch.no_grad():
-                    vlosses, vaccus, vprecs, vrecas = [], [], [], []
-                    for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"bilstm", "attbilstm"}:
-                            _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
-                                vlabels = vsfeatures
-                            if use_cuda:
-                                vkmer = vkmer.cuda()
-                                vipd_means = vipd_means.cuda()
-                                vipd_stds = vipd_stds.cuda()
-                                vpw_means = vpw_means.cuda()
-                                vpw_stds = vpw_stds.cuda()
-                                vlabels = vlabels.cuda()
-                            voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds)
-                            vloss = criterion(voutputs, vlabels)
-                        elif args.model_type in {"resnet18", }:
-                            _, _, vmats_ccs_mean, vmats_ccs_std, vlabels = vsfeatures
-                            if use_cuda:
-                                vmats_ccs_mean = vmats_ccs_mean.cuda()
-                                vmats_ccs_std = vmats_ccs_std.cuda()
-                                vlabels = vlabels.cuda()
-                            # Forward pass
-                            voutputs, vlogits = model(vmats_ccs_mean, vmats_ccs_std)
-                            vloss = criterion(voutputs, vlabels)
-                        else:
-                            raise ValueError("model_type not right!")
+                _, vpredicted = torch.max(vlogits.data, 1)
 
-                        _, vpredicted = torch.max(vlogits.data, 1)
+                if use_cuda:
+                    vlabels = vlabels.cpu()
+                    vpredicted = vpredicted.cpu()
+                i_accuracy = metrics.accuracy_score(vlabels.numpy(), vpredicted)
+                i_precision = metrics.precision_score(vlabels.numpy(), vpredicted)
+                i_recall = metrics.recall_score(vlabels.numpy(), vpredicted)
 
-                        if use_cuda:
-                            vlabels = vlabels.cpu()
-                            vpredicted = vpredicted.cpu()
-                        i_accuracy = metrics.accuracy_score(vlabels.numpy(), vpredicted)
-                        i_precision = metrics.precision_score(vlabels.numpy(), vpredicted)
-                        i_recall = metrics.recall_score(vlabels.numpy(), vpredicted)
+                vaccus.append(i_accuracy)
+                vprecs.append(i_precision)
+                vrecas.append(i_recall)
+                vlosses.append(vloss.item())
 
-                        vaccus.append(i_accuracy)
-                        vprecs.append(i_precision)
-                        vrecas.append(i_recall)
-                        vlosses.append(vloss.item())
-
-                    if np.mean(vaccus) > curr_best_accuracy_epoch:
-                        curr_best_accuracy_epoch = np.mean(vaccus)
-                        if curr_best_accuracy_epoch > curr_best_accuracy - 0.001:
-                            torch.save(model.state_dict(),
-                                       model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
-                                                                                                epoch))
-
-                    time_cost = time.time() - start
-                    print('Epoch [{}/{}], Step [{}/{}], TrainLoss: {:.4f}; '
-                          'ValidLoss: {:.4f}, '
-                          'Accuracy: {:.4f}, Precision: {:.4f}, Recall: {:.4f}, '
-                          'curr_epoch_best_accuracy: {:.4f}; Time: {:.2f}s'
-                          .format(epoch + 1, args.max_epoch_num, i + 1, total_step, np.mean(tlosses),
-                                  np.mean(vlosses), np.mean(vaccus), np.mean(vprecs), np.mean(vrecas),
-                                  curr_best_accuracy_epoch, time_cost))
-                    tlosses = []
-                    start = time.time()
-                    sys.stdout.flush()
-                model.train()
+            curr_epoch_acc = np.mean(vaccus)
+            curr_epoch_loss = np.mean(vlosses)
+            if curr_epoch_loss < curr_lowest_loss + 0.00005:
+                torch.save(model.state_dict(),
+                           model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
+                                                                                    epoch+1))
+            time_cost = time.time() - start
+            print('Epoch [{}/{}], BatchSize (BatchNum): {} ({}), '
+                  'TrainLoss: {:.4f}; ValidLoss: {:.4f}, '
+                  'Accuracy: {:.4f}, Precision: {:.4f}, Recall: {:.4f}, '
+                  'curr_best_accuracy: {:.4f}; Time: {:.2f}s'
+                  .format(epoch + 1, args.max_epoch_num, args.batch_size, total_step,
+                          np.mean(tlosses), curr_epoch_loss,
+                          curr_epoch_acc, np.mean(vprecs), np.mean(vrecas),
+                          curr_best_accuracy, time_cost))
+            sys.stdout.flush()
+        model.train()
         scheduler.step()
-        if curr_best_accuracy_epoch > curr_best_accuracy:
-            curr_best_accuracy = curr_best_accuracy_epoch
+        if curr_epoch_acc > curr_best_accuracy:
+            curr_best_accuracy = curr_epoch_acc
+            epoch_best_acc = epoch + 1
+        if curr_epoch_loss < curr_lowest_loss:
+            curr_lowest_loss = curr_epoch_loss
+            epoch_lowest_loss = epoch + 1
         else:
             if epoch >= args.min_epoch_num - 1:
-                print("best accuracy: {}, early stop!".format(curr_best_accuracy))
+                print("lowest loss (epoch): {} ({}); best accuracy (epoch): {} ({}), "
+                      "early stop!".format(curr_lowest_loss, epoch_lowest_loss,
+                                           curr_best_accuracy, epoch_best_acc))
                 break
 
     endtime = time.time()
@@ -226,11 +235,12 @@ def main():
     parser.add_argument('--model_dir', type=str, required=True)
 
     # model input
-    parser.add_argument('--model_type', type=str, default="bilstm",
-                        choices=["bilstm", "resnet18", "attbilstm"],
+    parser.add_argument('--model_type', type=str, default="attbilstm",
+                        choices=["attbilstm", "attbigru", "bilstm", "bigru",
+                                 "resnet18"],
                         required=False,
-                        help="type of model to use, 'bilstm', 'resnet18',"
-                             " 'attbilstm', default: bilstm")
+                        help="type of model to use, 'attbilstm', 'attbigru', "
+                             "'bilstm', 'bigru', 'resnet18', default: attbilstm")
     parser.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
 
@@ -257,8 +267,8 @@ def main():
     parser.add_argument('--lr', type=float, default=0.001, required=False)
     parser.add_argument("--max_epoch_num", action="store", default=50, type=int,
                         required=False, help="max epoch num, default 50")
-    parser.add_argument("--min_epoch_num", action="store", default=10, type=int,
-                        required=False, help="min epoch num, default 10")
+    parser.add_argument("--min_epoch_num", action="store", default=20, type=int,
+                        required=False, help="min epoch num, default 20")
     parser.add_argument('--step_interval', type=int, default=500, required=False)
     parser.add_argument('--pos_weight', type=float, default=1.0, required=False)
     parser.add_argument('--seed', type=int, default=1234,

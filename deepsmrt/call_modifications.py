@@ -24,9 +24,9 @@ from torch.multiprocessing import Queue
 import time
 import random
 
-from models import ModelBiLSTM
+from models import ModelRNN
+from models import ModelAttRNN
 from models import ModelResNet18
-from models import ModelAttBiLSTM
 
 from utils.process_utils import base2code_dna
 from utils.process_utils import code2base_dna
@@ -42,7 +42,7 @@ queen_size_border_f5batch = 100
 time_wait = 3
 
 
-def _read_features_file(features_file, features_batch_q, batch_num=512, max_subreads=5):
+def _read_features_file(features_file, features_batch_q, batch_num=512):
     print("read_features process-{} starts".format(os.getpid()))
     b_num = 0
     with open(features_file, "r") as rf:
@@ -85,7 +85,7 @@ def _read_features_file(features_file, features_batch_q, batch_num=512, max_subr
     print("read_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
-def _read_features_file2(features_file, features_batch_q, batch_num=512, max_subreads=5):
+def _read_features_file2(features_file, features_batch_q, batch_num=512):
     print("read_features process-{} starts".format(os.getpid()))
     b_num = 0
     with open(features_file, "r") as rf:
@@ -241,21 +241,21 @@ def _call_mods2(features_batch, model, batch_size):
 
 def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
     print('call_mods process-{} starts'.format(os.getpid()))
-    if args.model_type == "bilstm":
-        model = ModelBiLSTM(args.seq_len, args.layernum, args.class_num,
+    if args.model_type in {"bilstm", "bigru", }:
+        model = ModelRNN(args.seq_len, args.layernum, args.class_num,
+                         args.dropout_rate, args.hid_rnn,
+                         args.n_vocab, args.n_embed,
+                         is_stds=str2bool(args.is_stds),
+                         model_type=args.model_type)
+    elif args.model_type in {"attbilstm", "attbigru", }:
+        model = ModelAttRNN(args.seq_len, args.layernum, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
-                            args.num_subreads,
-                            is_ccs=str2bool(args.is_ccs), is_stds=str2bool(args.is_stds),
-                            is_subreads=str2bool(args.is_subreads),
-                            is_kmer=str2bool(args.is_kmer))
+                            is_stds=str2bool(args.is_stds),
+                            model_type=args.model_type)
     elif args.model_type == "resnet18":
         model = ModelResNet18(args.class_num, args.dropout_rate, args.num_subreads,
                               str2bool(args.is_ccs), str2bool(args.is_stds), str2bool(args.is_subreads))
-    elif args.model_type == "attbilstm":
-        model = ModelAttBiLSTM(args.seq_len, args.layernum, args.class_num,
-                               args.dropout_rate, args.hid_rnn,
-                               args.n_vocab, args.n_embed)
     else:
         raise ValueError("model_type not right!")
 
@@ -284,7 +284,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
             features_batch_q.put("kill")
             break
 
-        if args.model_type in {"bilstm", "attbilstm"}:
+        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
             pred_str, accuracy, batch_num = _call_mods(features_batch, model, args.batch_size)
         elif args.model_type in {"resnet18", }:
             pred_str, accuracy, batch_num = _call_mods2(features_batch, model, args.batch_size)
@@ -334,7 +334,7 @@ def call_mods(args):
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()
-        if args.model_type in {"bilstm", "attbilstm"}:
+        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
             p_rf = mp.Process(target=_read_features_file, args=(input_path, features_batch_q,
                                                                 args.batch_size, args.num_subreads))
         elif args.model_type in {"resnet18", }:
@@ -403,23 +403,18 @@ def main():
                         help="file path of the trained model (.ckpt)")
 
     # model input
-    p_call.add_argument('--model_type', type=str, default="bilstm",
-                        choices=["bilstm", "resnet18", "attbilstm"],
+    p_call.add_argument('--model_type', type=str, default="attbilstm",
+                        choices=["attbilstm", "attbigru", "bilstm", "bigru",
+                                 "resnet18"],
                         required=False,
-                        help="type of model to use, 'bilstm', 'resnet18',"
-                             " 'attbilstm', default: bilstm")
+                        help="type of model to use, 'attbilstm', 'attbigru', "
+                             "'bilstm', 'bigru', 'resnet18', default: attbilstm")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
 
     # model param
-    p_call.add_argument('--is_ccs', type=str, default="yes", required=False,
-                        help="if using features at ccs level, yes or no. default yes.")
     p_call.add_argument('--is_stds', type=str, default="yes", required=False,
                         help="if using std features at ccs level, yes or no. default yes.")
-    p_call.add_argument('--is_subreads', type=str, default="yes", required=False,
-                        help="if using features at subreads level, yes or no. default yes.")
-    p_call.add_argument("--num_subreads", type=int, default=5, required=False,
-                        help="info of num of subreads to be used for training, default 5")
     p_call.add_argument('--class_num', type=int, default=2, required=False)
     p_call.add_argument('--dropout_rate', type=float, default=0, required=False)
 
@@ -427,8 +422,6 @@ def main():
                         action="store", help="batch size, default 512")
 
     # BiLSTM model param
-    p_call.add_argument('--is_kmer', type=str, default="yes", required=False,
-                        help="if combiniing kmer features at subreads level, yes or no. default yes.")
     p_call.add_argument('--layernum', type=int, default=3,
                         required=False, help="lstm layer num, default 3")
     p_call.add_argument('--hid_rnn', type=int, default=256, required=False,
@@ -437,18 +430,6 @@ def main():
                         help="base_seq vocab_size (15 base kinds from iupac)")
     p_call.add_argument('--n_embed', type=int, default=4, required=False,
                         help="base_seq embedding_size")
-
-    # ResNet model param
-    p_call.add_argument('--init_channels', type=int, default=2, required=False,
-                        help="")
-
-    # # transformer model param
-    # p_call.add_argument('--layernum_trans', type=int, default=6,
-    #                     required=False, help="trans encoder layer num, default 6")
-    # p_call.add_argument('--d_model', type=int, default=256, required=False)
-    # p_call.add_argument('--hid_trans', type=int, default=1024, required=False,
-    #                     help="transfomer encoder hidden size")
-    # p_call.add_argument('--n_head', type=int, default=4, required=False)
 
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--result_file", "-o", action="store", type=str, required=True,
