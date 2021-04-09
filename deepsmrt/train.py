@@ -194,12 +194,11 @@ def train(args):
 
             curr_epoch_acc = np.mean(vaccus)
             curr_epoch_loss = np.mean(vlosses)
-            if curr_epoch_loss < curr_lowest_loss + 0.00005:
-                torch.save(model.state_dict(),
-                           model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
-                                                                                    epoch+1))
+            if curr_epoch_acc > curr_best_accuracy:
+                curr_best_accuracy = curr_epoch_acc
+                epoch_best_acc = epoch + 1
             time_cost = time.time() - start
-            print('Epoch [{}/{}], BatchSize (BatchNum): {} ({}), '
+            print('Epoch [{}/{}], BatchSize/BatchNum: {}/{}, '
                   'TrainLoss: {:.4f}; ValidLoss: {:.4f}, '
                   'Accuracy: {:.4f}, Precision: {:.4f}, Recall: {:.4f}, '
                   'curr_best_accuracy: {:.4f}; Time: {:.2f}s'
@@ -208,20 +207,27 @@ def train(args):
                           curr_epoch_acc, np.mean(vprecs), np.mean(vrecas),
                           curr_best_accuracy, time_cost))
             sys.stdout.flush()
+
+            # early stopping by loss
+            if curr_epoch_loss < curr_lowest_loss:
+                curr_lowest_loss = curr_epoch_loss
+                epoch_lowest_loss = epoch + 1
+                torch.save(model.state_dict(),
+                           model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
+                                                                                    epoch + 1))
+            else:
+                if curr_epoch_loss < curr_lowest_loss + 0.0005:  # save model too if loss is in lowest_loss+/-0.0005
+                    torch.save(model.state_dict(),
+                               model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
+                                                                                        epoch + 1))
+                if epoch >= args.min_epoch_num - 1:
+                    print("lowest loss (epoch): {} ({}); best accuracy (epoch): {} ({}), "
+                          "early stop!".format(curr_lowest_loss, epoch_lowest_loss,
+                                               curr_best_accuracy, epoch_best_acc))
+                    break
+
         model.train()
         scheduler.step()
-        if curr_epoch_acc > curr_best_accuracy:
-            curr_best_accuracy = curr_epoch_acc
-            epoch_best_acc = epoch + 1
-        if curr_epoch_loss < curr_lowest_loss:
-            curr_lowest_loss = curr_epoch_loss
-            epoch_lowest_loss = epoch + 1
-        else:
-            if epoch >= args.min_epoch_num - 1:
-                print("lowest loss (epoch): {} ({}); best accuracy (epoch): {} ({}), "
-                      "early stop!".format(curr_lowest_loss, epoch_lowest_loss,
-                                           curr_best_accuracy, epoch_best_acc))
-                break
 
     endtime = time.time()
     clear_linecache()
@@ -250,11 +256,11 @@ def main():
     parser.add_argument('--class_num', type=int, default=2, required=False)
     parser.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
-    # BiLSTM model param
+    # BiRNN model param
     parser.add_argument('--layernum', type=int, default=3,
-                        required=False, help="lstm layer num, default 3")
+                        required=False, help="BiRNN layer num, default 3")
     parser.add_argument('--hid_rnn', type=int, default=256, required=False,
-                        help="BiLSTM hidden_size for combined feature")
+                        help="BiRNN hidden_size for combined feature")
     parser.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
     parser.add_argument('--n_embed', type=int, default=4, required=False,
