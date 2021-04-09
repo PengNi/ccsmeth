@@ -107,14 +107,14 @@ def train(args):
 
     # Train the model
     total_step = len(train_loader)
-    print("total_step: {}".format(total_step))
+    # print("total_step: {}".format(total_step))
     curr_best_accuracy = 0
     curr_lowest_loss = 99999999
     epoch_best_acc, epoch_lowest_loss = 0, 0
-    model.train()
     for epoch in range(args.max_epoch_num):
-        curr_epoch_acc = 0
-        curr_epoch_loss = 99999999
+        model.train()
+        # curr_epoch_acc = 0
+        # curr_epoch_loss = 99999999
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
@@ -149,6 +149,8 @@ def train(args):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
+        scheduler.step()
+
         # use validation set to decide if saveing model after each epoch
         model.eval()
         with torch.no_grad():
@@ -221,13 +223,10 @@ def train(args):
                                model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
                                                                                         epoch + 1))
                 if epoch >= args.min_epoch_num - 1:
-                    print("lowest loss (epoch): {} ({}); best accuracy (epoch): {} ({}), "
+                    print("lowest loss (epoch): {:.4f} ({}); best accuracy (epoch): {:.4f} ({}), "
                           "early stop!".format(curr_lowest_loss, epoch_lowest_loss,
                                                curr_best_accuracy, epoch_best_acc))
                     break
-
-        model.train()
-        scheduler.step()
 
     endtime = time.time()
     clear_linecache()
@@ -275,7 +274,6 @@ def main():
                         required=False, help="max epoch num, default 50")
     parser.add_argument("--min_epoch_num", action="store", default=20, type=int,
                         required=False, help="min epoch num, default 20")
-    parser.add_argument('--step_interval', type=int, default=500, required=False)
     parser.add_argument('--pos_weight', type=float, default=1.0, required=False)
     parser.add_argument('--seed', type=int, default=1234,
                         help='random seed')

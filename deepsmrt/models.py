@@ -40,11 +40,13 @@ class ModelRNN(nn.Module):
         else:
             raise ValueError("model_type not set right!")
 
+        # self.dropout1 = nn.Dropout(p=dropout_rate)
+        # self.fc1 = nn.Linear(self.hidden_size * 2, self.hidden_size)  # 2 for bidirection
+        # self.relu = nn.ReLU()
+        # self.dropout2 = nn.Dropout(p=dropout_rate)
+        # self.fc2 = nn.Linear(self.hidden_size, self.num_classes)
         self.dropout1 = nn.Dropout(p=dropout_rate)
-        self.fc1 = nn.Linear(self.hidden_size * 2, self.hidden_size)  # 2 for bidirection
-        self.relu = nn.ReLU()
-        self.dropout2 = nn.Dropout(p=dropout_rate)
-        self.fc2 = nn.Linear(self.hidden_size, self.num_classes)
+        self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
 
         self.softmax = nn.Softmax(1)
 
@@ -79,11 +81,13 @@ class ModelRNN(nn.Module):
         out1_bwd_last = out1[:, 0, self.hidden_size:]
         out = torch.cat((out1_fwd_last, out1_bwd_last), 1)
 
+        # out = self.dropout1(out)
+        # out = self.fc1(out)
+        # out = self.relu(out)
+        # out = self.dropout2(out)
+        # out = self.fc2(out)
         out = self.dropout1(out)
         out = self.fc1(out)
-        out = self.relu(out)
-        out = self.dropout2(out)
-        out = self.fc2(out)
 
         return out, self.softmax(out)
 
@@ -124,6 +128,11 @@ class ModelAttRNN(nn.Module):
         self.dropout1 = nn.Dropout(p=dropout_rate)
         self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
 
+        # attention_net
+        self._att1_tanh = nn.Tanh()
+        self._att1_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
+        self._att1_softmax = nn.Softmax(dim=1)
+
         # attention_net2
         self._att2_proj = nn.Linear(self.hidden_size * 2, self.hidden_size * 2)
         self._att2_tanh = nn.Tanh()
@@ -144,15 +153,27 @@ class ModelAttRNN(nn.Module):
             c0 = c0.cuda()
         return h0, c0
 
+    # https://github.com/graykode/nlp-tutorial/blob/master/4-3.Bi-LSTM(Attention)/Bi-LSTM(Attention).py
+    # https://github.com/zhijing-jin/pytorch_RelationExtraction_AttentionBiLSTM/blob/master/model.py
+    # Attention-Based Bidirectional Long Short-Term Memory Networks for Relation Classification
+    def attention_net(self, rnn_output):
+        # rnn_output: (N, L, C * 2)
+        attn_weights = self._att1_tanh(rnn_output)
+        attn_weights = attn_weights.matmul(self._att1_context_vector)  # (N, L, 1)
+        soft_attn_weights = self._att1_softmax(attn_weights)  # (N, L, 1)
+        attout = torch.bmm(rnn_output.transpose(1, 2), soft_attn_weights).squeeze(2)
+        return attout  # (N, C * 2)
+
     # https://www.dazhuanlan.com/2019/12/16/5df6a2a0b9dde/
     # https://github.com/Cheneng/HiararchicalAttentionGRU/blob/master/model/HiararchicalATT.py
     # https://github.com/uvipen/Hierarchical-attention-networks-pytorch/blob/master/src/word_att_model.py
     def attention_net2(self, rnn_output):
-        # lstm_output : [N, L, n_hid * 2]
-        Hw = self._att2_tanh(self._att2_proj(rnn_output))  # (N, L, n_hid * 2)
+        # lstm_output: (N, L, C * 2)
+        Hw = self._att2_tanh(self._att2_proj(rnn_output))  # (N, L, C * 2)
         w_score = self._att2_softmax(Hw.matmul(self._att2_context_vector))  # (N, L, 1)
-        # return torch.mul(rnn_output, w_score)  # (N, L, n_hid * 2)
-        return torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, n_hid * 2)
+        # attout = torch.mul(rnn_output, w_score)  # (N, L, n_hid * 2)
+        attout = torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, C * 2)
+        return attout
 
     def forward(self, kmer, ipd_means, ipd_stds, pw_means, pw_stds):
         # kmer, ipd means, ipd_stds, pw_means, pw_stds as features
@@ -170,8 +191,14 @@ class ModelAttRNN(nn.Module):
                                                           self.num_layers,
                                                           self.hidden_size))  # (N, L, nhid*2)
 
-        # attention_net2 ======
-        out = self.attention_net2(out)
+        # attention_net ======
+        # # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
+        # h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
+        # out = self.attention_net(out, h_n)
+        out = self.attention_net(out)
+
+        # # attention_net2 ======
+        # out = self.attention_net2(out)
 
         # out = self.dropout1(out)
         # out = self.fc1(out)
@@ -436,10 +463,13 @@ class ModelResNet18(nn.Module):
         self.resnet18_ccs = resnet18(init_channels=channels_ccs, num_classes=self.num_classses,
                                      dropout_rate=dropout_rate)
 
+        self.dropout1 = nn.Dropout(p=dropout_rate)
+
         self.fc1 = nn.Linear(512 * BasicBlock.expansion, 512)
         self.relu = nn.ReLU()
-        self.dropout1 = nn.Dropout(p=dropout_rate)
+        self.dropout2 = nn.Dropout(p=dropout_rate)
         self.fc2 = nn.Linear(512, self.num_classses)
+        # self.fc1 = nn.Linear(512 * BasicBlock.expansion, self.num_classses)
 
         self.softmax = nn.Softmax(1)
 
@@ -448,11 +478,12 @@ class ModelResNet18(nn.Module):
             out1 = torch.cat((mat_ccs_mean, mat_ccs_std), 1).float()  # (N, C=4, H, W)
         else:
             out1 = mat_ccs_mean.float()  # (N, C=2, H, W)
-        out = self.resnet18_ccs(out1)
+        out = self.resnet18_ccs(out1)  # (N, 512*expansion)
 
+        out = self.dropout1(out)
         out = self.fc1(out)
         out = self.relu(out)
-        out = self.dropout1(out)
+        out = self.dropout2(out)
         out = self.fc2(out)
 
         return out, self.softmax(out)

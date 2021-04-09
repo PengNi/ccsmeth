@@ -254,8 +254,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
     elif args.model_type == "resnet18":
-        model = ModelResNet18(args.class_num, args.dropout_rate, args.num_subreads,
-                              str2bool(args.is_ccs), str2bool(args.is_stds), str2bool(args.is_subreads))
+        model = ModelResNet18(args.class_num, args.dropout_rate, str2bool(args.is_stds))
     else:
         raise ValueError("model_type not right!")
 
@@ -336,7 +335,7 @@ def call_mods(args):
         features_batch_q = Queue()
         if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
             p_rf = mp.Process(target=_read_features_file, args=(input_path, features_batch_q,
-                                                                args.batch_size, args.num_subreads))
+                                                                args.batch_size))
         elif args.model_type in {"resnet18", }:
             p_rf = mp.Process(target=_read_features_file2, args=(input_path, features_batch_q,
                                                                  args.batch_size))
