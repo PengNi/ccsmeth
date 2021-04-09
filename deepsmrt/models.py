@@ -10,10 +10,8 @@ import torch.nn.functional as F
 
 from utils.constants_torch import use_cuda
 
-# import math
 
-
-# BiLSTM ===============================================================
+# BiRNN ===============================================================
 class ModelRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
@@ -90,7 +88,7 @@ class ModelRNN(nn.Module):
         return out, self.softmax(out)
 
 
-# BiLSTM ===============================================================
+# AttBiRNN ===============================================================
 class ModelAttRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
@@ -126,16 +124,11 @@ class ModelAttRNN(nn.Module):
         self.dropout1 = nn.Dropout(p=dropout_rate)
         self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
 
-        # for attention_net2
+        # attention_net2
         self._att2_proj = nn.Linear(self.hidden_size * 2, self.hidden_size * 2)
         self._att2_tanh = nn.Tanh()
         self._att2_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
         self._att2_softmax = nn.Softmax(dim=1)
-
-        # for attention_net3
-        self._att3_proj = nn.Linear(self.hidden_size * 2, self.hidden_size * 2)
-        self._att3_tanh = nn.Tanh()
-        self._att3_softmax = nn.Softmax(dim=1)
 
         self.softmax = nn.Softmax(1)
 
@@ -151,22 +144,6 @@ class ModelAttRNN(nn.Module):
             c0 = c0.cuda()
         return h0, c0
 
-    # https://github.com/graykode/nlp-tutorial/blob/master/4-3.Bi-LSTM(Attention)/Bi-LSTM(Attention).py
-    # https://github.com/zhijing-jin/pytorch_RelationExtraction_AttentionBiLSTM/blob/master/model.py
-    def attention_net(self, rnn_output, final_state):
-        # lstm_output : [batch_size, seq_len, n_hidden * num_directions(=2)]
-        # final_state : [2, batch_size, n_hid]
-        hidden = final_state.view(-1, self.hidden_size * 2, 1)
-        # hidden = final_state.permute(1, 0, 2).reshape(-1, self.hidden_size * 2, 1)  # (N, 2 * n_hid, 1)
-
-        attn_weights = torch.bmm(rnn_output, hidden).squeeze(2)  # attn_weights : [batch_size, seq_len]
-        soft_attn_weights = F.softmax(attn_weights, 1)
-        # [batch_size, n_hidden * num_directions(=2), seq_len] * [batch_size, seq_len] =
-        # [batch_size, n_hidden * num_directions(=2), 1]
-        attout = torch.bmm(rnn_output.transpose(1, 2), soft_attn_weights.unsqueeze(2)).squeeze(2)
-        # attout: [batch_size, n_hidden * num_directions(=2)]
-        return attout
-
     # https://www.dazhuanlan.com/2019/12/16/5df6a2a0b9dde/
     # https://github.com/Cheneng/HiararchicalAttentionGRU/blob/master/model/HiararchicalATT.py
     # https://github.com/uvipen/Hierarchical-attention-networks-pytorch/blob/master/src/word_att_model.py
@@ -175,16 +152,6 @@ class ModelAttRNN(nn.Module):
         Hw = self._att2_tanh(self._att2_proj(rnn_output))  # (N, L, n_hid * 2)
         w_score = self._att2_softmax(Hw.matmul(self._att2_context_vector))  # (N, L, 1)
         # return torch.mul(rnn_output, w_score)  # (N, L, n_hid * 2)
-        return torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, n_hid * 2)
-
-    def attention_net3(self, rnn_output, final_state):
-        # final_state : [2, batch_size, n_hid]
-        hidden = final_state.view(-1, self.hidden_size * 2, 1)
-        # hidden = final_state.permute(1, 0, 2).reshape(-1, self.hidden_size * 2, 1)  # (N, 2 * n_hid, 1)
-
-        # lstm_output : [N, L, n_hid * 2]
-        Hw = self._att3_tanh(self._att3_proj(rnn_output))  # (N, L, n_hid * 2)
-        w_score = self._att3_softmax(Hw.matmul(hidden))  # (N, L, 1)
         return torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, n_hid * 2)
 
     def forward(self, kmer, ipd_means, ipd_stds, pw_means, pw_stds):
@@ -203,24 +170,14 @@ class ModelAttRNN(nn.Module):
                                                           self.num_layers,
                                                           self.hidden_size))  # (N, L, nhid*2)
 
-        # attention_net ======
-        # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
-        h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
-        out = self.attention_net(out, h_n)
-
-        # # attention_net2 ======
-        # out = self.attention_net2(out)
-
-        # # attention_net3 ======
-        # h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
-        # out = self.attention_net3(out, h_n)
+        # attention_net2 ======
+        out = self.attention_net2(out)
 
         # out = self.dropout1(out)
         # out = self.fc1(out)
         # out = self.relu(out)
         # out = self.dropout2(out)
         # out = self.fc2(out)
-
         out = self.dropout1(out)
         out = self.fc1(out)
 
