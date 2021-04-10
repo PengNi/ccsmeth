@@ -22,7 +22,7 @@ except RuntimeError:
 # from utils.process_utils import Queue
 from torch.multiprocessing import Queue
 import time
-import random
+# import random
 
 from models import ModelRNN
 from models import ModelAttRNN

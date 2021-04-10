@@ -2,7 +2,7 @@ from torch.utils.data import Dataset
 import linecache
 import os
 import numpy as np
-import random
+# import random
 
 from utils.process_utils import base2code_dna
 
