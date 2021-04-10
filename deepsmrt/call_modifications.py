@@ -242,13 +242,13 @@ def _call_mods2(features_batch, model, batch_size):
 def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
     print('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"bilstm", "bigru", }:
-        model = ModelRNN(args.seq_len, args.layernum, args.class_num,
+        model = ModelRNN(args.seq_len, args.layer_num, args.class_num,
                          args.dropout_rate, args.hid_rnn,
                          args.n_vocab, args.n_embed,
                          is_stds=str2bool(args.is_stds),
                          model_type=args.model_type)
     elif args.model_type in {"attbilstm", "attbigru", }:
-        model = ModelAttRNN(args.seq_len, args.layernum, args.class_num,
+        model = ModelAttRNN(args.seq_len, args.layer_num, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
@@ -402,12 +402,12 @@ def main():
                         help="file path of the trained model (.ckpt)")
 
     # model input
-    p_call.add_argument('--model_type', type=str, default="attbilstm",
+    p_call.add_argument('--model_type', type=str, default="attbigru",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
                                  "resnet18"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
-                             "'bilstm', 'bigru', 'resnet18', default: attbilstm")
+                             "'bilstm', 'bigru', 'resnet18', default: attbigru")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
 
@@ -421,10 +421,10 @@ def main():
                         action="store", help="batch size, default 512")
 
     # BiLSTM model param
-    p_call.add_argument('--layernum', type=int, default=3,
+    p_call.add_argument('--layer_num', type=int, default=3,
                         required=False, help="lstm layer num, default 3")
     p_call.add_argument('--hid_rnn', type=int, default=256, required=False,
-                        help="BiLSTM hidden_size for combined feature")
+                        help="BiRNN hidden_size for combined feature")
     p_call.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
     p_call.add_argument('--n_embed', type=int, default=4, required=False,

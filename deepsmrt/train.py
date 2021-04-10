@@ -71,13 +71,13 @@ def train(args):
         model_dir += "/"
 
     if args.model_type in {"bilstm", "bigru", }:
-        model = ModelRNN(args.seq_len, args.layernum, args.class_num,
+        model = ModelRNN(args.seq_len, args.layer_num, args.class_num,
                          args.dropout_rate, args.hid_rnn,
                          args.n_vocab, args.n_embed,
                          is_stds=str2bool(args.is_stds),
                          model_type=args.model_type)
     elif args.model_type in {"attbilstm", "attbigru", }:
-        model = ModelAttRNN(args.seq_len, args.layernum, args.class_num,
+        model = ModelAttRNN(args.seq_len, args.layer_num, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
@@ -240,12 +240,12 @@ def main():
     parser.add_argument('--model_dir', type=str, required=True)
 
     # model input
-    parser.add_argument('--model_type', type=str, default="attbilstm",
+    parser.add_argument('--model_type', type=str, default="attbigru",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
                                  "resnet18"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
-                             "'bilstm', 'bigru', 'resnet18', default: attbilstm")
+                             "'bilstm', 'bigru', 'resnet18', default: attbigru")
     parser.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
 
@@ -256,7 +256,7 @@ def main():
     parser.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
     # BiRNN model param
-    parser.add_argument('--layernum', type=int, default=3,
+    parser.add_argument('--layer_num', type=int, default=3,
                         required=False, help="BiRNN layer num, default 3")
     parser.add_argument('--hid_rnn', type=int, default=256, required=False,
                         help="BiRNN hidden_size for combined feature")

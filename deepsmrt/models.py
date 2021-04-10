@@ -32,9 +32,11 @@ class ModelRNN(nn.Module):
         self.is_stds = is_stds
         self.feas_ccs = 4 if self.is_stds else 2
         if self.model_type == "bilstm":
+            self.rnn_cell = "lstm"
             self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
         elif self.model_type == "bigru":
+            self.rnn_cell = "gru"
             self.rnn = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                               dropout=dropout_rate, batch_first=True, bidirectional=True)
         else:
@@ -56,11 +58,14 @@ class ModelRNN(nn.Module):
     def init_hidden(self, batch_size, num_layers, hidden_size):
         # Set initial states
         h0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
-        c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
         if use_cuda:
             h0 = h0.cuda()
-            c0 = c0.cuda()
-        return h0, c0
+        if self.rnn == "lstm":
+            c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+            if use_cuda:
+                c0 = c0.cuda()
+            return h0, c0
+        return h0
 
     def forward(self, kmer, ipd_means, ipd_stds, pw_means, pw_stds):
         # kmer, ipd means, ipd_stds, pw_means, pw_stds as features
@@ -73,9 +78,11 @@ class ModelRNN(nn.Module):
             out1 = torch.cat((kmer_embed, ipd_means, ipd_stds, pw_means, pw_stds), 2)  # (N, L, C)
         else:
             out1 = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
-        out1, _ = self.rnn(out1, self.init_hidden(out1.size(0),
-                                                  self.num_layers,
-                                                  self.hidden_size))  # (N, L, nhid*2)
+
+        out, _ = self.rnn(out1, self.init_hidden(out1.size(0),
+                                                 self.num_layers,
+                                                 self.hidden_size))  # (N, L, nhid*2)
+
         # decode
         out1_fwd_last = out1[:, -1, :self.hidden_size]
         out1_bwd_last = out1[:, 0, self.hidden_size:]
@@ -112,9 +119,11 @@ class ModelAttRNN(nn.Module):
         self.is_stds = is_stds
         self.feas_ccs = 4 if self.is_stds else 2
         if self.model_type == "attbilstm":
+            self.rnn_cell = "lstm"
             self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
         elif self.model_type == "attbigru":
+            self.rnn_cell = "gru"
             self.rnn = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                               dropout=dropout_rate, batch_first=True, bidirectional=True)
         else:
@@ -147,11 +156,14 @@ class ModelAttRNN(nn.Module):
     def init_hidden(self, batch_size, num_layers, hidden_size):
         # Set initial states
         h0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
-        c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
         if use_cuda:
             h0 = h0.cuda()
-            c0 = c0.cuda()
-        return h0, c0
+        if self.rnn == "lstm":
+            c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+            if use_cuda:
+                c0 = c0.cuda()
+            return h0, c0
+        return h0
 
     # https://github.com/graykode/nlp-tutorial/blob/master/4-3.Bi-LSTM(Attention)/Bi-LSTM(Attention).py
     # https://github.com/zhijing-jin/pytorch_RelationExtraction_AttentionBiLSTM/blob/master/model.py
@@ -187,12 +199,13 @@ class ModelAttRNN(nn.Module):
         else:
             out1 = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
 
-        out, (h_n, c_n) = self.rnn(out1, self.init_hidden(out1.size(0),
-                                                          self.num_layers,
-                                                          self.hidden_size))  # (N, L, nhid*2)
+        out, n_states = self.rnn(out1, self.init_hidden(out1.size(0),
+                                                        self.num_layers,
+                                                        self.hidden_size))  # (N, L, nhid*2)
 
         # attention_net ======
         # # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
+        # h_n = n_states[0] if self.rnn_cell == "lstm" else n_states
         # h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
         # out = self.attention_net(out, h_n)
         out = self.attention_net(out)
