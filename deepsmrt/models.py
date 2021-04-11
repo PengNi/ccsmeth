@@ -59,7 +59,7 @@ class ModelRNN(nn.Module):
         h0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
         if use_cuda:
             h0 = h0.cuda()
-        if self.rnn == "lstm":
+        if self.rnn_cell == "lstm":
             c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
             if use_cuda:
                 c0 = c0.cuda()
@@ -157,7 +157,7 @@ class ModelAttRNN(nn.Module):
         h0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
         if use_cuda:
             h0 = h0.cuda()
-        if self.rnn == "lstm":
+        if self.rnn_cell == "lstm":
             c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
             if use_cuda:
                 c0 = c0.cuda()
