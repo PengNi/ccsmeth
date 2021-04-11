@@ -78,9 +78,9 @@ class ModelRNN(nn.Module):
         else:
             out1 = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
 
-        out, _ = self.rnn(out1, self.init_hidden(out1.size(0),
-                                                 self.num_layers,
-                                                 self.hidden_size))  # (N, L, nhid*2)
+        out1, _ = self.rnn(out1, self.init_hidden(out1.size(0),
+                                                  self.num_layers,
+                                                  self.hidden_size))  # (N, L, nhid*2)
 
         # decode
         out1_fwd_last = out1[:, -1, :self.hidden_size]
