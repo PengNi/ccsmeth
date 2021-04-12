@@ -401,7 +401,7 @@ def main():
     p_call.add_argument("--model_path", "-m", action="store", type=str, required=True,
                         help="file path of the trained model (.ckpt)")
 
-    # model input
+    # model param
     p_call.add_argument('--model_type', type=str, default="attbigru",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
                                  "resnet18"],
@@ -410,8 +410,6 @@ def main():
                              "'bilstm', 'bigru', 'resnet18', default: attbigru")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
-
-    # model param
     p_call.add_argument('--is_stds', type=str, default="yes", required=False,
                         help="if using std features at ccs level, yes or no. default yes.")
     p_call.add_argument('--class_num', type=int, default=2, required=False)
@@ -420,7 +418,7 @@ def main():
     p_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                         action="store", help="batch size, default 512")
 
-    # BiLSTM model param
+    # BiRNN model param
     p_call.add_argument('--layer_num', type=int, default=3,
                         required=False, help="lstm layer num, default 3")
     p_call.add_argument('--hid_rnn', type=int, default=256, required=False,

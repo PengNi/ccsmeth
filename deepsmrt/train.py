@@ -239,7 +239,7 @@ def main():
     parser.add_argument('--valid_file', type=str, required=True)
     parser.add_argument('--model_dir', type=str, required=True)
 
-    # model input
+    # model param
     parser.add_argument('--model_type', type=str, default="attbigru",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
                                  "resnet18"],
@@ -248,8 +248,6 @@ def main():
                              "'bilstm', 'bigru', 'resnet18', default: attbigru")
     parser.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
-
-    # model param
     parser.add_argument('--is_stds', type=str, default="yes", required=False,
                         help="if using std features at ccs level, yes or no. default yes.")
     parser.add_argument('--class_num', type=int, default=2, required=False)
