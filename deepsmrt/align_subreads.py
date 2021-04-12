@@ -140,8 +140,6 @@ def main():
                               "default 2, which means 1 secondary alignments are retained. "
                               "[This arg is for further extension, for now it is no use cause "
                               "we use only primary alignment.]")
-    p_align.add_argument("--threads", "-t", type=int, default=5, required=False,
-                         help="number of threads, default 5")
     p_align.add_argument("--bwa", action="store_true", default=False, required=False,
                          help="use bwa instead of minimap2 for alignment")
     p_align.add_argument("--path_to_minimap2", type=str, default=None, required=False,
@@ -155,6 +153,8 @@ def main():
                          help="full path to the executable binary samtools file. "
                               "If not specified, it is assumed that samtools is in "
                               "the PATH.")
+    p_align.add_argument("--threads", "-t", type=int, default=5, required=False,
+                         help="number of threads, default 5")
 
     args = parser.parse_args()
 

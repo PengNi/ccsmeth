@@ -34,11 +34,16 @@ from utils.process_utils import display_args
 from utils.process_utils import nproc_to_call_mods_in_cpu_mode
 from utils.process_utils import str2bool
 
+from utils.process_utils import get_motif_seqs
+from utils.ref_reader import DNAReference
+
 from utils.constants_torch import FloatTensor
 from utils.constants_torch import use_cuda
 
-queen_size_border = 2000
-queen_size_border_f5batch = 100
+from extract_features import worker_read
+from extract_features import handle_one_hole2
+
+queen_size_border = 5000
 time_wait = 3
 
 
@@ -141,7 +146,7 @@ def _read_features_file2(features_file, features_batch_q, batch_num=512):
 
 def _call_mods(features_batch, model, batch_size):
     # features_batch: 1. if from _read_features_file(), has 1 * args.batch_size samples
-    # --------------: 2. if from _read_features_from_fast5s(), has uncertain number of samples
+    # --------------: 2. if from _worker_extract_features(), has uncertain number of samples
     sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, \
         labels = features_batch
     labels = np.reshape(labels, (len(labels)))
@@ -193,7 +198,7 @@ def _call_mods(features_batch, model, batch_size):
 
 def _call_mods2(features_batch, model, batch_size):
     # features_batch: 1. if from _read_features_file(), has 1 * args.batch_size samples
-    # --------------: 2. if from _read_features_from_fast5s(), has uncertain number of samples
+    # --------------: 2. if from _worker_extract_features(), has uncertain number of samples
     sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels = features_batch
     labels = np.reshape(labels, (len(labels)))
 
@@ -317,19 +322,134 @@ def _write_predstr_to_file(write_fp, predstr_q):
             wf.flush()
 
 
+def _batch_feature_list(feature_list):
+    sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, depth_all
+    kmers = []
+    ipd_means = []
+    ipd_stds = []
+    pw_means = []
+    pw_stds = []
+    labels = []
+    for featureline in feature_list:
+        chrom, abs_loc, strand, holeid, depth_all, kmer_seq, kmer_depth, \
+            kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_subr_ipds, kmer_subr_pws, label = featureline
+        sampleinfo.append("\t".join(list(map(str, [chrom, abs_loc, strand, holeid, depth_all]))))
+        kmers.append(np.array([base2code_dna[x] for x in kmer_seq]))
+        ipd_means.append(np.array(kmer_ipdm, dtype=np.float))
+        ipd_stds.append(np.array(kmer_ipds, dtype=np.float))
+        pw_means.append(np.array(kmer_pwm, dtype=np.float))
+        pw_stds.append(np.array(kmer_pws, dtype=np.float))
+        labels.append(label)
+    return sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels
+
+
+def _worker_extract_features(hole_align_q, features_batch_q, contigs, motifs, args):
+    sys.stderr.write("extrac_features process-{} starts\n".format(os.getpid()))
+    cnt_holes = 0
+    features_batch = []
+    while True:
+        # print("hole_align_q size:", hole_align_q.qsize(), "; pid:", os.getpid())
+        if hole_align_q.empty():
+            time.sleep(time_wait)
+            continue
+        hole_aligninfo = hole_align_q.get()
+        if hole_aligninfo == "kill":
+            hole_align_q.put("kill")
+            break
+        feature_list = handle_one_hole2(hole_aligninfo, contigs, motifs, args)
+        if len(features_batch) + len(feature_list) >= args.batch_size:
+            features_batch += feature_list[:(args.batch_size - len(features_batch))]
+            features_batch_q.put(_batch_feature_list(features_batch))
+            while features_batch_q.qsize() > queen_size_border:
+                time.sleep(time_wait)
+            # add the rest features
+            features_batch = []
+            features_batch += feature_list[(args.batch_size - len(features_batch)):]
+        else:
+            features_batch += feature_list
+
+        cnt_holes += 1
+        if cnt_holes % 1000 == 0:
+            sys.stderr.write("extrac_features process-{}, {} holes proceed\n".format(os.getpid(),
+                                                                                     cnt_holes))
+            sys.stderr.flush()
+    if len(features_batch) > 0:
+        features_batch_q.put(_batch_feature_list(features_batch))
+    sys.stderr.write("extrac_features process-{} ending, proceed {} holes\n".format(os.getpid(),
+                                                                                    cnt_holes))
+
+
 def call_mods(args):
     print("[main]call_mods starts..")
     start = time.time()
+    torch.manual_seed(args.tseed)
+    torch.cuda.manual_seed(args.tseed)
 
-    model_path = os.path.abspath(args.model_path)
+    model_path = os.path.abspath(args.model_file)
     if not os.path.exists(model_path):
-        raise ValueError("--model_path is not set right!")
-    input_path = os.path.abspath(args.input_path)
+        raise ValueError("--model_file is not set right!")
+    input_path = os.path.abspath(args.input)
     if not os.path.exists(input_path):
-        raise ValueError("--input_path does not exist!")
+        raise ValueError("--input_file does not exist!")
 
-    if os.path.isdir(input_path):
-        pass
+    if input_path.endswith(".bam") or input_path.endswith(".sam"):
+
+        reference = os.path.abspath(args.ref)
+        if not os.path.exists(reference):
+            raise IOError("refernce(--ref) file does not exist!")
+        contigs = DNAReference(reference).getcontigs()
+        motifs = get_motif_seqs(args.motifs)
+
+        hole_align_q = Queue()
+        features_batch_q = Queue()
+        pred_str_q = Queue()
+
+        nproc = args.threads
+        if use_cuda:
+            nproc_dp = args.threads_gpu
+            if nproc_dp < 1:
+                nproc_dp = 1
+        else:
+            nproc_dp = nproc_to_call_mods_in_cpu_mode
+        if nproc <= nproc_dp + 2:
+            nproc = nproc_dp + 2 + 1
+
+        # TODO: why the processes in ps_extract start so slowly?
+        ps_extract = []
+        for _ in range(nproc - nproc_dp - 2):
+            p = mp.Process(target=_worker_extract_features, args=(hole_align_q, features_batch_q,
+                                                                  contigs, motifs, args))
+            p.daemon = True
+            p.start()
+            ps_extract.append(p)
+
+        # put p_read after ps_extract to accelerate starting of ps_extract, does it work?
+        p_read = mp.Process(target=worker_read, args=(input_path, hole_align_q, args))
+        p_read.daemon = True
+        p_read.start()
+
+        ps_call = []
+        for _ in range(nproc_dp):
+            p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q, args))
+            p.daemon = True
+            p.start()
+            ps_call.append(p)
+
+        p_w = mp.Process(target=_write_predstr_to_file, args=(args.output, pred_str_q))
+        p_w.daemon = True
+        p_w.start()
+
+        p_read.join()
+
+        for p in ps_extract:
+            p.join()
+        features_batch_q.put("kill")
+
+        for p in ps_call:
+            p.join()
+        pred_str_q.put("kill")
+
+        p_w.join()
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()
@@ -351,11 +471,11 @@ def call_mods(args):
         predstr_procs = []
 
         if use_cuda:
-            nproc_dp = args.nproc_gpu
+            nproc_dp = args.threads_gpu
             if nproc_dp < 1:
                 nproc_dp = 1
         else:
-            nproc = args.nproc
+            nproc = args.threads
             if nproc < 3:
                 print("--nproc must be >= 3!!")
                 nproc = 3
@@ -370,7 +490,7 @@ def call_mods(args):
             predstr_procs.append(p)
 
         # print("write_process started..")
-        p_w = mp.Process(target=_write_predstr_to_file, args=(args.result_file, pred_str_q))
+        p_w = mp.Process(target=_write_predstr_to_file, args=(args.output, pred_str_q))
         p_w.daemon = True
         p_w.start()
 
@@ -391,14 +511,14 @@ def main():
     parser = argparse.ArgumentParser("call modifications")
 
     p_input = parser.add_argument_group("INPUT")
-    p_input.add_argument("--input_path", "-i", action="store", type=str,
+    p_input.add_argument("--input", "-i", action="store", type=str,
                          required=True,
-                         help="the input path, can be a signal_feature file from extract_features.py, "
-                              "or a directory of fast5 files. If a directory of fast5 files is provided, "
-                              "args in FAST5_EXTRACTION should (reference_path must) be provided.")
+                         help="input file, can be aligned.bam/sam, or features.tsv generated by "
+                              "extract_features.py. If aligned.bam/sam is provided, args in EXTRACTION "
+                              "should (reference_path must) be provided.")
 
     p_call = parser.add_argument_group("CALL")
-    p_call.add_argument("--model_path", "-m", action="store", type=str, required=True,
+    p_call.add_argument("--model_file", "-m", action="store", type=str, required=True,
                         help="file path of the trained model (.ckpt)")
 
     # model param
@@ -429,17 +549,59 @@ def main():
                         help="base_seq embedding_size")
 
     p_output = parser.add_argument_group("OUTPUT")
-    p_output.add_argument("--result_file", "-o", action="store", type=str, required=True,
+    p_output.add_argument("--output", "-o", action="store", type=str, required=True,
                           help="the file path to save the predicted result")
 
     p_extract = parser.add_argument_group("EXTRACTION")
+    p_extract.add_argument("--ref", type=str, required=False,
+                           help="path to genome reference to be aligned, in fasta/fa format.")
+    p_extract.add_argument("--motifs", action="store", type=str,
+                           required=False, default='CG',
+                           help='motif seq to be extracted, default: CG. '
+                                'can be multi motifs splited by comma '
+                                '(no space allowed in the input str), '
+                                'or use IUPAC alphabet, '
+                                'the mod_loc of all motifs must be '
+                                'the same')
+    p_extract.add_argument("--mod_loc", action="store", type=int, required=False, default=0,
+                           help='0-based location of the targeted base in the motif, default 0')
+    p_extract.add_argument("--methy_label", action="store", type=int,
+                           choices=[1, 0], required=False, default=1,
+                           help="the label of the interested modified bases, this is for training."
+                                " 0 or 1, default 1")
+    p_extract.add_argument("--mapq", type=int, default=30, required=False,
+                           help="MAPping Quality cutoff for selecting alignment items, default 30")
+    p_extract.add_argument("--identity", type=float, default=0.8, required=False,
+                           help="identity cutoff for selecting alignment items, default 0.8")
+    p_extract.add_argument("--two_strands", action="store_true", default=False, required=False,
+                           help="after quality (mapq, identity) control, if then only using CCS reads "
+                                "which have subreads in two strands")
+    p_extract.add_argument("--depth", type=int, default=1, required=False,
+                           help="(mean) depth (number of subreads) cutoff for "
+                                "selecting high-quality aligned reads/kmers "
+                                "per strand of a CCS, default 1.")
+    p_extract.add_argument("--norm", action="store", type=str, choices=["zscore", "min-mean", "min-max", "mad"],
+                           default="zscore", required=False,
+                           help="method for normalizing ipd/pw in subread level. "
+                                "zscore, min-mean, min-max or mad, default zscore")
+    p_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
+                           help="not use CodecV1 to decode ipd/pw")
+    p_extract.add_argument("--num_subreads", type=int, default=5, required=False,
+                           help="info of max num of subreads to be extracted to output, default 5")
+    p_extract.add_argument("--seed", type=int, default=1234, required=False,
+                           help="seed for randomly selecting subreads, default 1234")
+    p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
+                           help="full path to the executable binary samtools file. "
+                                "If not specified, it is assumed that samtools is in "
+                                "the PATH.")
 
-    parser.add_argument("--nproc", "-p", action="store", type=int, default=10,
-                        required=False, help="number of processes to be used, default 10.")
-    parser.add_argument("--nproc_gpu", action="store", type=int, default=2,
-                        required=False, help="number of processes to use gpu (if gpu is available), "
-                                             "1 or a number less than nproc-1, no more than "
-                                             "nproc/4 is suggested. default 2.")
+    parser.add_argument("--threads", "-p", action="store", type=int, default=10,
+                        required=False, help="number of threads to be used, default 10.")
+    parser.add_argument("--threads_gpu", action="store", type=int, default=2,
+                        required=False, help="number of threads to use gpu (if gpu is available), "
+                                             "no more than threads/4 is suggested. default 2.")
+    parser.add_argument('--tseed', type=int, default=1234,
+                        help='random seed for torch')
 
     args = parser.parse_args()
     display_args(args)

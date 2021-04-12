@@ -5,7 +5,6 @@ from __future__ import absolute_import
 
 import torch
 import torch.nn as nn
-import torch.autograd as autograd
 
 from utils.constants_torch import use_cuda
 
@@ -56,11 +55,11 @@ class ModelRNN(nn.Module):
 
     def init_hidden(self, batch_size, num_layers, hidden_size):
         # Set initial states
-        h0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+        h0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
         if use_cuda:
             h0 = h0.cuda()
         if self.rnn_cell == "lstm":
-            c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+            c0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
             if use_cuda:
                 c0 = c0.cuda()
             return h0, c0
@@ -154,11 +153,11 @@ class ModelAttRNN(nn.Module):
 
     def init_hidden(self, batch_size, num_layers, hidden_size):
         # Set initial states
-        h0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+        h0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
         if use_cuda:
             h0 = h0.cuda()
         if self.rnn_cell == "lstm":
-            c0 = autograd.Variable(torch.randn(num_layers * 2, batch_size, hidden_size))
+            c0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
             if use_cuda:
                 c0 = c0.cuda()
             return h0, c0

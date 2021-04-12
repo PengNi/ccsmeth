@@ -26,7 +26,8 @@ from utils.process_utils import str2bool
 
 def train(args):
     total_start = time.time()
-    torch.manual_seed(args.seed)
+    torch.manual_seed(args.tseed)
+    torch.cuda.manual_seed(args.tseed)
 
     print("[train]start..")
     if use_cuda:
@@ -273,8 +274,8 @@ def main():
     parser.add_argument("--min_epoch_num", action="store", default=20, type=int,
                         required=False, help="min epoch num, default 20")
     parser.add_argument('--pos_weight', type=float, default=1.0, required=False)
-    parser.add_argument('--seed', type=int, default=1234,
-                        help='random seed')
+    parser.add_argument('--tseed', type=int, default=1234,
+                        help='random seed for pytorch')
 
     args = parser.parse_args()
 
