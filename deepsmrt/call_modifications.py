@@ -43,7 +43,7 @@ from utils.constants_torch import use_cuda
 from extract_features import worker_read
 from extract_features import handle_one_hole2
 
-queen_size_border = 5000
+queen_size_border = 2000
 time_wait = 3
 
 
@@ -302,7 +302,8 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
         accuracy_list.append(accuracy)
         batch_num_total += batch_num
     # print('total accuracy in process {}: {}'.format(os.getpid(), np.mean(accuracy_list)))
-    print('call_mods process-{} ending, proceed {} batches'.format(os.getpid(), batch_num_total))
+    print('call_mods process-{} ending, proceed {} batches({})'.format(os.getpid(), batch_num_total,
+                                                                       args.batch_size))
 
 
 def _write_predstr_to_file(write_fp, predstr_q):
@@ -345,38 +346,29 @@ def _batch_feature_list(feature_list):
 
 def _worker_extract_features(hole_align_q, features_batch_q, contigs, motifs, args):
     sys.stderr.write("extrac_features process-{} starts\n".format(os.getpid()))
-    cnt_holes = 0
-    features_batch = []
+    cnt_holesbatch = 0
     while True:
         # print("hole_align_q size:", hole_align_q.qsize(), "; pid:", os.getpid())
         if hole_align_q.empty():
             time.sleep(time_wait)
             continue
-        hole_aligninfo = hole_align_q.get()
-        if hole_aligninfo == "kill":
+        holes_aligninfo = hole_align_q.get()
+        if holes_aligninfo == "kill":
             hole_align_q.put("kill")
             break
-        feature_list = handle_one_hole2(hole_aligninfo, contigs, motifs, args)
-        if len(features_batch) + len(feature_list) >= args.batch_size:
-            features_batch += feature_list[:(args.batch_size - len(features_batch))]
-            features_batch_q.put(_batch_feature_list(features_batch))
-            while features_batch_q.qsize() > queen_size_border:
-                time.sleep(time_wait)
-            # add the rest features
-            features_batch = []
-            features_batch += feature_list[(args.batch_size - len(features_batch)):]
-        else:
-            features_batch += feature_list
+        feature_list = []
+        for hole_aligninfo in holes_aligninfo:
+            feature_list += handle_one_hole2(hole_aligninfo, contigs, motifs, args)
+        if len(feature_list) > 0:
+            features_batch_q.put(_batch_feature_list(feature_list))
 
-        cnt_holes += 1
-        if cnt_holes % 1000 == 0:
-            sys.stderr.write("extrac_features process-{}, {} holes proceed\n".format(os.getpid(),
-                                                                                     cnt_holes))
+        cnt_holesbatch += 1
+        if cnt_holesbatch % 200 == 0:
+            sys.stderr.write("extrac_features process-{}, {} hole_batches({}) "
+                             "proceed\n".format(os.getpid(), cnt_holesbatch, args.holes_batch))
             sys.stderr.flush()
-    if len(features_batch) > 0:
-        features_batch_q.put(_batch_feature_list(features_batch))
-    sys.stderr.write("extrac_features process-{} ending, proceed {} holes\n".format(os.getpid(),
-                                                                                    cnt_holes))
+    sys.stderr.write("extrac_features process-{} ending, proceed {} "
+                     "hole_batches({})\n".format(os.getpid(), cnt_holesbatch, args.holes_batch))
 
 
 def call_mods(args):
@@ -393,7 +385,6 @@ def call_mods(args):
         raise ValueError("--input_file does not exist!")
 
     if input_path.endswith(".bam") or input_path.endswith(".sam"):
-
         reference = os.path.abspath(args.ref)
         if not os.path.exists(reference):
             raise IOError("refernce(--ref) file does not exist!")
@@ -414,30 +405,30 @@ def call_mods(args):
         if nproc <= nproc_dp + 2:
             nproc = nproc_dp + 2 + 1
 
-        # TODO: why the processes in ps_extract start so slowly?
-        ps_extract = []
-        for _ in range(nproc - nproc_dp - 2):
-            p = mp.Process(target=_worker_extract_features, args=(hole_align_q, features_batch_q,
-                                                                  contigs, motifs, args))
-            p.daemon = True
-            p.start()
-            ps_extract.append(p)
-
-        # put p_read after ps_extract to accelerate starting of ps_extract, does it work?
         p_read = mp.Process(target=worker_read, args=(input_path, hole_align_q, args))
         p_read.daemon = True
         p_read.start()
 
-        ps_call = []
-        for _ in range(nproc_dp):
-            p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q, args))
-            p.daemon = True
-            p.start()
-            ps_call.append(p)
-
         p_w = mp.Process(target=_write_predstr_to_file, args=(args.output, pred_str_q))
         p_w.daemon = True
         p_w.start()
+
+        # TODO: why the processes in ps_extract start so slowly?
+        ps_extract = []
+        ps_call = []
+        nproc_ext = nproc - nproc_dp - 2
+        for i in range(max(nproc_ext, nproc_dp)):
+            if i < nproc_ext:
+                p = mp.Process(target=_worker_extract_features, args=(hole_align_q, features_batch_q,
+                                                                      contigs, motifs, args))
+                p.daemon = True
+                p.start()
+                ps_extract.append(p)
+            if i < nproc_dp:
+                p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q, args))
+                p.daemon = True
+                p.start()
+                ps_call.append(p)
 
         p_read.join()
 
@@ -594,6 +585,8 @@ def main():
                            help="full path to the executable binary samtools file. "
                                 "If not specified, it is assumed that samtools is in "
                                 "the PATH.")
+    p_extract.add_argument("--holes_batch", type=int, default=50, required=False,
+                           help="number of holes in an batch to get/put in queues")
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")

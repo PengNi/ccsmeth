@@ -20,7 +20,7 @@ from utils.ref_reader import DNAReference
 from utils.process_utils import complement_seq
 
 code2frames = codecv1_to_frame()
-queen_size_border = 5000
+queen_size_border = 2000
 time_wait = 3
 
 exceptval = 1000
@@ -66,6 +66,8 @@ def worker_read(inputfile, hole_align_q, args):
     cmd_view_input = cmd_get_stdout_of_input(inputfile, args.path_to_samtools)
     sys.stderr.write("cmd to view input: {}\n".format(cmd_view_input))
     proc_read = Popen(cmd_view_input, shell=True, stdout=PIPE)
+
+    holes_align_tmp = []
     holeid_curr = ""
     hole_align_tmp = []
     cnt_holes = 0
@@ -86,9 +88,12 @@ def worker_read(inputfile, hole_align_q, args):
                 if holeid != holeid_curr:
                     if len(hole_align_tmp) > 0:
                         cnt_holes += 1
-                        hole_align_q.put((holeid_curr, hole_align_tmp))
-                        while hole_align_q.qsize() > queen_size_border:
-                            time.sleep(time_wait)
+                        holes_align_tmp.append((holeid_curr, hole_align_tmp))
+                        if len(holes_align_tmp) >= args.holes_batch:
+                            hole_align_q.put(holes_align_tmp)
+                            holes_align_tmp = []
+                            while hole_align_q.qsize() > queen_size_border:
+                                time.sleep(time_wait)
                     hole_align_tmp = []
                     holeid_curr = holeid
                 hole_align_tmp.append(words)
@@ -98,7 +103,9 @@ def worker_read(inputfile, hole_align_q, args):
         elif proc_read.poll() is not None:
             if len(hole_align_tmp) > 0:
                 cnt_holes += 1
-                hole_align_q.put((holeid_curr, hole_align_tmp))
+                holes_align_tmp.append((holeid_curr, hole_align_tmp))
+            if len(holes_align_tmp) > 0:
+                hole_align_q.put(holes_align_tmp)
             break
         else:
             # print("output:", output)
@@ -440,13 +447,18 @@ def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, c
         assert (strand == ccs_strand)
 
         ipd, pw = [], []
-        for i in range(11, len(words)):
-            if words[i].startswith("ip:B:C,"):
-                ipd = [int(ipdval) for ipdval in words[i].split(",")[1:]]
-            elif words[i].startswith("pw:B:C,"):
-                pw = [int(pwval) for pwval in words[i].split(",")[1:]]
-        if len(ipd) == 0 or len(pw) == 0:
-            # print(holeid, subread_id, "no ipd")
+        try:
+            for i in range(11, len(words)):
+                if words[i].startswith("ip:B:C,"):
+                    ipd = [int(ipdval) for ipdval in words[i].split(",")[1:]]
+                elif words[i].startswith("pw:B:C,"):
+                    pw = [int(pwval) for pwval in words[i].split(",")[1:]]
+            if len(ipd) == 0 or len(pw) == 0:
+                # print(holeid, subread_id, "no ipd")
+                continue
+            if len(ipd) != len(pw):
+                continue
+        except ValueError:
             continue
         if not args.no_decode:
             ipd = [code2frames[ipdval] for ipdval in ipd]
@@ -595,31 +607,33 @@ def _features_to_str(features):
 
 def _worker_extract(hole_align_q, featurestr_q, contigs, motifs, args):
     sys.stderr.write("extrac_features process-{} starts\n".format(os.getpid()))
-    cnt_holes = 0
+    cnt_holesbatch = 0
     while True:
         # print("hole_align_q size:", hole_align_q.qsize(), "; pid:", os.getpid())
         if hole_align_q.empty():
             time.sleep(time_wait)
             continue
-        hole_aligninfo = hole_align_q.get()
-        if hole_aligninfo == "kill":
+        holes_aligninfo = hole_align_q.get()
+        if holes_aligninfo == "kill":
             hole_align_q.put("kill")
             break
-        # feature_list = handle_one_hole(hole_aligninfo, contigs, motifs, args)
-        feature_list = handle_one_hole2(hole_aligninfo, contigs, motifs, args)
+        feature_list = []
+        for hole_aligninfo in holes_aligninfo:
+            # feature_list = handle_one_hole(hole_aligninfo, contigs, motifs, args)
+            feature_list += handle_one_hole2(hole_aligninfo, contigs, motifs, args)
         feature_strs = []
         for feature in feature_list:
             feature_strs.append(_features_to_str(feature))
         featurestr_q.put(feature_strs)
         while featurestr_q.qsize() > queen_size_border:
             time.sleep(time_wait)
-        cnt_holes += 1
-        if cnt_holes % 1000 == 0:
-            sys.stderr.write("extrac_features process-{}, {} holes proceed\n".format(os.getpid(),
-                                                                                     cnt_holes))
+        cnt_holesbatch += 1
+        if cnt_holesbatch % 200 == 0:
+            sys.stderr.write("extrac_features process-{}, {} hole_batches({}) "
+                             "proceed\n".format(os.getpid(), cnt_holesbatch, args.holes_batch))
             sys.stderr.flush()
-    sys.stderr.write("extrac_features process-{} ending, proceed {} holes\n".format(os.getpid(),
-                                                                                    cnt_holes))
+    sys.stderr.write("extrac_features process-{} ending, proceed {} "
+                     "hole_batches({})\n".format(os.getpid(), cnt_holesbatch, args.holes_batch))
 
 
 def _write_featurestr_to_file(write_fp, featurestr_q):
@@ -756,6 +770,8 @@ def main():
                                 "the PATH.")
     p_extract.add_argument("--threads", type=int, default=5, required=False,
                            help="number of threads, default 5")
+    p_extract.add_argument("--holes_batch", type=int, default=50, required=False,
+                           help="number of holes in an batch to get/put in queues")
 
     args = parser.parse_args()
 
