@@ -47,10 +47,40 @@ queen_size_border = 2000
 time_wait = 3
 
 
-def _read_features_file(features_file, features_batch_q, batch_num=512):
+def _read_features_file_to_str(features_file, featurestrs_batch_q, batch_num=512):
     print("read_features process-{} starts".format(os.getpid()))
     b_num = 0
     with open(features_file, "r") as rf:
+        featurestrs = []
+        for line in rf:
+            words = line.strip().split("\t")
+            featurestrs.append(words)
+            if len(featurestrs) == batch_num:
+                featurestrs_batch_q.put(featurestrs)
+                while featurestrs_batch_q.qsize() > queen_size_border:
+                    time.sleep(time_wait)
+                featurestrs = []
+                b_num += 1
+        if len(featurestrs) > 0:
+            featurestrs_batch_q.put(featurestrs)
+            b_num += 1
+    featurestrs_batch_q.put("kill")
+    print("read_features process-{} ending, read {} batches".format(os.getpid(), b_num))
+
+
+def _format_features_from_strbatch1(featurestrs_batch_q, features_batch_q):
+    print("format_features process-{} starts".format(os.getpid()))
+    b_num = 0
+    while True:
+        if featurestrs_batch_q.empty():
+            time.sleep(time_wait)
+            continue
+        featurestrs = featurestrs_batch_q.get()
+        if featurestrs == "kill":
+            featurestrs_batch_q.put("kill")
+            break
+        b_num += 1
+
         sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, depth_all
         kmers = []
         ipd_means = []
@@ -59,8 +89,7 @@ def _read_features_file(features_file, features_batch_q, batch_num=512):
         pw_stds = []
         labels = []
 
-        for line in rf:
-            words = line.strip().split("\t")
+        for words in featurestrs:
 
             sampleinfo.append("\t".join(words[0:5]))
             kmer = np.array([base2code_dna[x] for x in words[5]])
@@ -72,37 +101,30 @@ def _read_features_file(features_file, features_batch_q, batch_num=512):
 
             labels.append(int(words[13]))
 
-            if len(sampleinfo) == batch_num:
-                features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels))
-                while features_batch_q.qsize() > queen_size_border:
-                    time.sleep(time_wait)
-                sampleinfo = []
-                kmers = []
-                ipd_means = []
-                ipd_stds = []
-                pw_means = []
-                pw_stds = []
-                labels = []
-                b_num += 1
-        if len(sampleinfo) > 0:
-            features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels))
-    features_batch_q.put("kill")
-    print("read_features process-{} ending, read {} batches".format(os.getpid(), b_num))
+        features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels))
+    print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
-def _read_features_file2(features_file, features_batch_q, batch_num=512):
-    print("read_features process-{} starts".format(os.getpid()))
+def _format_features_from_strbatch2(featurestrs_batch_q, features_batch_q):
+    print("format_features process-{} starts".format(os.getpid()))
     b_num = 0
-    with open(features_file, "r") as rf:
+    while True:
+        if featurestrs_batch_q.empty():
+            time.sleep(time_wait)
+            continue
+        featurestrs = featurestrs_batch_q.get()
+        if featurestrs == "kill":
+            featurestrs_batch_q.put("kill")
+            break
+        b_num += 1
+
         sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, depth_all
         kmers = []
         mats_ccs_mean = []
         mats_ccs_std = []
         labels = []
 
-        for line in rf:
-            words = line.strip().split("\t")
-
+        for words in featurestrs:
             sampleinfo.append("\t".join(words[0:5]))
 
             kmer = np.array([base2code_dna[x] for x in words[5]])
@@ -128,20 +150,8 @@ def _read_features_file2(features_file, features_batch_q, batch_num=512):
 
             labels.append(int(words[13]))
 
-            if len(sampleinfo) == batch_num:
-                features_batch_q.put((sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels))
-                while features_batch_q.qsize() > queen_size_border:
-                    time.sleep(time_wait)
-                sampleinfo = []
-                kmers = []
-                mats_ccs_mean = []
-                mats_ccs_std = []
-                labels = []
-                b_num += 1
-        if len(sampleinfo) > 0:
-            features_batch_q.put((sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels))
-    features_batch_q.put("kill")
-    print("read_features process-{} ending, read {} batches".format(os.getpid(), b_num))
+        features_batch_q.put((sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels))
+    print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
 def _call_mods(features_batch, model, batch_size):
@@ -323,7 +333,7 @@ def _write_predstr_to_file(write_fp, predstr_q):
             wf.flush()
 
 
-def _batch_feature_list(feature_list):
+def _batch_feature_list1(feature_list):
     sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, depth_all
     kmers = []
     ipd_means = []
@@ -344,6 +354,44 @@ def _batch_feature_list(feature_list):
     return sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels
 
 
+def _batch_feature_list2(feature_list):
+    sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, depth_all
+    kmers = []
+    mats_ccs_mean = []
+    mats_ccs_std = []
+    labels = []
+
+    for featureline in feature_list:
+        chrom, abs_loc, strand, holeid, depth_all, kmer_seq, kmer_depth, \
+            kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_subr_ipds, kmer_subr_pws, label = featureline
+
+        sampleinfo.append("\t".join(list(map(str, [chrom, abs_loc, strand, holeid, depth_all]))))
+
+        kmer = np.array([base2code_dna[x] for x in kmer_seq])
+        kmers.append(kmer)
+
+        height, width = len(kmer), len(base2code_dna.keys())
+
+        ipd_means = np.array([float(x) for x in kmer_ipdm.split(",")], dtype=np.float)
+        ipd_m_mat = np.zeros((1, height, width), dtype=np.float)
+        ipd_m_mat[0, np.arange(len(kmer)), kmer] = ipd_means
+        pw_means = np.array([float(x) for x in kmer_pwm.split(",")], dtype=np.float)
+        pw_m_mat = np.zeros((1, height, width), dtype=np.float)
+        pw_m_mat[0, np.arange(len(kmer)), kmer] = pw_means
+        mats_ccs_mean.append(np.concatenate((ipd_m_mat, pw_m_mat), axis=0))  # (C=2, H, W)
+
+        ipd_stds = np.array([float(x) for x in kmer_ipds.split(",")], dtype=np.float)
+        ipd_s_mat = np.zeros((1, height, width), dtype=np.float)
+        ipd_s_mat[0, np.arange(len(kmer)), kmer] = ipd_stds
+        pw_stds = np.array([float(x) for x in kmer_pws.split(",")], dtype=np.float)
+        pw_s_mat = np.zeros((1, height, width), dtype=np.float)
+        pw_s_mat[0, np.arange(len(kmer)), kmer] = pw_stds
+        mats_ccs_std.append(np.concatenate((ipd_s_mat, pw_s_mat), axis=0))  # (C=2, H, W)
+
+        labels.append(int(label))
+    return sampleinfo, kmers, mats_ccs_mean, mats_ccs_std, labels
+
+
 def _worker_extract_features(hole_align_q, features_batch_q, contigs, motifs, args):
     sys.stderr.write("extrac_features process-{} starts\n".format(os.getpid()))
     cnt_holesbatch = 0
@@ -360,7 +408,12 @@ def _worker_extract_features(hole_align_q, features_batch_q, contigs, motifs, ar
         for hole_aligninfo in holes_aligninfo:
             feature_list += handle_one_hole2(hole_aligninfo, contigs, motifs, args)
         if len(feature_list) > 0:
-            features_batch_q.put(_batch_feature_list(feature_list))
+            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+                features_batch_q.put(_batch_feature_list1(feature_list))
+            elif args.model_type in {"resnet18", }:
+                features_batch_q.put(_batch_feature_list2(feature_list))
+            else:
+                raise ValueError("model_type not right!")
 
         cnt_holesbatch += 1
         if cnt_holesbatch % 200 == 0:
@@ -396,13 +449,15 @@ def call_mods(args):
         pred_str_q = Queue()
 
         nproc = args.threads
+        nproc_dp = args.threads_call
         if use_cuda:
-            nproc_dp = args.threads_gpu
             if nproc_dp < 1:
                 nproc_dp = 1
         else:
-            nproc_dp = nproc_to_call_mods_in_cpu_mode
+            if nproc_dp > nproc_to_call_mods_in_cpu_mode:
+                nproc_dp = nproc_to_call_mods_in_cpu_mode
         if nproc <= nproc_dp + 2:
+            print("--threads must be > nproc_dp + 2!!")
             nproc = nproc_dp + 2 + 1
 
         p_read = mp.Process(target=worker_read, args=(input_path, hole_align_q, args))
@@ -444,36 +499,47 @@ def call_mods(args):
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()
-        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
-            p_rf = mp.Process(target=_read_features_file, args=(input_path, features_batch_q,
-                                                                args.batch_size))
-        elif args.model_type in {"resnet18", }:
-            p_rf = mp.Process(target=_read_features_file2, args=(input_path, features_batch_q,
-                                                                 args.batch_size))
-        else:
-            raise ValueError("model_type not right!")
-
-        p_rf.daemon = True
-        p_rf.start()
-
         # pred_str_q = mp.Queue()
         pred_str_q = Queue()
+        featurestrs_batch_q = Queue()
 
-        predstr_procs = []
-
+        nproc = args.threads
+        nproc_dp = args.threads_call
         if use_cuda:
-            nproc_dp = args.threads_gpu
             if nproc_dp < 1:
                 nproc_dp = 1
         else:
-            nproc = args.threads
-            if nproc < 3:
-                print("--nproc must be >= 3!!")
-                nproc = 3
-            nproc_dp = nproc - 2
             if nproc_dp > nproc_to_call_mods_in_cpu_mode:
                 nproc_dp = nproc_to_call_mods_in_cpu_mode
+        if nproc < nproc_dp + 2:
+            print("--threads must be > nproc_dp + 2!!")
+            nproc = nproc_dp + 2 + 1
+        nproc_cnvt = nproc - nproc_dp - 2
 
+        p_read = mp.Process(target=_read_features_file_to_str, args=(input_path, featurestrs_batch_q,
+                                                                     args.batch_size))
+        p_read.daemon = True
+        p_read.start()
+
+        ps_str2value = []
+        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+            for _ in range(nproc_cnvt):
+                p = mp.Process(target=_format_features_from_strbatch1, args=(featurestrs_batch_q,
+                                                                             features_batch_q))
+                p.daemon = True
+                p.start()
+                ps_str2value.append(p)
+        elif args.model_type in {"resnet18", }:
+            for _ in range(nproc_cnvt):
+                p = mp.Process(target=_format_features_from_strbatch2, args=(featurestrs_batch_q,
+                                                                             features_batch_q))
+                p.daemon = True
+                p.start()
+                ps_str2value.append(p)
+        else:
+            raise ValueError("model_type not right!")
+
+        predstr_procs = []
         for _ in range(nproc_dp):
             p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q, args))
             p.daemon = True
@@ -485,13 +551,15 @@ def call_mods(args):
         p_w.daemon = True
         p_w.start()
 
+        p_read.join()
+
+        for p in ps_str2value:
+            p.join()
+        features_batch_q.put("kill")
+
         for p in predstr_procs:
             p.join()
-
-        # print("finishing the write_process..")
         pred_str_q.put("kill")
-
-        p_rf.join()
 
         p_w.join()
 
@@ -590,8 +658,8 @@ def main():
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")
-    parser.add_argument("--threads_gpu", action="store", type=int, default=2,
-                        required=False, help="number of threads to use gpu (if gpu is available), "
+    parser.add_argument("--threads_call", action="store", type=int, default=2,
+                        required=False, help="number of threads used to call with trained models, "
                                              "no more than threads/4 is suggested. default 2.")
     parser.add_argument('--tseed', type=int, default=1234,
                         help='random seed for torch')
