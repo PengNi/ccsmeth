@@ -11,7 +11,7 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 
 
-num_sites = [5000, 10000, 50000, 100000, 200000, 1000000000]
+num_sites = [10000, 100000, 200000, 1000000000]
 # num_sites = [100000, ]
 CallRecord = namedtuple('CallRecord', ['chrom', 'pos', 'strand',
                                        'holeid', 'depth',

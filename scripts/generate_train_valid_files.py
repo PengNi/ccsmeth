@@ -120,8 +120,10 @@ def main():
     line_cnt_v = line_cnt - line_cnt_t
     trainfile = wprefix + ".train_" + str(round(tratio, 2)) + "_" + str(round(line_cnt_t/1000)) + "k.txt"
     validfile = wprefix + ".valid_" + str(round(1 - tratio, 2)) + "_" + str(round(line_cnt_v/1000)) + "k.txt"
-    _, rcode_t = run_cmd(" ".join(["head", "-" + str(line_cnt_t), combined_file,  ">", trainfile]))
-    _, rcode_v = run_cmd(" ".join(["tail", "-" + str(line_cnt_v), combined_file,  ">", validfile]))
+    _, rcode_t = run_cmd(" ".join(["head", "-n", str(line_cnt_t), combined_file,  ">", trainfile]))
+    # sed -ne':a;$p;N;line_cnt_v+1,$D;ba' A.txt > B.txt
+    _, rcode_v = run_cmd(" ".join(["sed -ne':a;$p;N;"+str(line_cnt_v+1)+",$D;ba'",
+                                   combined_file,  ">", validfile]))
     if rcode_t or rcode_v:
         print("generate files failed..")
     else:

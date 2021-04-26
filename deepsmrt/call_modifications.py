@@ -258,13 +258,13 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
     print('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"bilstm", "bigru", }:
         model = ModelRNN(args.seq_len, args.layer_num, args.class_num,
-                         args.dropout_rate, args.hid_rnn,
+                         args.dropout_rate, args.n_hid_rnn,
                          args.n_vocab, args.n_embed,
                          is_stds=str2bool(args.is_stds),
                          model_type=args.model_type)
     elif args.model_type in {"attbilstm", "attbigru", }:
         model = ModelAttRNN(args.seq_len, args.layer_num, args.class_num,
-                            args.dropout_rate, args.hid_rnn,
+                            args.dropout_rate, args.n_hid_rnn,
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
@@ -600,7 +600,7 @@ def main():
     # BiRNN model param
     p_call.add_argument('--layer_num', type=int, default=3,
                         required=False, help="lstm layer num, default 3")
-    p_call.add_argument('--hid_rnn', type=int, default=256, required=False,
+    p_call.add_argument('--n_hid_rnn', type=int, default=256, required=False,
                         help="BiRNN hidden_size for combined feature")
     p_call.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
