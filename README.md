@@ -2,6 +2,9 @@
 ### Detecting DNA methylation from PacBio CCS reads
 
 
+## Acknowledgements
+- We thank Tse *et al.*, The Chinese University of Hong Kong (CUHK) Department of Chemical Pathology, for sharing their code and data, as reported by in [Proc Natl Acad Sci USA 2021; 118(5): e2019768118](https://doi.org/10.1073/pnas.2019768118).
+
 
 License
 =========
