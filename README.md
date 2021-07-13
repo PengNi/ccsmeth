@@ -1,4 +1,4 @@
-# DeepSMRT
+# MethCCS
 
 
 License
