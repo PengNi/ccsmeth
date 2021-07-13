@@ -73,13 +73,13 @@ def train(args):
 
     if args.model_type in {"bilstm", "bigru", }:
         model = ModelRNN(args.seq_len, args.layer_num, args.class_num,
-                         args.dropout_rate, args.n_hid_rnn,
+                         args.dropout_rate, args.hid_rnn,
                          args.n_vocab, args.n_embed,
                          is_stds=str2bool(args.is_stds),
                          model_type=args.model_type)
     elif args.model_type in {"attbilstm", "attbigru", }:
         model = ModelAttRNN(args.seq_len, args.layer_num, args.class_num,
-                            args.dropout_rate, args.n_hid_rnn,
+                            args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
@@ -108,14 +108,11 @@ def train(args):
 
     # Train the model
     total_step = len(train_loader)
-    # print("total_step: {}".format(total_step))
+    print("total_step: {}".format(total_step))
     curr_best_accuracy = 0
-    curr_lowest_loss = 99999999
-    epoch_best_acc, epoch_lowest_loss = 0, 0
+    model.train()
     for epoch in range(args.max_epoch_num):
-        model.train()
-        # curr_epoch_acc = 0
-        # curr_epoch_loss = 99999999
+        curr_best_accuracy_epoch = 0
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
@@ -150,84 +147,76 @@ def train(args):
             loss.backward()
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
+
+            if (i + 1) % args.step_interval == 0:
+                model.eval()
+                with torch.no_grad():
+                    vlosses, vaccus, vprecs, vrecas = [], [], [], []
+                    for vi, vsfeatures in enumerate(valid_loader):
+                        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+                            _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
+                            vlabels = vsfeatures
+                            if use_cuda:
+                                vkmer = vkmer.cuda()
+                                vipd_means = vipd_means.cuda()
+                                vipd_stds = vipd_stds.cuda()
+                                vpw_means = vpw_means.cuda()
+                                vpw_stds = vpw_stds.cuda()
+                                vlabels = vlabels.cuda()
+                            voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds)
+                            vloss = criterion(voutputs, vlabels)
+                        elif args.model_type in {"resnet18", }:
+                            _, _, vmats_ccs_mean, vmats_ccs_std, vlabels = vsfeatures
+                            if use_cuda:
+                                vmats_ccs_mean = vmats_ccs_mean.cuda()
+                                vmats_ccs_std = vmats_ccs_std.cuda()
+                                vlabels = vlabels.cuda()
+                            # Forward pass
+                            voutputs, vlogits = model(vmats_ccs_mean, vmats_ccs_std)
+                            vloss = criterion(voutputs, vlabels)
+                        else:
+                            raise ValueError("model_type not right!")
+
+                        _, vpredicted = torch.max(vlogits.data, 1)
+
+                        if use_cuda:
+                            vlabels = vlabels.cpu()
+                            vpredicted = vpredicted.cpu()
+                        i_accuracy = metrics.accuracy_score(vlabels.numpy(), vpredicted)
+                        i_precision = metrics.precision_score(vlabels.numpy(), vpredicted)
+                        i_recall = metrics.recall_score(vlabels.numpy(), vpredicted)
+
+                        vaccus.append(i_accuracy)
+                        vprecs.append(i_precision)
+                        vrecas.append(i_recall)
+                        vlosses.append(vloss.item())
+
+                    if np.mean(vaccus) > curr_best_accuracy_epoch:
+                        curr_best_accuracy_epoch = np.mean(vaccus)
+                        if curr_best_accuracy_epoch > curr_best_accuracy - 0.0005:
+                            torch.save(model.state_dict(),
+                                       model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
+                                                                                                epoch + 1))
+
+                    time_cost = time.time() - start
+                    print('Epoch [{}/{}], Step [{}/{}], TrainLoss: {:.4f}; '
+                          'ValidLoss: {:.4f}, '
+                          'Accuracy: {:.4f}, Precision: {:.4f}, Recall: {:.4f}, '
+                          'curr_epoch_best_accuracy: {:.4f}; Time: {:.2f}s'
+                          .format(epoch + 1, args.max_epoch_num, i + 1, total_step, np.mean(tlosses),
+                                  np.mean(vlosses), np.mean(vaccus), np.mean(vprecs), np.mean(vrecas),
+                                  curr_best_accuracy_epoch, time_cost))
+                    tlosses = []
+                    start = time.time()
+                    sys.stdout.flush()
+                model.train()
         scheduler.step()
-
-        # use validation set to decide if saveing model after each epoch
-        model.eval()
-        with torch.no_grad():
-            vlosses, vaccus, vprecs, vrecas = [], [], [], []
-            for vi, vsfeatures in enumerate(valid_loader):
-                if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
-                    _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
-                        vlabels = vsfeatures
-                    if use_cuda:
-                        vkmer = vkmer.cuda()
-                        vipd_means = vipd_means.cuda()
-                        vipd_stds = vipd_stds.cuda()
-                        vpw_means = vpw_means.cuda()
-                        vpw_stds = vpw_stds.cuda()
-                        vlabels = vlabels.cuda()
-                    voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds)
-                    vloss = criterion(voutputs, vlabels)
-                elif args.model_type in {"resnet18", }:
-                    _, _, vmats_ccs_mean, vmats_ccs_std, vlabels = vsfeatures
-                    if use_cuda:
-                        vmats_ccs_mean = vmats_ccs_mean.cuda()
-                        vmats_ccs_std = vmats_ccs_std.cuda()
-                        vlabels = vlabels.cuda()
-                    # Forward pass
-                    voutputs, vlogits = model(vmats_ccs_mean, vmats_ccs_std)
-                    vloss = criterion(voutputs, vlabels)
-                else:
-                    raise ValueError("model_type not right!")
-
-                _, vpredicted = torch.max(vlogits.data, 1)
-
-                if use_cuda:
-                    vlabels = vlabels.cpu()
-                    vpredicted = vpredicted.cpu()
-                i_accuracy = metrics.accuracy_score(vlabels.numpy(), vpredicted)
-                i_precision = metrics.precision_score(vlabels.numpy(), vpredicted)
-                i_recall = metrics.recall_score(vlabels.numpy(), vpredicted)
-
-                vaccus.append(i_accuracy)
-                vprecs.append(i_precision)
-                vrecas.append(i_recall)
-                vlosses.append(vloss.item())
-
-            curr_epoch_acc = np.mean(vaccus)
-            curr_epoch_loss = np.mean(vlosses)
-            if curr_epoch_acc > curr_best_accuracy:
-                curr_best_accuracy = curr_epoch_acc
-                epoch_best_acc = epoch + 1
-            time_cost = time.time() - start
-            print('Epoch [{}/{}], BatchSize/BatchNum: {}/{}, '
-                  'TrainLoss: {:.4f}; ValidLoss: {:.4f}, '
-                  'Accuracy: {:.4f}, Precision: {:.4f}, Recall: {:.4f}, '
-                  'curr_best_accuracy: {:.4f}; Time: {:.2f}s'
-                  .format(epoch + 1, args.max_epoch_num, args.batch_size, total_step,
-                          np.mean(tlosses), curr_epoch_loss,
-                          curr_epoch_acc, np.mean(vprecs), np.mean(vrecas),
-                          curr_best_accuracy, time_cost))
-            sys.stdout.flush()
-
-            # early stopping by loss
-            if curr_epoch_loss < curr_lowest_loss:
-                curr_lowest_loss = curr_epoch_loss
-                epoch_lowest_loss = epoch + 1
-                torch.save(model.state_dict(),
-                           model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
-                                                                                    epoch + 1))
-            else:
-                if curr_epoch_loss < curr_lowest_loss + 0.0005:  # save model too if loss is in lowest_loss+/-0.0005
-                    torch.save(model.state_dict(),
-                               model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
-                                                                                        epoch + 1))
-                if epoch >= args.min_epoch_num - 1:
-                    print("lowest loss (epoch): {:.4f} ({}); best accuracy (epoch): {:.4f} ({}), "
-                          "early stop!".format(curr_lowest_loss, epoch_lowest_loss,
-                                               curr_best_accuracy, epoch_best_acc))
-                    break
+        if curr_best_accuracy_epoch > curr_best_accuracy:
+            curr_best_accuracy = curr_best_accuracy_epoch
+        else:
+            if epoch >= args.min_epoch_num - 1:
+                print("best accuracy: {}, early stop!".format(curr_best_accuracy))
+                break
 
     endtime = time.time()
     clear_linecache()
@@ -257,7 +246,7 @@ def main():
     # BiRNN model param
     parser.add_argument('--layer_num', type=int, default=3,
                         required=False, help="BiRNN layer num, default 3")
-    parser.add_argument('--n_hid_rnn', type=int, default=256, required=False,
+    parser.add_argument('--hid_rnn', type=int, default=256, required=False,
                         help="BiRNN hidden_size for combined feature")
     parser.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
@@ -276,6 +265,7 @@ def main():
     parser.add_argument('--pos_weight', type=float, default=1.0, required=False)
     parser.add_argument('--tseed', type=int, default=1234,
                         help='random seed for pytorch')
+    parser.add_argument('--step_interval', type=int, default=500, required=False)
 
     args = parser.parse_args()
 
