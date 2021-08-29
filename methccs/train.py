@@ -18,6 +18,7 @@ from dataloader import clear_linecache
 from models import ModelRNN
 from models import ModelAttRNN
 from models import ModelResNet18
+from models import ModelTransEncoder
 
 from utils.constants_torch import use_cuda
 from utils.process_utils import display_args
@@ -36,7 +37,7 @@ def train(args):
         print("GPU is not available!")
 
     print("reading data..")
-    if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+    if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder"}:
         train_dataset = FeaData(args.train_file)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
@@ -72,17 +73,23 @@ def train(args):
         model_dir += "/"
 
     if args.model_type in {"bilstm", "bigru", }:
-        model = ModelRNN(args.seq_len, args.layer_num, args.class_num,
+        model = ModelRNN(args.seq_len, args.layer_rnn, args.class_num,
                          args.dropout_rate, args.hid_rnn,
                          args.n_vocab, args.n_embed,
                          is_stds=str2bool(args.is_stds),
                          model_type=args.model_type)
     elif args.model_type in {"attbilstm", "attbigru", }:
-        model = ModelAttRNN(args.seq_len, args.layer_num, args.class_num,
+        model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
+    elif args.model_type in {"transencoder", }:
+        model = ModelTransEncoder(args.seq_len, args.layer_tfe, args.class_num,
+                                  args.dropout_rate, args.d_model, args.nhead, args.nhid,
+                                  args.n_vocab, args.n_embed,
+                                  is_stds=str2bool(args.is_stds),
+                                  model_type=args.model_type)
     elif args.model_type == "resnet18":
         model = ModelResNet18(args.class_num, args.dropout_rate, str2bool(args.is_stds))
     else:
@@ -104,7 +111,7 @@ def train(args):
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.8)
     else:
         raise ValueError("optim_type is not right!")
-    scheduler = StepLR(optimizer, step_size=2, gamma=0.1)
+    scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
 
     # Train the model
     total_step = len(train_loader)
@@ -116,7 +123,7 @@ def train(args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
                 _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, labels = sfeatures
                 if use_cuda:
                     kmer = kmer.cuda()
@@ -151,11 +158,11 @@ def train(args):
             if (i + 1) % args.step_interval == 0:
                 model.eval()
                 with torch.no_grad():
-                    vlosses, vaccus, vprecs, vrecas = [], [], [], []
+                    vlosses, vlabels_total, vpredicted_total = [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+                        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
                             _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
-                            vlabels = vsfeatures
+                                vlabels = vsfeatures
                             if use_cuda:
                                 vkmer = vkmer.cuda()
                                 vipd_means = vipd_means.cuda()
@@ -182,17 +189,22 @@ def train(args):
                         if use_cuda:
                             vlabels = vlabels.cpu()
                             vpredicted = vpredicted.cpu()
-                        i_accuracy = metrics.accuracy_score(vlabels.numpy(), vpredicted)
-                        i_precision = metrics.precision_score(vlabels.numpy(), vpredicted)
-                        i_recall = metrics.recall_score(vlabels.numpy(), vpredicted)
+                        # i_accuracy = metrics.accuracy_score(vlabels.numpy(), vpredicted)
+                        # i_precision = metrics.precision_score(vlabels.numpy(), vpredicted)
+                        # i_recall = metrics.recall_score(vlabels.numpy(), vpredicted)
 
-                        vaccus.append(i_accuracy)
-                        vprecs.append(i_precision)
-                        vrecas.append(i_recall)
+                        # vaccus.append(i_accuracy)
+                        # vprecs.append(i_precision)
+                        # vrecas.append(i_recall)
                         vlosses.append(vloss.item())
+                        vlabels_total += vlabels
+                        vpredicted_total += vpredicted
 
-                    if np.mean(vaccus) > curr_best_accuracy_epoch:
-                        curr_best_accuracy_epoch = np.mean(vaccus)
+                    v_accuracy = metrics.accuracy_score(vlabels_total, vpredicted_total)
+                    v_precision = metrics.precision_score(vlabels_total, vpredicted_total)
+                    v_recall = metrics.recall_score(vlabels_total, vpredicted_total)
+                    if v_accuracy > curr_best_accuracy_epoch:
+                        curr_best_accuracy_epoch = v_accuracy
                         if curr_best_accuracy_epoch > curr_best_accuracy - 0.0005:
                             torch.save(model.state_dict(),
                                        model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
@@ -204,7 +216,7 @@ def train(args):
                           'Accuracy: {:.4f}, Precision: {:.4f}, Recall: {:.4f}, '
                           'curr_epoch_best_accuracy: {:.4f}; Time: {:.2f}s'
                           .format(epoch + 1, args.max_epoch_num, i + 1, total_step, np.mean(tlosses),
-                                  np.mean(vlosses), np.mean(vaccus), np.mean(vprecs), np.mean(vrecas),
+                                  np.mean(vlosses), v_accuracy, v_precision, v_recall,
                                   curr_best_accuracy_epoch, time_cost))
                     tlosses = []
                     start = time.time()
@@ -232,10 +244,11 @@ def main():
     # model param
     parser.add_argument('--model_type', type=str, default="attbigru",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
+                                 "transencoder",
                                  "resnet18"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
-                             "'bilstm', 'bigru', 'resnet18', default: attbigru")
+                             "'bilstm', 'bigru', 'transencoder', 'resnet18', default: attbigru")
     parser.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     parser.add_argument('--is_stds', type=str, default="yes", required=False,
@@ -243,21 +256,36 @@ def main():
     parser.add_argument('--class_num', type=int, default=2, required=False)
     parser.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
-    # BiRNN model param
-    parser.add_argument('--layer_num', type=int, default=3,
-                        required=False, help="BiRNN layer num, default 3")
-    parser.add_argument('--hid_rnn', type=int, default=256, required=False,
-                        help="BiRNN hidden_size for combined feature")
+    # BiRNN/transformerencoder model param
     parser.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
     parser.add_argument('--n_embed', type=int, default=4, required=False,
                         help="base_seq embedding_size")
+
+    # BiRNN model param
+    parser.add_argument('--layer_rnn', type=int, default=3,
+                        required=False, help="BiRNN layer num, default 3")
+    parser.add_argument('--hid_rnn', type=int, default=256, required=False,
+                        help="BiRNN hidden_size for combined feature")
+
+    # transformerencoder model param
+    parser.add_argument('--layer_tfe', type=int, default=6,
+                        required=False, help="transformer encoder layer num, default 6")
+    parser.add_argument('--d_model', type=int, default=256,
+                        required=False, help="the number of expected features in the "
+                                             "transformer encoder/decoder inputs")
+    parser.add_argument('--nhead', type=int, default=4,
+                        required=False, help="the number of heads in the multiheadattention models")
+    parser.add_argument('--nhid', type=int, default=512,
+                        required=False, help="the dimension of the feedforward network model")
 
     # model training
     parser.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD"],
                         required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop', default Adam")
     parser.add_argument('--batch_size', type=int, default=512, required=False)
     parser.add_argument('--lr', type=float, default=0.001, required=False)
+    parser.add_argument('--lr_decay', type=float, default=0.1, required=False)
+    parser.add_argument('--lr_decay_step', type=int, default=2, required=False)
     parser.add_argument("--max_epoch_num", action="store", default=50, type=int,
                         required=False, help="max epoch num, default 50")
     parser.add_argument("--min_epoch_num", action="store", default=20, type=int,

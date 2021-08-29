@@ -27,6 +27,7 @@ import time
 from models import ModelRNN
 from models import ModelAttRNN
 from models import ModelResNet18
+from models import ModelTransEncoder
 
 from utils.process_utils import base2code_dna
 from utils.process_utils import code2base_dna
@@ -257,17 +258,23 @@ def _call_mods2(features_batch, model, batch_size):
 def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
     print('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"bilstm", "bigru", }:
-        model = ModelRNN(args.seq_len, args.layer_num, args.class_num,
+        model = ModelRNN(args.seq_len, args.layer_rnn, args.class_num,
                          args.dropout_rate, args.n_hid_rnn,
                          args.n_vocab, args.n_embed,
                          is_stds=str2bool(args.is_stds),
                          model_type=args.model_type)
     elif args.model_type in {"attbilstm", "attbigru", }:
-        model = ModelAttRNN(args.seq_len, args.layer_num, args.class_num,
+        model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.n_hid_rnn,
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
+    elif args.model_type in {"transencoder", }:
+        model = ModelTransEncoder(args.seq_len, args.layer_tfe, args.class_num,
+                                  args.dropout_rate, args.d_model, args.nhead, args.nhid,
+                                  args.n_vocab, args.n_embed,
+                                  is_stds=str2bool(args.is_stds),
+                                  model_type=args.model_type)
     elif args.model_type == "resnet18":
         model = ModelResNet18(args.class_num, args.dropout_rate, str2bool(args.is_stds))
     else:
@@ -298,7 +305,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
             features_batch_q.put("kill")
             break
 
-        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
             pred_str, accuracy, batch_num = _call_mods(features_batch, model, args.batch_size)
         elif args.model_type in {"resnet18", }:
             pred_str, accuracy, batch_num = _call_mods2(features_batch, model, args.batch_size)
@@ -408,7 +415,7 @@ def _worker_extract_features(hole_align_q, features_batch_q, contigs, motifs, ar
         for hole_aligninfo in holes_aligninfo:
             feature_list += handle_one_hole2(hole_aligninfo, contigs, motifs, args)
         if len(feature_list) > 0:
-            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
                 features_batch_q.put(_batch_feature_list1(feature_list))
             elif args.model_type in {"resnet18", }:
                 features_batch_q.put(_batch_feature_list2(feature_list))
@@ -522,7 +529,7 @@ def call_mods(args):
         p_read.start()
 
         ps_str2value = []
-        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", }:
+        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
             for _ in range(nproc_cnvt):
                 p = mp.Process(target=_format_features_from_strbatch1, args=(featurestrs_batch_q,
                                                                              features_batch_q))
@@ -583,10 +590,11 @@ def main():
     # model param
     p_call.add_argument('--model_type', type=str, default="attbigru",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
+                                 "transencoder",
                                  "resnet18"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
-                             "'bilstm', 'bigru', 'resnet18', default: attbigru")
+                             "'bilstm', 'bigru', 'transencoder', 'resnet18', default: attbigru")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     p_call.add_argument('--is_stds', type=str, default="yes", required=False,
@@ -597,15 +605,28 @@ def main():
     p_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                         action="store", help="batch size, default 512")
 
-    # BiRNN model param
-    p_call.add_argument('--layer_num', type=int, default=3,
-                        required=False, help="lstm layer num, default 3")
-    p_call.add_argument('--n_hid_rnn', type=int, default=256, required=False,
-                        help="BiRNN hidden_size for combined feature")
-    p_call.add_argument('--n_vocab', type=int, default=16, required=False,
+    # BiRNN/transformerencoder model param
+    parser.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
-    p_call.add_argument('--n_embed', type=int, default=4, required=False,
+    parser.add_argument('--n_embed', type=int, default=4, required=False,
                         help="base_seq embedding_size")
+
+    # BiRNN model param
+    parser.add_argument('--layer_rnn', type=int, default=3,
+                        required=False, help="BiRNN layer num, default 3")
+    parser.add_argument('--hid_rnn', type=int, default=256, required=False,
+                        help="BiRNN hidden_size for combined feature")
+
+    # transformerencoder model param
+    parser.add_argument('--layer_tfe', type=int, default=6,
+                        required=False, help="transformer encoder layer num, default 6")
+    parser.add_argument('--d_model', type=int, default=256,
+                        required=False, help="the number of expected features in the "
+                                             "transformer encoder/decoder inputs")
+    parser.add_argument('--nhead', type=int, default=4,
+                        required=False, help="the number of heads in the multiheadattention models")
+    parser.add_argument('--nhid', type=int, default=512,
+                        required=False, help="the dimension of the feedforward network model")
 
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--output", "-o", action="store", type=str, required=True,
