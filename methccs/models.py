@@ -98,6 +98,9 @@ class ModelRNN(nn.Module):
 
 
 # AttBiRNN ===============================================================
+from utils.attention import Attention
+
+
 class ModelAttRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
@@ -135,16 +138,20 @@ class ModelAttRNN(nn.Module):
         self.dropout1 = nn.Dropout(p=dropout_rate)
         self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
 
-        # attention_net
-        self._att1_tanh = nn.Tanh()
-        self._att1_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
-        self._att1_softmax = nn.Softmax(dim=1)
+        # # attention_net
+        # self._att1_tanh = nn.Tanh()
+        # # self._att1_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
+        # self._att1_context_vector = nn.Linear(self.hidden_size * 2, 1, bias=False)
+        # self._att1_softmax = nn.Softmax(dim=1)
 
-        # attention_net2
-        self._att2_proj = nn.Linear(self.hidden_size * 2, self.hidden_size * 2)
-        self._att2_tanh = nn.Tanh()
-        self._att2_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
-        self._att2_softmax = nn.Softmax(dim=1)
+        # # attention_net2
+        # self._att2_proj = nn.Linear(self.hidden_size * 2, self.hidden_size * 2)
+        # self._att2_tanh = nn.Tanh()
+        # self._att2_context_vector = nn.Parameter(torch.Tensor(self.hidden_size * 2, 1))
+        # self._att2_softmax = nn.Softmax(dim=1)
+
+        # attention_net3, bahdanau attn
+        self._att3 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
 
         self.softmax = nn.Softmax(1)
 
@@ -163,27 +170,27 @@ class ModelAttRNN(nn.Module):
             return h0, c0
         return h0
 
-    # https://github.com/graykode/nlp-tutorial/blob/master/4-3.Bi-LSTM(Attention)/Bi-LSTM(Attention).py
-    # https://github.com/zhijing-jin/pytorch_RelationExtraction_AttentionBiLSTM/blob/master/model.py
-    # Attention-Based Bidirectional Long Short-Term Memory Networks for Relation Classification
-    def attention_net(self, rnn_output):
-        # rnn_output: (N, L, C * 2)
-        attn_weights = self._att1_tanh(rnn_output)
-        attn_weights = attn_weights.matmul(self._att1_context_vector)  # (N, L, 1)
-        soft_attn_weights = self._att1_softmax(attn_weights)  # (N, L, 1)
-        attout = torch.bmm(rnn_output.transpose(1, 2), soft_attn_weights).squeeze(2)
-        return attout  # (N, C * 2)
+    # # https://github.com/graykode/nlp-tutorial/blob/master/4-3.Bi-LSTM(Attention)/Bi-LSTM(Attention).py
+    # # https://github.com/zhijing-jin/pytorch_RelationExtraction_AttentionBiLSTM/blob/master/model.py
+    # # Attention-Based Bidirectional Long Short-Term Memory Networks for Relation Classification
+    # def attention_net(self, rnn_output):
+    #     # rnn_output: (N, L, C * 2)
+    #     attn_weights = self._att1_tanh(rnn_output)
+    #     # attn_weights = attn_weights.matmul(self._att1_context_vector)  # (N, L, 1)
+    #     attn_weights = self._att1_context_vector(attn_weights)  # (N, L, 1)
+    #     soft_attn_weights = self._att1_softmax(attn_weights)  # (N, L, 1)
+    #     attout = torch.bmm(rnn_output.transpose(1, 2), soft_attn_weights).squeeze(2)
+    #     return attout  # (N, C * 2)
 
-    # https://www.dazhuanlan.com/2019/12/16/5df6a2a0b9dde/
-    # https://github.com/Cheneng/HiararchicalAttentionGRU/blob/master/model/HiararchicalATT.py
-    # https://github.com/uvipen/Hierarchical-attention-networks-pytorch/blob/master/src/word_att_model.py
-    def attention_net2(self, rnn_output):
-        # lstm_output: (N, L, C * 2)
-        Hw = self._att2_tanh(self._att2_proj(rnn_output))  # (N, L, C * 2)
-        w_score = self._att2_softmax(Hw.matmul(self._att2_context_vector))  # (N, L, 1)
-        # attout = torch.mul(rnn_output, w_score)  # (N, L, n_hid * 2)
-        attout = torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, C * 2)
-        return attout
+    # # https://www.dazhuanlan.com/2019/12/16/5df6a2a0b9dde/
+    # # https://github.com/Cheneng/HiararchicalAttentionGRU/blob/master/model/HiararchicalATT.py
+    # # https://github.com/uvipen/Hierarchical-attention-networks-pytorch/blob/master/src/word_att_model.py
+    # def attention_net2(self, rnn_output):
+    #     # lstm_output: (N, L, C * 2)
+    #     Hw = self._att2_tanh(self._att2_proj(rnn_output))  # (N, L, C * 2)
+    #     w_score = self._att2_softmax(Hw.matmul(self._att2_context_vector))  # (N, L, 1)
+    #     attout = torch.bmm(rnn_output.transpose(1, 2), w_score).squeeze(2)  # (N, C * 2)
+    #     return attout
 
     def forward(self, kmer, ipd_means, ipd_stds, pw_means, pw_stds):
         # kmer, ipd means, ipd_stds, pw_means, pw_stds as features
@@ -201,15 +208,19 @@ class ModelAttRNN(nn.Module):
                                                         self.num_layers,
                                                         self.hidden_size))  # (N, L, nhid*2)
 
-        # attention_net ======
-        # # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
-        # h_n = n_states[0] if self.rnn_cell == "lstm" else n_states
-        # h_n = h_n.view(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
-        # out = self.attention_net(out, h_n)
-        out = self.attention_net(out)
+        # # attention_net ======
+        # out = self.attention_net(out)
 
         # # attention_net2 ======
         # out = self.attention_net2(out)
+
+        # attention_net3 ======
+        # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
+        # h_n (last layer) = out[:, -1, :self.hidden_size] concats out1[:, 0, self.hidden_size:]
+        h_n = n_states[0] if self.rnn_cell == "lstm" else n_states
+        h_n = h_n.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
+        h_n = h_n.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
+        out, att_weights = self._att3(h_n, out)
 
         # out = self.dropout1(out)
         # out = self.fc1(out)
@@ -550,7 +561,9 @@ class PositionalEncoding(nn.Module):
 
 
 class ModelTransEncoder(nn.Module):
-    """Container module with an encoder, a recurrent or transformer module, and a decoder."""
+    """Container module with an encoder, a recurrent or transformer module, and a decoder.
+    CNN/LSTM -> Transformer
+    """
     def __init__(self, seq_len=21, num_layers=6, num_classes=2,
                  dropout_rate=0.5, d_model=256, nhead=4, nhid=512,
                  nvocab=16, nembed=4,
@@ -633,12 +646,12 @@ class ModelTransEncoder(nn.Module):
         else:
             out = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
 
-        out = out.transpose(-1, -2)  # (N, C, L)
-        out = self.src_embed(out)  # (N, C, L)
-        out = out.transpose(-1, -2)  # (N, L, C)
-        # out, _ = self.lstm(out, self.init_hidden(out.size(0),
-        #                                          2,
-        #                                          self.d_model // 2))
+        # out = out.transpose(-1, -2)  # (N, C, L)
+        # out = self.src_embed(out)  # (N, C, L)
+        # out = out.transpose(-1, -2)  # (N, L, C)
+        out, _ = self.lstm(out, self.init_hidden(out.size(0),
+                                                 2,
+                                                 self.d_model // 2))
         out = out.transpose(0, 1)  # (L, N, C)
 
         out = self.pos_encoder(out)  # (L, N, C)
@@ -661,81 +674,3 @@ class ModelTransEncoder(nn.Module):
         out = self.dropout(out)
         out = self.decoder2(out)
         return out, self.softmax(out)
-
-
-# class ModelTransEncoder2(nn.Module):
-#     """Container module with an encoder, a recurrent or transformer module, and a decoder."""
-#     def __init__(self, seq_len=21, num_layers=6, num_classes=2,
-#                  dropout_rate=0.5, d_model=256, nhead=4, nhid=512):
-#         super(ModelTransEncoder, self).__init__()
-#         try:
-#             from torch.nn import TransformerEncoder, TransformerEncoderLayer
-#         except:
-#             raise ImportError('TransformerEncoder module does not exist in PyTorch 1.1 or lower.')
-#         self.model_type = 'Transformer2'
-#         self.seq_len = seq_len
-#         self.num_layers = num_layers
-#         self.d_model = d_model
-#
-#         self.num_channel = 2
-#
-#         self.src_embed = nn.Sequential(nn.Conv2d(self.num_channel, self.d_model // 4, kernel_size=3,
-#                                                  stride=(1, 2), padding=1, bias=False),
-#                                        nn.BatchNorm2d(self.d_model // 4,),
-#                                        nn.ReLU(inplace=True),
-#                                        nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
-#                                        nn.Conv2d(self.d_model // 4, self.d_model // 2, kernel_size=3,
-#                                                  stride=(1, 2), padding=1, bias=False),
-#                                        nn.BatchNorm2d(self.d_model // 2),
-#                                        nn.ReLU(inplace=True),
-#                                        nn.MaxPool2d(kernel_size=3, stride=1, padding=1),
-#                                        nn.Conv2d(self.d_model // 2, self.d_model, kernel_size=3,
-#                                                  stride=(1, 2), padding=1, bias=False),
-#                                        nn.BatchNorm2d(self.d_model),
-#                                        nn.ReLU(inplace=True),
-#                                        nn.MaxPool2d(kernel_size=3, stride=1, padding=1))
-#
-#         self.src_mask = None
-#         self.pos_encoder = PositionalEncoding(self.d_model, dropout_rate)
-#         encoder_layers = TransformerEncoderLayer(self.d_model, nhead, nhid, dropout_rate)
-#         self.transformer_encoder = TransformerEncoder(encoder_layers, num_layers)
-#
-#         self.decoder1 = nn.Linear(self.seq_len * self.d_model, self.d_model)
-#         self.dropout = nn.Dropout(dropout_rate)
-#         self.relu = nn.ReLU()
-#         self.decoder2 = nn.Linear(self.d_model, num_classes)
-#         self.softmax = nn.Softmax(1)
-#
-#     def _generate_square_subsequent_mask(self, sz):
-#         mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-#         mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-#         return mask
-#
-#     def forward(self, kmer_mat, has_mask=True):
-#         out = kmer_mat.float()  # (N, C=2, H, W=5)
-#
-#         out = self.src_embed(out)  # (N, C=d_model, H, W=1)
-#         out = out.transpose(1, 2)
-#         out = torch.flatten(out, start_dim=2)  # (N, H, C*W=d_model)
-#         out = out.transpose(0, 1)  # (L, N, C)
-#
-#         out = self.pos_encoder(out)  # (L, N, C)
-#
-#         if has_mask:
-#             device = out.device
-#             if self.src_mask is None or self.src_mask.size(0) != len(out):
-#                 mask = self._generate_square_subsequent_mask(len(out)).to(device)
-#                 self.src_mask = mask
-#         else:
-#             self.src_mask = None
-#
-#         out = self.transformer_encoder(out, self.src_mask)  # (L, N, C)
-#         out = out.transpose(0, 1)  # (N, L, C)
-#         out = out.reshape(out.size(0), -1)
-#
-#         # output logits
-#         out = self.decoder1(out)
-#         out = self.relu(out)
-#         out = self.dropout(out)
-#         out = self.decoder2(out)
-#         return out, self.softmax(out)

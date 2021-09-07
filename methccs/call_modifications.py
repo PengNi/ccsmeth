@@ -259,19 +259,19 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
     print('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"bilstm", "bigru", }:
         model = ModelRNN(args.seq_len, args.layer_rnn, args.class_num,
-                         args.dropout_rate, args.n_hid_rnn,
+                         args.dropout_rate, args.hid_rnn,
                          args.n_vocab, args.n_embed,
                          is_stds=str2bool(args.is_stds),
                          model_type=args.model_type)
     elif args.model_type in {"attbilstm", "attbigru", }:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
-                            args.dropout_rate, args.n_hid_rnn,
+                            args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
     elif args.model_type in {"transencoder", }:
         model = ModelTransEncoder(args.seq_len, args.layer_tfe, args.class_num,
-                                  args.dropout_rate, args.d_model, args.nhead, args.nhid,
+                                  args.dropout_rate, args.d_model_tfe, args.nhead_tfe, args.nhid_tfe,
                                   args.n_vocab, args.n_embed,
                                   is_stds=str2bool(args.is_stds),
                                   model_type=args.model_type)
@@ -594,7 +594,8 @@ def main():
                                  "resnet18"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
-                             "'bilstm', 'bigru', 'transencoder', 'resnet18', default: attbigru")
+                             "'bilstm', 'bigru', 'transencoder', 'resnet18', "
+                             "default: attbigru")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     p_call.add_argument('--is_stds', type=str, default="yes", required=False,
@@ -620,12 +621,12 @@ def main():
     # transformerencoder model param
     parser.add_argument('--layer_tfe', type=int, default=6,
                         required=False, help="transformer encoder layer num, default 6")
-    parser.add_argument('--d_model', type=int, default=256,
+    parser.add_argument('--d_model_tfe', type=int, default=256,
                         required=False, help="the number of expected features in the "
                                              "transformer encoder/decoder inputs")
-    parser.add_argument('--nhead', type=int, default=4,
+    parser.add_argument('--nhead_tfe', type=int, default=4,
                         required=False, help="the number of heads in the multiheadattention models")
-    parser.add_argument('--nhid', type=int, default=512,
+    parser.add_argument('--nhid_tfe', type=int, default=512,
                         required=False, help="the dimension of the feedforward network model")
 
     p_output = parser.add_argument_group("OUTPUT")

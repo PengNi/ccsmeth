@@ -37,7 +37,8 @@ def train(args):
         print("GPU is not available!")
 
     print("reading data..")
-    if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder"}:
+    if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru",
+                           "transencoder", }:
         train_dataset = FeaData(args.train_file)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
@@ -86,7 +87,7 @@ def train(args):
                             model_type=args.model_type)
     elif args.model_type in {"transencoder", }:
         model = ModelTransEncoder(args.seq_len, args.layer_tfe, args.class_num,
-                                  args.dropout_rate, args.d_model, args.nhead, args.nhid,
+                                  args.dropout_rate, args.d_model_tfe, args.nhead_tfe, args.nhid_tfe,
                                   args.n_vocab, args.n_embed,
                                   is_stds=str2bool(args.is_stds),
                                   model_type=args.model_type)
@@ -109,6 +110,15 @@ def train(args):
         optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr)
     elif args.optim_type == "SGD":
         optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.8)
+    elif args.optim_type == "Ranger":
+        # use Ranger optimizer
+        # refer to https://github.com/lessw2020/Ranger-Deep-Learning-Optimizer
+        # needs python>=3.6
+        try:
+            from utils.ranger2020 import Ranger
+        except ImportError:
+            raise ImportError("please check if ranger2020.py is in utils/ dir!")
+        optimizer = Ranger(model.parameters(), lr=args.lr, betas=(0.95, 0.999), eps=1e-5)
     else:
         raise ValueError("optim_type is not right!")
     scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
@@ -123,7 +133,8 @@ def train(args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
+            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru",
+                                   "transencoder", }:
                 _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, labels = sfeatures
                 if use_cuda:
                     kmer = kmer.cuda()
@@ -160,7 +171,8 @@ def train(args):
                 with torch.no_grad():
                     vlosses, vlabels_total, vpredicted_total = [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
+                        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru",
+                                               "transencoder", }:
                             _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
                                 vlabels = vsfeatures
                             if use_cuda:
@@ -248,7 +260,8 @@ def main():
                                  "resnet18"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
-                             "'bilstm', 'bigru', 'transencoder', 'resnet18', default: attbigru")
+                             "'bilstm', 'bigru', 'transencoder', 'resnet18', "
+                             "default: attbigru")
     parser.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     parser.add_argument('--is_stds', type=str, default="yes", required=False,
@@ -271,17 +284,19 @@ def main():
     # transformerencoder model param
     parser.add_argument('--layer_tfe', type=int, default=6,
                         required=False, help="transformer encoder layer num, default 6")
-    parser.add_argument('--d_model', type=int, default=256,
+    parser.add_argument('--d_model_tfe', type=int, default=256,
                         required=False, help="the number of expected features in the "
                                              "transformer encoder/decoder inputs")
-    parser.add_argument('--nhead', type=int, default=4,
+    parser.add_argument('--nhead_tfe', type=int, default=4,
                         required=False, help="the number of heads in the multiheadattention models")
-    parser.add_argument('--nhid', type=int, default=512,
+    parser.add_argument('--nhid_tfe', type=int, default=512,
                         required=False, help="the dimension of the feedforward network model")
 
     # model training
-    parser.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD"],
-                        required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop', default Adam")
+    parser.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
+                                                                           "Ranger"],
+                        required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' or 'Ranger', "
+                                             "default Adam")
     parser.add_argument('--batch_size', type=int, default=512, required=False)
     parser.add_argument('--lr', type=float, default=0.001, required=False)
     parser.add_argument('--lr_decay', type=float, default=0.1, required=False)
