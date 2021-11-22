@@ -46,7 +46,9 @@ def generate_aligner_with_options(is_bwa, path_to_bwa, path_to_minimap2, bestn, 
             aligner = os.path.abspath(path_to_minimap2)
         num_sencondary = bestn - 1
         if num_sencondary == 0:
-            aligner += " -ax map-pb -y -t {t} --secondary=no".format(t=threads)
+            aligner += " -ax map-pb -y -t {t} --secondary=no".format(t=threads)  # avoid -N0
+        if num_sencondary == 1:
+            aligner += " -ax map-pb -y -t {t} --secondary=no".format(t=threads)  # avoid -N1
         else:
             aligner += " -ax map-pb -y -t {t} -N {N}".format(t=threads,
                                                              N=num_sencondary)
@@ -135,9 +137,10 @@ def main():
                           help="save header annotations from bam/sam. DEPRECATED")
 
     p_align = parser.add_argument_group("ALIGN")
-    p_align.add_argument("--bestn", "-n", type=int, default=2, required=False,
+    p_align.add_argument("--bestn", "-n", type=int, default=3, required=False,
                          help="retain at most n alignments in minimap2. "
-                              "default 2, which means 1 secondary alignments are retained. "
+                              "default 3, which means 2 secondary alignments are retained. "
+                              "Do not use 2, cause -N1 is not suggested for high accuracy of alignment. "
                               "[This arg is for further extension, for now it is no use cause "
                               "we use only primary alignment.]")
     p_align.add_argument("--bwa", action="store_true", default=False, required=False,

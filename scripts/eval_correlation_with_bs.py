@@ -31,11 +31,24 @@ def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf):
     return meancov, rmet_bed.sort_values(by=['chromosome', 'pos'])
 
 
-def read_rmetfile_of_smrt(smrt_file, contig_prefix, contig_names, cov_cf):
-    rmet_dp2 = pd.read_csv(smrt_file, sep="\t", header=None,
-                           names=["chromosome", "pos", "strand", "prob0", "prob1", "met", "unmet",
-                                  "coverage", "Rmet", "kmer"],
-                           dtype={"chromosome": str})
+def read_rmetfile_of_tgs(tgs_file, contig_prefix, contig_names, cov_cf):
+    rftmp = open(tgs_file, 'r')
+    words = next(rftmp).strip().split("\t")
+    rftmp.close()
+    if len(words) == 11:
+        # nanopore deepsignal
+        rmet_dp2 = pd.read_csv(tgs_file, sep="\t", header=None,
+                               names=["chromosome", "pos", "strand", "pos_in_strand", "prob0", "prob1", "met", "unmet",
+                                      "coverage", "Rmet", "kmer"],
+                               dtype={"chromosome": str})
+    elif len(words) == 10:
+        # smrt methccs
+        rmet_dp2 = pd.read_csv(tgs_file, sep="\t", header=None,
+                               names=["chromosome", "pos", "strand", "prob0", "prob1", "met", "unmet",
+                                      "coverage", "Rmet", "kmer"],
+                               dtype={"chromosome": str})
+    else:
+        raise ValueError("tgs_file wrong!")
 
     if contig_prefix is not None:
         rmet_dp2 = rmet_dp2[rmet_dp2.apply(lambda row: row["chromosome"].startswith(contig_prefix), axis=1)]
@@ -104,7 +117,7 @@ def cal_corr_df1_vs_df2(df1, df2):
 
 
 def correlation_with_bs_rmets(args):
-    smrt_files = args.smrt_file
+    tgs_files = args.tgs_file
     bs_files = args.bs_file
 
     print("==nanofile coverage cutoff: {}\n".format(args.cov_cf))
@@ -116,13 +129,13 @@ def correlation_with_bs_rmets(args):
                                                                                        args.contig_names,
                                                                                        args.cov_cf_bs)
         print("bsfile: {}, mean_covarge: {}".format(bs_file, bsmean_cov))
-    for smrt_file in smrt_files:
-        print("====== {}".format(smrt_file))
-        if str(smrt_file).endswith(".bed"):
-            mean_cov, dp2rmetinfo = read_methylbed(smrt_file, args.contig_prefix, args.contig_names, args.cov_cf)
-        elif str(smrt_file).endswith("freq.tsv") or str(smrt_file).endswith("freq.fb_comb.tsv"):
-            mean_cov, dp2rmetinfo = read_rmetfile_of_smrt(smrt_file, args.contig_prefix,
-                                                          args.contig_names, args.cov_cf)
+    for tgs_file in tgs_files:
+        print("====== {}".format(tgs_file))
+        if str(tgs_file).endswith(".bed"):
+            mean_cov, dp2rmetinfo = read_methylbed(tgs_file, args.contig_prefix, args.contig_names, args.cov_cf)
+        else:
+            mean_cov, dp2rmetinfo = read_rmetfile_of_tgs(tgs_file, args.contig_prefix,
+                                                         args.contig_names, args.cov_cf)
         print("mean_covarge: {}".format(mean_cov))
         print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format("bs_file", "bsnum", "smrtnum", "internum", "pearson",
                                                       "rsquare", "spearman", "RMSE"))
@@ -166,7 +179,9 @@ def correlation_with_bs_rmets(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--smrt_file", type=str, action="append", required=True, help="smrt freq file, .freq.tsv/.bed")
+    parser.add_argument("--tgs_file", type=str, action="append", required=True, help="smrt/nanopore freq file, "
+                                                                                     ".freq.tsv/.bed "
+                                                                                     "(self-defined format)")
     parser.add_argument("--bs_file", type=str, action="append",
                         required=True, help=".bed/CpG.report.txt")
     parser.add_argument("--contig_prefix", type=str, required=False, default=None)
