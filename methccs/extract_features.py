@@ -20,7 +20,7 @@ from utils.ref_reader import DNAReference
 from utils.process_utils import complement_seq
 
 code2frames = codecv1_to_frame()
-queen_size_border = 2000
+queen_size_border = 1000
 time_wait = 3
 
 exceptval = 1000
@@ -148,7 +148,7 @@ def _parse_cigar(cigarseq):
         num = int(match[0][:-1])
         if match[0].endswith('S'):
             # https://support.bioconductor.org/p/128310/
-            sys.stderr.write("warning: got {} soft clipping in cigar!".format(match[0][:-1]))
+            # sys.stderr.write("warning: got {} soft clipping in cigar!\n".format(match[0][:-1]))
             cidx_q += num
             cnt_s += num
         elif match[0].endswith('X') or match[0].endswith('=') or match[0].endswith('M'):
@@ -168,7 +168,7 @@ def _parse_cigar(cigarseq):
             cidx_t += num
             cnt_d += num
         elif match[0].endswith('N') or match[0].endswith('P') or match[0].endswith('H'):
-            sys.stderr.write("warning: got {} in cigar!".format(match[0][-1]))
+            sys.stderr.write("warning: got {} in cigar!\n".format(match[0][-1]))
     identity = float(cnt_m)/(cnt_s + cnt_m + cnt_i + cnt_d)
     # assert (q_adjseq[0] != "-")
     return identity, queryseq_poses, refpos2querypos
@@ -179,7 +179,7 @@ def _cal_mean_n_std(mylist):
 
 
 def check_excpval(myarray):
-    if exceptval in myarray:
+    if exceptval in set(myarray):
         return True
     return False
 
@@ -201,8 +201,6 @@ def _extract_kmer_features(holeid, chrom, pos_min, pos_max, strand, ipd_mean, ip
     else:
         abs_start = chromlen - (pos_min + len(align_seq))
     tsite_locs = get_refloc_of_methysite_in_motif(align_seq, set(motifs), mod_loc)
-    if seq_len % 2 == 0:
-        raise ValueError("seq_len must be odd")
     num_bases = (seq_len - 1) // 2
     feature_list = []
     for offset_loc in tsite_locs:
@@ -278,40 +276,13 @@ def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, c
     subreads_info = []
     depth_all = len(subreads_lines)
     for subread_info in subreads_lines:
-        words, qlocs_to_ref, refpos2querypos = subread_info
-        # _, flag, chrom, start, cigar, _ = words[0], int(words[1]), words[2], int(words[3]) - 1, words[5], words[9]
-        _, flag, chrom, start = words[0], int(words[1]), words[2], int(words[3]) - 1
-        assert (chrom == holechrom)
-        strand = "+" if flag == 0 else "-"
-        assert (strand == ccs_strand)
+        chrom, start, strand, ipd, pw, qlocs_to_ref, refpos2querypos = subread_info
+        # assert (strand == ccs_strand)  # duplicate
 
-        ipd, pw = [], []
-        try:
-            for i in range(11, len(words)):
-                if words[i].startswith("ip:B:C,"):
-                    ipd = [int(ipdval) for ipdval in words[i].split(",")[1:]]
-                elif words[i].startswith("pw:B:C,"):
-                    pw = [int(pwval) for pwval in words[i].split(",")[1:]]
-            if len(ipd) == 0 or len(pw) == 0:
-                # print(holeid, subread_id, "no ipd")
-                continue
-            if len(ipd) != len(pw):
-                continue
-        except ValueError:
-            continue
-        if not args.no_decode:
-            ipd = [code2frames[ipdval] for ipdval in ipd]
-            pw = [code2frames[pwval] for pwval in pw]
-        ipd = _normalize_signals(ipd, args.norm)
-        pw = _normalize_signals(pw, args.norm)
         if strand == "-":
             ipd = ipd[::-1]
             pw = pw[::-1]
 
-        # identity, qlocs_to_ref, refpos2querypos = _parse_cigar(cigar)
-        # if identity < args.identity:
-        #     # print(holeid, holechrom, subread_id, identity, "identity too low")
-        #     continue
         for rpos in refpos2querypos.keys():
             qpos = refpos2querypos[rpos]
             if (start+rpos) not in refposes:
@@ -321,18 +292,20 @@ def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, c
             refpos2ipd[(start+rpos)].append(ipd[qpos])
             refpos2pw[(start+rpos)].append(pw[qpos])
 
-        # to handle missing values (deletion in cigar, -1),
-        # append 1000 in the ipd/pw for index -1
-        subread_ipd = [np.insert(ipd, len(ipd), exceptval)[idx] for idx in qlocs_to_ref]
-        subread_pw = [np.insert(pw, len(pw), exceptval)[idx] for idx in qlocs_to_ref]
-        subreads_info.append((start, subread_ipd, subread_pw))
+        # TODO: disable subreads_features for now
+        # # to handle missing values (deletion in cigar, -1),
+        # # append 1000 in the ipd/pw for index -1
+        # subread_ipd = [np.insert(ipd, len(ipd), exceptval)[idx] for idx in qlocs_to_ref]
+        # subread_pw = [np.insert(pw, len(pw), exceptval)[idx] for idx in qlocs_to_ref]
+        # subreads_info.append((start, subread_ipd, subread_pw))
 
     # calculate mean/std of ipd/pw
     if len(refposes) == 0:
         return []
 
-    refpos_max = np.max(list(refposes))
-    refpos_min = np.min(list(refposes))
+    refposes_list = list(refposes)
+    refpos_max = np.max(refposes_list)
+    refpos_min = np.min(refposes_list)
     ref_len = refpos_max - refpos_min + 1
     ipd_mean, ipd_std, pw_mean, pw_std = [exceptval] * ref_len, [exceptval] * ref_len, \
                                          [exceptval] * ref_len, [exceptval] * ref_len
@@ -349,15 +322,17 @@ def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, c
     del refpos2ipd
     del refpos2pw
     del refposes
+    del refposes_list
 
-    # paddle subreads ipd/pw list to align ref
-    for idx in range(0, len(subreads_info)):
-        start, subread_ipd, subread_pw = subreads_info[idx]
-        pad_left = start - refpos_min
-        pad_right = refpos_max + 1 - (start + len(subread_ipd))
-        subread_ipd = [exceptval] * pad_left + subread_ipd + [exceptval] * pad_right
-        subread_pw = [exceptval] * pad_left + subread_pw + [exceptval] * pad_right
-        subreads_info[idx] = (subread_ipd, subread_pw)
+    # TODO: disable subreads_features for now
+    # # paddle subreads ipd/pw list to align ref
+    # for idx in range(0, len(subreads_info)):
+    #     start, subread_ipd, subread_pw = subreads_info[idx]
+    #     pad_left = start - refpos_min
+    #     pad_right = refpos_max + 1 - (start + len(subread_ipd))
+    #     subread_ipd = [exceptval] * pad_left + subread_ipd + [exceptval] * pad_right
+    #     subread_pw = [exceptval] * pad_left + subread_pw + [exceptval] * pad_right
+    #     subreads_info[idx] = (subread_ipd, subread_pw)
 
     feature_list = _extract_kmer_features(holeid, holechrom, refpos_min, refpos_max, ccs_strand,
                                           ipd_mean, ipd_std, pw_mean, pw_std, ipd_depth, depth_all,
@@ -392,6 +367,7 @@ def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
         for clidx in chromlineidxs:
             words = hole_aligns[clidx]
             flag, start = int(words[1]), int(words[3]) - 1
+            chrom = words[2]
             if abs(start - start_median) > 100e3:  # filter reads aligned too far away from main alignments
                 # print(holeid, holechrom, flag, start, start_median, "start - start_median too far")
                 continue
@@ -400,14 +376,38 @@ def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
             if identity < args.identity:  # skip reads with low identity
                 # print(holeid, holechrom, subread_id, identity, "identity too low")
                 continue
-            assert (flag == 0 or flag == 16)
+
+            # _, flag, chrom, start = words[0], int(words[1]), words[2], int(words[3]) - 1
+            # assert (chrom == holechrom)  # duplicate
+            strand = "+" if flag == 0 else "-"
+            ipd, pw = [], []
+            try:
+                for i in range(11, len(words)):
+                    if words[i].startswith("ip:B:C,"):
+                        ipd = [int(ipdval) for ipdval in words[i].split(",")[1:]]
+                    elif words[i].startswith("pw:B:C,"):
+                        pw = [int(pwval) for pwval in words[i].split(",")[1:]]
+                if len(ipd) == 0 or len(pw) == 0:
+                    # print(holeid, subread_id, "no ipd")
+                    continue
+                if len(ipd) != len(pw):
+                    continue
+            except ValueError:
+                continue
+            if not args.no_decode:
+                ipd = [code2frames[ipdval] for ipdval in ipd]
+                pw = [code2frames[pwval] for pwval in pw]
+            ipd = _normalize_signals(ipd, args.norm)
+            pw = _normalize_signals(pw, args.norm)
+
+            # assert (flag == 0 or flag == 16)  # duplicate
             if flag == 0:
-                subreads_fwd.append((words, qlocs_to_ref, refpos2querypos))
+                subreads_fwd.append((chrom, start, strand, ipd, pw, qlocs_to_ref, refpos2querypos))
             else:
-                subreads_bwd.append((words, qlocs_to_ref, refpos2querypos))
+                subreads_bwd.append((chrom, start, strand, ipd, pw, qlocs_to_ref, refpos2querypos))
 
         # skip read which only have subreads in one strand
-        if args.two_strands and len(subreads_fwd) < 1 and len(subreads_bwd) < 1:
+        if args.two_strands and (len(subreads_fwd) < 1 or len(subreads_bwd) < 1):
             continue
 
         if len(subreads_fwd) >= args.depth:
@@ -503,6 +503,9 @@ def extract_subreads_features(args):
         raise IOError("input file does not exist!")
     if not os.path.exists(reference):
         raise IOError("refernce(--ref) file does not exist!")
+
+    if args.seq_len % 2 == 0:
+        raise ValueError("seq_len must be odd")
 
     contigs = DNAReference(reference).getcontigs()
     motifs = get_motif_seqs(args.motifs)

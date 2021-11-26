@@ -111,7 +111,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--report_fp", help="the pred_in_ref report file path",
                         type=str, required=True)
-    parser.add_argument('-t', "--rtype", help="bismark, bedmethyl, or deepsmrt",
+    parser.add_argument('-t', "--rtype", help="bismark, bedmethyl, or methccs",
                         type=str, default='bismark')
     argv = parser.parse_args()
 
@@ -124,7 +124,7 @@ def main():
     if rtype == 'bismark':
         # ===
         mposinfo = combine_fb_of_bs_bismark_CpG_report(report_fp)
-    elif rtype == 'deepsmrt':
+    elif rtype == 'methccs':
         mposinfo = combine_fb_of_deepreport(report_fp)
     elif rtype == 'bedmethyl':
         mposinfo = combine_fb_of_bedmethyl(report_fp)

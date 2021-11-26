@@ -40,7 +40,7 @@ def _step2_call_mods(infile):
 
 
 def _step3_comb_mods(infile):
-    script_path = curr_dir + "/eval_deepsmrt_comb_two_strands_of_ccs.py"
+    script_path = curr_dir + "/eval_comb_two_strands_of_ccs.py"
     fname, fext = os.path.splitext(infile)
     wfile = fname + ".fb_comb" + fext
     cmd = " ".join(["python", script_path, "--result_fp", infile])
@@ -49,7 +49,7 @@ def _step3_comb_mods(infile):
 
 
 def _step4_eval_result(res_m, res_um, depth=1, is_fbcomb=False, outdir="."):
-    script_path = curr_dir + "/eval_deepsmrt_in_readlevel.py"
+    script_path = curr_dir + "/eval_at_readlevel.py"
     model_name = model_path.split("/")[-2].split(".")[-1]
     if is_fbcomb:
         wfile = outdir + "/my.evel_sampling." + model_name + ".depth_sampling_" + str(depth) + ".fb_comb.accinfo.txt"

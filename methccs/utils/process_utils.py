@@ -7,16 +7,22 @@ import sys
 
 basepairs = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N',
              'W': 'W', 'S': 'S', 'M': 'K', 'K': 'M', 'R': 'Y',
-             'Y': 'R', 'B': 'V', 'V': 'B', 'D': 'H', 'H': "D",
+             'Y': 'R', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D',
              'Z': 'Z'}
 basepairs_rna = {'A': 'U', 'C': 'G', 'G': 'C', 'U': 'A', 'N': 'N',
                  'W': 'W', 'S': 'S', 'M': 'K', 'K': 'M', 'R': 'Y',
-                 'Y': 'R', 'B': 'V', 'V': 'B', 'D': 'H', 'H': "D",
+                 'Y': 'R', 'B': 'V', 'V': 'B', 'D': 'H', 'H': 'D',
                  'Z': 'Z'}
 
-base2code_dna = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4}
+base2code_dna = {'A': 0, 'C': 1, 'G': 2, 'T': 3, 'N': 4,
+                 'W': 4, 'S': 4, 'M': 4, 'K': 4, 'R': 4,
+                 'Y': 4, 'B': 4, 'V': 4, 'D': 4, 'H': 4,
+                 'Z': 4}  # set 4 for all bases except ACGT, for now
 code2base_dna = {0: 'A', 1: 'C', 2: 'G', 3: 'T', 4: 'N'}
-base2code_rna = {'A': 0, 'C': 1, 'G': 2, 'U': 3, 'N': 4}
+base2code_rna = {'A': 0, 'C': 1, 'G': 2, 'U': 3, 'N': 4,
+                 'W': 4, 'S': 4, 'M': 4, 'K': 4, 'R': 4,
+                 'Y': 4, 'B': 4, 'V': 4, 'D': 4, 'H': 4,
+                 'Z': 4}  # set 4 for all bases except ACGU, for now
 code2base_rna = {0: 'A', 1: 'C', 2: 'G', 3: 'U', 4: 'N'}
 
 iupac_alphabets = {'A': ['A'], 'T': ['T'], 'C': ['C'], 'G': ['G'],

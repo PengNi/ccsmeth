@@ -25,6 +25,10 @@ def read(*parts):
 long_description = read('README.rst')
 
 
+with open('requirements.txt', 'r') as rf:
+    required = rf.read().splitlines()
+
+
 setup(
     name='none',
     packages=['nono'],
@@ -34,11 +38,12 @@ setup(
     download_url='https://github.com/PengNi//archive/{}.tar.gz'.format(__version__),
     license='GNU General Public License v3 (GPLv3)',
     author='Peng Ni',
-    install_requires=['numpy>=1.15.3',
-                      'statsmodels>=0.9.0',
-                      'scikit-learn>=0.20.1',
-                      'torch>=1.2.0,<=1.5',
-                      ],
+    # install_requires=['numpy>=1.15.3',
+    #                   'statsmodels>=0.9.0',
+    #                   'scikit-learn>=0.20.1',
+    #                   'torch>=1.2.0,<=1.7.0',
+    #                   ],
+    install_requires=required,
     author_email='543943952@qq.com',
     description='',
     long_description=long_description,

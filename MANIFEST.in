@@ -1,1 +1,4 @@
 include deepsmrt/utils/*
+include requirements.txt
+include README.rst
+include LICENSE
