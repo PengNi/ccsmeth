@@ -1,4 +1,4 @@
-include deepsmrt/utils/*
+include methccs/utils/*
 include requirements.txt
 include README.rst
 include LICENSE

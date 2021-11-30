@@ -62,7 +62,7 @@ def _get_holeid(subread_id):
     return holeid
 
 
-def worker_read(inputfile, hole_align_q, args):
+def worker_read(inputfile, hole_align_q, args, holeids_e=None, holeids_ne=None):
     sys.stderr.write("read_input process-{} starts\n".format(os.getpid()))
     cmd_view_input = cmd_get_stdout_of_input(inputfile, args.path_to_samtools)
     sys.stderr.write("cmd to view input: {}\n".format(cmd_view_input))
@@ -80,6 +80,11 @@ def worker_read(inputfile, hole_align_q, args):
                     continue
                 words = output.strip().split("\t")
                 holeid = _get_holeid(words[0])
+                if holeids_e is not None and holeid not in holeids_e:
+                    continue
+                if holeids_ne is not None and holeid in holeids_ne:
+                    continue
+
                 flag = int(words[1])
                 mapq = int(words[4])
                 if not (flag == 0 or flag == 16):  # skip segment alignment
@@ -374,7 +379,7 @@ def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
             cigar = words[5]
             identity, qlocs_to_ref, refpos2querypos = _parse_cigar(cigar)
             if identity < args.identity:  # skip reads with low identity
-                # print(holeid, holechrom, subread_id, identity, "identity too low")
+                # print(holeid, holechrom, identity, "identity too low")
                 continue
 
             # _, flag, chrom, start = words[0], int(words[1]), words[2], int(words[3]) - 1
@@ -388,9 +393,10 @@ def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
                     elif words[i].startswith("pw:B:C,"):
                         pw = [int(pwval) for pwval in words[i].split(",")[1:]]
                 if len(ipd) == 0 or len(pw) == 0:
-                    # print(holeid, subread_id, "no ipd")
+                    # print(holeid, "no ipd")
                     continue
                 if len(ipd) != len(pw):
+                    # print(holeid, "len ipd!=pw")
                     continue
             except ValueError:
                 continue
@@ -491,6 +497,17 @@ def _write_featurestr_to_file(write_fp, featurestr_q):
             wf.flush()
 
 
+def _get_holes(holeidfile):
+    holes = set()
+    with open(holeidfile, "r") as rf:
+        for line in rf:
+            words = line.strip().split("\t")
+            holeid = words[0]
+            holes.add(holeid)
+    sys.stderr.write("get {} holeids from {}\n".format(len(holes), holeidfile))
+    return holes
+
+
 def extract_subreads_features(args):
     sys.stderr.write("[extract_features]start..\n")
     start = time.time()
@@ -507,13 +524,16 @@ def extract_subreads_features(args):
     if args.seq_len % 2 == 0:
         raise ValueError("seq_len must be odd")
 
+    holeids_e = None if args.holeids_e is None else _get_holes(args.holeids_e)
+    holeids_ne = None if args.holeids_ne is None else _get_holes(args.holeids_ne)
+
     contigs = DNAReference(reference).getcontigs()
     motifs = get_motif_seqs(args.motifs)
 
     hole_align_q = Queue()
     featurestr_q = Queue()
 
-    p_read = mp.Process(target=worker_read, args=(inputpath, hole_align_q, args))
+    p_read = mp.Process(target=worker_read, args=(inputpath, hole_align_q, args, holeids_e, holeids_ne))
     p_read.daemon = True
     p_read.start()
 
@@ -613,6 +633,10 @@ def main():
                            help="number of threads, default 5")
     p_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                            help="number of holes in an batch to get/put in queues")
+    p_extract.add_argument("--holeids_e", type=str, default=None, required=False,
+                           help="file contains holeids to be extracted, default None")
+    p_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
+                           help="file contains holeids not to be extracted, default None")
 
     args = parser.parse_args()
 

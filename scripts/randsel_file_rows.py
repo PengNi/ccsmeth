@@ -55,6 +55,7 @@ def random_select_file_rows(ori_file, w_file, maxrownum=10000, header=True):
 
 
 def main():
+    random.seed(1234)
     parser = argparse.ArgumentParser(description='select certain number of lines from a file randomly')
     parser.add_argument('--ori_filepath', type=str, required=True,
                         help='the path of file where lines are gonna be selected')

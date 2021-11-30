@@ -51,6 +51,7 @@ def _get_kmer2lines(feafile):
 # for balancing kmer distri in training samples ===
 def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac):
     selected_lines = []
+    unselected_lines = []
     unratioed_kmers = set()
     cnts = 0
     negkmers = sorted(list(kmer2lines.keys()))
@@ -62,7 +63,9 @@ def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac):
                 selected_lines += lines
                 cnts += (linenum - len(lines))
             else:
-                selected_lines += random.sample(lines, linenum)
+                seledtmp = random.sample(lines, linenum)
+                selected_lines += seledtmp
+                unselected_lines += list(set(lines).difference(seledtmp))
         else:
             unratioed_kmers.add(kmer)
     print("for {} common kmers, fill {} samples, "
@@ -82,12 +85,26 @@ def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac):
                 selected_lines += lines
                 cnts += len(lines)
             else:
-                selected_lines += random.sample(lines, minlinenum)
+                seledtmp = random.sample(lines, minlinenum)
+                selected_lines += seledtmp
                 cnts += minlinenum
+                unselected_lines += list(set(lines).difference(seledtmp))
             # prevent too much random samples
             if cnts >= random_frac * unfilled_cnt:
                 break
         print("extract {} samples from {} diff kmers".format(cnts, len(unratioed_kmers)))
+    unfilled_cnt = totalline - len(selected_lines)
+    if unfilled_cnt >= 0:
+        print("totalline: {}, still need to fill: {}".format(totalline, unfilled_cnt))
+        random.shuffle(unselected_lines)
+        triplefill_cnt = unfilled_cnt
+        if len(unselected_lines) <= unfilled_cnt:
+            selected_lines += unselected_lines
+            triplefill_cnt = len(unselected_lines)
+        else:
+            selected_lines += unselected_lines[:unfilled_cnt]
+        print("extract {} samples from {} samples not used above".format(triplefill_cnt, len(unselected_lines)))
+
     selected_lines = sorted(selected_lines)
     selected_lines = [-1] + selected_lines
     return selected_lines

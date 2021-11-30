@@ -99,6 +99,14 @@ def train(args):
     if use_cuda:
         model = model.cuda()
 
+    if args.init_model is not None:
+        print("loading pre-trained model: {}".format(args.init_model))
+        para_dict = torch.load(args.init_model) if use_cuda else torch.load(args.init_model,
+                                                                            map_location=torch.device('cpu'))
+        model_dict = model.state_dict()
+        model_dict.update(para_dict)
+        model.load_state_dict(model_dict)
+
     # Loss and optimizer
     weight_rank = torch.from_numpy(np.array([1, args.pos_weight])).float()
     if use_cuda:
@@ -201,13 +209,6 @@ def train(args):
                         if use_cuda:
                             vlabels = vlabels.cpu()
                             vpredicted = vpredicted.cpu()
-                        # i_accuracy = metrics.accuracy_score(vlabels.numpy(), vpredicted)
-                        # i_precision = metrics.precision_score(vlabels.numpy(), vpredicted)
-                        # i_recall = metrics.recall_score(vlabels.numpy(), vpredicted)
-
-                        # vaccus.append(i_accuracy)
-                        # vprecs.append(i_precision)
-                        # vrecas.append(i_recall)
                         vlosses.append(vloss.item())
                         vlabels_total += vlabels
                         vpredicted_total += vpredicted
@@ -217,7 +218,7 @@ def train(args):
                     v_recall = metrics.recall_score(vlabels_total, vpredicted_total)
                     if v_accuracy > curr_best_accuracy_epoch:
                         curr_best_accuracy_epoch = v_accuracy
-                        if curr_best_accuracy_epoch > curr_best_accuracy - 0.0005:
+                        if curr_best_accuracy_epoch > curr_best_accuracy - 0.0002:
                             torch.save(model.state_dict(),
                                        model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
                                                                                                 epoch + 1))
@@ -299,15 +300,18 @@ def main():
     parser.add_argument('--batch_size', type=int, default=512, required=False)
     parser.add_argument('--lr', type=float, default=0.001, required=False)
     parser.add_argument('--lr_decay', type=float, default=0.1, required=False)
-    parser.add_argument('--lr_decay_step', type=int, default=2, required=False)
+    parser.add_argument('--lr_decay_step', type=int, default=1, required=False)
     parser.add_argument("--max_epoch_num", action="store", default=50, type=int,
                         required=False, help="max epoch num, default 50")
-    parser.add_argument("--min_epoch_num", action="store", default=20, type=int,
-                        required=False, help="min epoch num, default 20")
+    parser.add_argument("--min_epoch_num", action="store", default=10, type=int,
+                        required=False, help="min epoch num, default 10")
     parser.add_argument('--pos_weight', type=float, default=1.0, required=False)
     parser.add_argument('--tseed', type=int, default=1234,
                         help='random seed for pytorch')
     parser.add_argument('--step_interval', type=int, default=500, required=False)
+
+    parser.add_argument('--init_model', type=str, default=None, required=False,
+                        help="file path of pre-trained model parameters to load before training")
 
     args = parser.parse_args()
 
