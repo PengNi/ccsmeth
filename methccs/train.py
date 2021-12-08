@@ -13,12 +13,14 @@ from torch.optim.lr_scheduler import StepLR
 
 from dataloader import FeaData
 from dataloader import FeaData2
+from dataloader import FeaData2s
 from dataloader import clear_linecache
 
 from models import ModelRNN
 from models import ModelAttRNN
 from models import ModelResNet18
 from models import ModelTransEncoder
+from models import ModelAttRNN2s
 
 from utils.constants_torch import use_cuda
 from utils.process_utils import display_args
@@ -58,6 +60,16 @@ def train(args):
         valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
+    elif args.model_type in {"attbigru2s", }:
+        train_dataset = FeaData2s(args.train_file)
+        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                                   batch_size=args.batch_size,
+                                                   shuffle=True)
+
+        valid_dataset = FeaData2s(args.valid_file)
+        valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
+                                                   batch_size=args.batch_size,
+                                                   shuffle=False)
     else:
         raise ValueError("model_type not right!")
 
@@ -85,6 +97,12 @@ def train(args):
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
+    elif args.model_type in {"attbigru2s", }:
+        model = ModelAttRNN2s(args.seq_len, args.layer_rnn, args.class_num,
+                              args.dropout_rate, args.hid_rnn,
+                              args.n_vocab, args.n_embed,
+                              is_stds=str2bool(args.is_stds),
+                              model_type=args.model_type)
     elif args.model_type in {"transencoder", }:
         model = ModelTransEncoder(args.seq_len, args.layer_tfe, args.class_num,
                                   args.dropout_rate, args.d_model_tfe, args.nhead_tfe, args.nhid_tfe,
@@ -165,6 +183,26 @@ def train(args):
                 outputs, logits = model(mats_ccs_mean, mats_ccs_std)
                 loss = criterion(outputs, labels)
                 tlosses.append(loss.detach().item())
+            elif args.model_type in {"attbigru2s", }:
+                _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, kmer2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, \
+                    labels = sfeatures
+                if use_cuda:
+                    kmer = kmer.cuda()
+                    ipd_means = ipd_means.cuda()
+                    ipd_stds = ipd_stds.cuda()
+                    pw_means = pw_means.cuda()
+                    pw_stds = pw_stds.cuda()
+                    kmer2 = kmer2.cuda()
+                    ipd_means2 = ipd_means2.cuda()
+                    ipd_stds2 = ipd_stds2.cuda()
+                    pw_means2 = pw_means2.cuda()
+                    pw_stds2 = pw_stds2.cuda()
+                    labels = labels.cuda()
+                # Forward pass
+                outputs, logits = model(kmer, ipd_means, ipd_stds, pw_means, pw_stds,
+                                        kmer2, ipd_means2, ipd_stds2, pw_means2, pw_stds2)
+                loss = criterion(outputs, labels)
+                tlosses.append(loss.detach().item())
             else:
                 raise ValueError("model_type not right!")
 
@@ -192,6 +230,25 @@ def train(args):
                                 vlabels = vlabels.cuda()
                             voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds)
                             vloss = criterion(voutputs, vlabels)
+                        elif args.model_type in {"attbigru2s", }:
+                            _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
+                                vkmer2, vipd_means2, vipd_stds2, vpw_means2, vpw_stds2, \
+                                vlabels = vsfeatures
+                            if use_cuda:
+                                vkmer = vkmer.cuda()
+                                vipd_means = vipd_means.cuda()
+                                vipd_stds = vipd_stds.cuda()
+                                vpw_means = vpw_means.cuda()
+                                vpw_stds = vpw_stds.cuda()
+                                vkmer2 = vkmer2.cuda()
+                                vipd_means2 = vipd_means2.cuda()
+                                vipd_stds2 = vipd_stds2.cuda()
+                                vpw_means2 = vpw_means2.cuda()
+                                vpw_stds2 = vpw_stds2.cuda()
+                                vlabels = vlabels.cuda()
+                            voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds,
+                                                      vkmer2, vipd_means2, vipd_stds2, vpw_means2, vpw_stds2)
+                            vloss = criterion(voutputs, vlabels)
                         elif args.model_type in {"resnet18", }:
                             _, _, vmats_ccs_mean, vmats_ccs_std, vlabels = vsfeatures
                             if use_cuda:
@@ -210,8 +267,8 @@ def train(args):
                             vlabels = vlabels.cpu()
                             vpredicted = vpredicted.cpu()
                         vlosses.append(vloss.item())
-                        vlabels_total += vlabels
-                        vpredicted_total += vpredicted
+                        vlabels_total += vlabels.tolist()
+                        vpredicted_total += vpredicted.tolist()
 
                     v_accuracy = metrics.accuracy_score(vlabels_total, vpredicted_total)
                     v_precision = metrics.precision_score(vlabels_total, vpredicted_total)
@@ -254,14 +311,16 @@ def main():
     parser.add_argument('--model_dir', type=str, required=True)
 
     # model param
-    parser.add_argument('--model_type', type=str, default="attbigru",
+    parser.add_argument('--model_type', type=str, default="attbigru2s",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
                                  "transencoder",
-                                 "resnet18"],
+                                 "resnet18",
+                                 "attbigru2s"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
                              "'bilstm', 'bigru', 'transencoder', 'resnet18', "
-                             "default: attbigru")
+                             "'attbigru2s', "
+                             "default: attbigru2s")
     parser.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     parser.add_argument('--is_stds', type=str, default="yes", required=False,

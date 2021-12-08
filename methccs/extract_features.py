@@ -348,7 +348,35 @@ def _handle_one_strand_of_hole2(holeid, holechrom, ccs_strand, subreads_lines, c
     return feature_list
 
 
+def _comb_fb_features(fwd_feas, bwd_feas):
+    if len(fwd_feas) <= 0 or len(bwd_feas) <= 0:
+        return []
+    fwd_feas = sorted(fwd_feas, key=lambda x: x[1])
+    bwd_feas = sorted(bwd_feas[::-1], key=lambda x: x[1])
+    comb_feas = []
+    idx_f, idx_b = 0, 0
+    while idx_f < len(fwd_feas) and idx_b < len(bwd_feas):
+        ffea = fwd_feas[idx_f]
+        bfea = bwd_feas[idx_b]
+        fpos = ffea[1]
+        bpos = bfea[1]
+        if fpos == bpos - 1:
+            ffea[4] = max(ffea[4], bfea[4])
+            comb_feas.append(ffea[:13] + bfea[5:])
+            idx_f += 1
+            idx_b += 1
+        elif fpos < bpos - 1:
+            idx_f += 1
+        else:
+            idx_b += 1
+    return comb_feas
+
+
 def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
+    two_strands = args.two_strands
+    comb_strands = args.comb_strands
+    two_strands = True if comb_strands else two_strands
+
     holeid, hole_aligns = hole_aligninfo
 
     chrom2lines = {}
@@ -413,13 +441,20 @@ def handle_one_hole2(hole_aligninfo, contigs, motifs, args):
                 subreads_bwd.append((chrom, start, strand, ipd, pw, qlocs_to_ref, refpos2querypos))
 
         # skip read which only have subreads in one strand
-        if args.two_strands and (len(subreads_fwd) < 1 or len(subreads_bwd) < 1):
+        if two_strands and (len(subreads_fwd) < 1 or len(subreads_bwd) < 1):
             continue
 
+        fwd_features, bwd_features = [], []
         if len(subreads_fwd) >= args.depth:
-            feature_list += _handle_one_strand_of_hole2(holeid, holechrom, "+", subreads_fwd, contigs, motifs, args)
+            fwd_features = _handle_one_strand_of_hole2(holeid, holechrom, "+", subreads_fwd, contigs, motifs, args)
         if len(subreads_bwd) >= args.depth:
-            feature_list += _handle_one_strand_of_hole2(holeid, holechrom, "-", subreads_bwd, contigs, motifs, args)
+            bwd_features = _handle_one_strand_of_hole2(holeid, holechrom, "-", subreads_bwd, contigs, motifs, args)
+        if comb_strands:
+            feature_list += _comb_fb_features(fwd_features, bwd_features)
+            del fwd_features
+            del bwd_features
+        else:
+            feature_list += fwd_features + bwd_features
     return feature_list
 
 
@@ -450,6 +485,49 @@ def _features_to_str(features):
                       kmer_subr_ipds_str, kmer_subr_pws_str, str(label)])
 
 
+def _features_to_str_combedfeatures(features):
+    """
+
+    :param features: a tuple
+    :return:
+    """
+    chrom, abs_loc, strand, holeid, depth_all, \
+        kmer_seq, kmer_depth, kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_subr_ipds, kmer_subr_pws, \
+        kmer_seq2, kmer_depth2, kmer_ipdm2, kmer_ipds2, kmer_pwm2, kmer_pws2, kmer_subr_ipds2, kmer_subr_pws2, \
+        label = features
+
+    kmer_depth_str = ",".join([str(x) for x in kmer_depth])
+    kmer_ipdm_str = ",".join([str(x) for x in kmer_ipdm])
+    kmer_ipds_str = ",".join([str(x) for x in kmer_ipds])
+    kmer_pwm_str = ",".join([str(x) for x in kmer_pwm])
+    kmer_pws_str = ",".join([str(x) for x in kmer_pws])
+    if kmer_subr_ipds != subreads_value_default:
+        kmer_subr_ipds_str = ";".join([",".join([str(x) for x in y]) for y in kmer_subr_ipds])
+        kmer_subr_pws_str = ";".join([",".join([str(x) for x in y]) for y in kmer_subr_pws])
+    else:
+        kmer_subr_ipds_str = kmer_subr_ipds
+        kmer_subr_pws_str = kmer_subr_pws
+
+    kmer_depth_str2 = ",".join([str(x) for x in kmer_depth2])
+    kmer_ipdm_str2 = ",".join([str(x) for x in kmer_ipdm2])
+    kmer_ipds_str2 = ",".join([str(x) for x in kmer_ipds2])
+    kmer_pwm_str2 = ",".join([str(x) for x in kmer_pwm2])
+    kmer_pws_str2 = ",".join([str(x) for x in kmer_pws2])
+    if kmer_subr_ipds2 != subreads_value_default:
+        kmer_subr_ipds_str2 = ";".join([",".join([str(x) for x in y]) for y in kmer_subr_ipds2])
+        kmer_subr_pws_str2 = ";".join([",".join([str(x) for x in y]) for y in kmer_subr_pws2])
+    else:
+        kmer_subr_ipds_str2 = kmer_subr_ipds2
+        kmer_subr_pws_str2 = kmer_subr_pws2
+
+    return "\t".join([chrom, str(abs_loc), strand, str(holeid), str(depth_all),
+                      kmer_seq, kmer_depth_str, kmer_ipdm_str, kmer_ipds_str, kmer_pwm_str, kmer_pws_str,
+                      kmer_subr_ipds_str, kmer_subr_pws_str,
+                      kmer_seq2, kmer_depth_str2, kmer_ipdm_str2, kmer_ipds_str2, kmer_pwm_str2, kmer_pws_str2,
+                      kmer_subr_ipds_str2, kmer_subr_pws_str2,
+                      str(label)])
+
+
 def _worker_extract(hole_align_q, featurestr_q, contigs, motifs, args):
     sys.stderr.write("extrac_features process-{} starts\n".format(os.getpid()))
     cnt_holesbatch = 0
@@ -466,8 +544,12 @@ def _worker_extract(hole_align_q, featurestr_q, contigs, motifs, args):
         for hole_aligninfo in holes_aligninfo:
             feature_list += handle_one_hole2(hole_aligninfo, contigs, motifs, args)
         feature_strs = []
-        for feature in feature_list:
-            feature_strs.append(_features_to_str(feature))
+        if args.comb_strands:
+            for feature in feature_list:
+                feature_strs.append(_features_to_str_combedfeatures(feature))
+        else:
+            for feature in feature_list:
+                feature_strs.append(_features_to_str(feature))
         featurestr_q.put(feature_strs)
         while featurestr_q.qsize() > queen_size_border:
             time.sleep(time_wait)
@@ -574,6 +656,8 @@ def extract_subreads_features(args):
 
 def main():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--threads", type=int, default=5, required=False,
+                        help="number of threads, default 5")
     p_input = parser.add_argument_group("INPUT")
     p_input.add_argument("--input", "-i", type=str, required=True,
                          help="alignment results in bam/sam format. "
@@ -581,6 +665,10 @@ def main():
                               "in aligned.bam, which generated by align_subreads.py from subreads.bam.")
     p_input.add_argument("--ref", type=str, required=True,
                          help="path to genome reference to be aligned, in fasta/fa format.")
+    p_input.add_argument("--holeids_e", type=str, default=None, required=False,
+                         help="file contains holeids to be extracted, default None")
+    p_input.add_argument("--holeids_ne", type=str, default=None, required=False,
+                         help="file contains holeids not to be extracted, default None")
 
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--output", "-o", type=str, required=False,
@@ -611,6 +699,8 @@ def main():
     p_extract.add_argument("--two_strands", action="store_true", default=False, required=False,
                            help="after quality (mapq, identity) control, if then only using CCS reads "
                                 "which have subreads in two strands")
+    p_extract.add_argument("--comb_strands", action="store_true", default=False, required=False,
+                           help="if combining features in two(+/-) strands of one site")
     p_extract.add_argument("--depth", type=int, default=1, required=False,
                            help="(mean) depth (number of subreads) cutoff for "
                                 "selecting high-quality aligned reads/kmers "
@@ -623,20 +713,14 @@ def main():
                            help="not use CodecV1 to decode ipd/pw")
     p_extract.add_argument("--num_subreads", type=int, default=0, required=False,
                            help="info of max num of subreads to be extracted to output, default 0")
-    p_extract.add_argument("--seed", type=int, default=1234, required=False,
-                           help="seed for randomly selecting subreads, default 1234")
     p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
                            help="full path to the executable binary samtools file. "
                                 "If not specified, it is assumed that samtools is in "
                                 "the PATH.")
-    p_extract.add_argument("--threads", type=int, default=5, required=False,
-                           help="number of threads, default 5")
     p_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                            help="number of holes in an batch to get/put in queues")
-    p_extract.add_argument("--holeids_e", type=str, default=None, required=False,
-                           help="file contains holeids to be extracted, default None")
-    p_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
-                           help="file contains holeids not to be extracted, default None")
+    p_extract.add_argument("--seed", type=int, default=1234, required=False,
+                           help="seed for randomly selecting subreads, default 1234")
 
     args = parser.parse_args()
 

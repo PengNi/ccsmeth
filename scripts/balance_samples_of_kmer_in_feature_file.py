@@ -94,7 +94,7 @@ def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac):
                 break
         print("extract {} samples from {} diff kmers".format(cnts, len(unratioed_kmers)))
     unfilled_cnt = totalline - len(selected_lines)
-    if unfilled_cnt >= 0:
+    if unfilled_cnt > 0:
         print("totalline: {}, still need to fill: {}".format(totalline, unfilled_cnt))
         random.shuffle(unselected_lines)
         triplefill_cnt = unfilled_cnt

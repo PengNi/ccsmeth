@@ -26,6 +26,7 @@ import time
 
 from models import ModelRNN
 from models import ModelAttRNN
+from models import ModelAttRNN2s
 from models import ModelResNet18
 from models import ModelTransEncoder
 
@@ -43,18 +44,26 @@ from utils.constants_torch import use_cuda
 
 from extract_features import worker_read
 from extract_features import handle_one_hole2
+from extract_features import _get_holes
+from extract_features import _get_holeid
 
 queen_size_border = 2000
 time_wait = 3
 
 
-def _read_features_file_to_str(features_file, featurestrs_batch_q, batch_num=512):
+def _read_features_file_to_str(features_file, featurestrs_batch_q, batch_num=512,
+                               holeids_e=None, holeids_ne=None):
     print("read_features process-{} starts".format(os.getpid()))
     b_num = 0
     with open(features_file, "r") as rf:
         featurestrs = []
         for line in rf:
             words = line.strip().split("\t")
+            holeid = words[3]
+            if holeids_e is not None and holeid not in holeids_e:
+                continue
+            if holeids_ne is not None and holeid in holeids_ne:
+                continue
             featurestrs.append(words)
             if len(featurestrs) == batch_num:
                 featurestrs_batch_q.put(featurestrs)
@@ -103,6 +112,58 @@ def _format_features_from_strbatch1(featurestrs_batch_q, features_batch_q):
             labels.append(int(words[13]))
 
         features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels))
+    print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
+
+
+def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q):
+    print("format_features process-{} starts".format(os.getpid()))
+    b_num = 0
+    while True:
+        if featurestrs_batch_q.empty():
+            time.sleep(time_wait)
+            continue
+        featurestrs = featurestrs_batch_q.get()
+        if featurestrs == "kill":
+            featurestrs_batch_q.put("kill")
+            break
+        b_num += 1
+
+        sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, depth_all
+        kmers = []
+        ipd_means = []
+        ipd_stds = []
+        pw_means = []
+        pw_stds = []
+
+        kmers2 = []
+        ipd_means2 = []
+        ipd_stds2 = []
+        pw_means2 = []
+        pw_stds2 = []
+
+        labels = []
+
+        for words in featurestrs:
+
+            sampleinfo.append("\t".join(words[0:5]))
+            kmer = np.array([base2code_dna[x] for x in words[5]])
+            kmers.append(kmer)
+            ipd_means.append(np.array([float(x) for x in words[7].split(",")]))
+            ipd_stds.append(np.array([float(x) for x in words[8].split(",")]))
+            pw_means.append(np.array([float(x) for x in words[9].split(",")]))
+            pw_stds.append(np.array([float(x) for x in words[10].split(",")]))
+
+            kmer2 = np.array([base2code_dna[x] for x in words[13]])
+            kmers2.append(kmer2)
+            ipd_means2.append(np.array([float(x) for x in words[15].split(",")]))
+            ipd_stds2.append(np.array([float(x) for x in words[16].split(",")]))
+            pw_means2.append(np.array([float(x) for x in words[17].split(",")]))
+            pw_stds2.append(np.array([float(x) for x in words[18].split(",")]))
+
+            labels.append(int(words[21]))
+
+        features_batch_q.put((sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds,
+                              kmers2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, labels))
     print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
@@ -207,6 +268,66 @@ def _call_mods(features_batch, model, batch_size):
     return pred_str, accuracy, batch_num
 
 
+def _call_mods2s(features_batch, model, batch_size):
+    # features_batch: 1. if from _read_features_file(), has 1 * args.batch_size samples
+    # --------------: 2. if from _worker_extract_features(), has uncertain number of samples
+    sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, \
+        kmers2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, \
+        labels = features_batch
+    labels = np.reshape(labels, (len(labels)))
+
+    pred_str = []
+    accuracys = []
+    batch_num = 0
+    for i in np.arange(0, len(sampleinfo), batch_size):
+        batch_s, batch_e = i, i + batch_size
+        b_sampleinfo = sampleinfo[batch_s:batch_e]
+        b_kmers = kmers[batch_s:batch_e]
+        b_ipd_means = ipd_means[batch_s:batch_e]
+        b_ipd_stds = ipd_stds[batch_s:batch_e]
+        b_pw_means = pw_means[batch_s:batch_e]
+        b_pw_stds = pw_stds[batch_s:batch_e]
+        b_kmers2 = kmers2[batch_s:batch_e]
+        b_ipd_means2 = ipd_means2[batch_s:batch_e]
+        b_ipd_stds2 = ipd_stds2[batch_s:batch_e]
+        b_pw_means2 = pw_means2[batch_s:batch_e]
+        b_pw_stds2 = pw_stds2[batch_s:batch_e]
+        b_labels = labels[batch_s:batch_e]
+        if len(b_sampleinfo) > 0:
+            voutputs, vlogits = model(FloatTensor(b_kmers), FloatTensor(b_ipd_means), FloatTensor(b_ipd_stds),
+                                      FloatTensor(b_pw_means), FloatTensor(b_pw_stds),
+                                      FloatTensor(b_kmers2), FloatTensor(b_ipd_means2), FloatTensor(b_ipd_stds2),
+                                      FloatTensor(b_pw_means2), FloatTensor(b_pw_stds2))
+            _, vpredicted = torch.max(vlogits.data, 1)
+            if use_cuda:
+                vlogits = vlogits.cpu()
+                vpredicted = vpredicted.cpu()
+
+            predicted = vpredicted.numpy()
+            logits = vlogits.data.numpy()
+
+            acc_batch = metrics.accuracy_score(
+                y_true=b_labels, y_pred=predicted)
+            accuracys.append(acc_batch)
+
+            for idx in range(len(b_sampleinfo)):
+                # chromosome, pos, strand, holeid, depth, prob_0, prob_1, called_label, seq
+                prob_0, prob_1 = logits[idx][0], logits[idx][1]
+                prob_0_norm = round(prob_0 / (prob_0 + prob_1), 6)
+                prob_1_norm = round(prob_1 / (prob_0 + prob_1), 6)
+                b_idx_kmer = ''.join([code2base_dna[x] for x in b_kmers[idx]])
+                center_idx = int(np.floor(len(b_idx_kmer)/2))
+                bkmer_start = center_idx - 2 if center_idx - 2 >= 0 else 0
+                bkmer_end = center_idx + 3 if center_idx + 3 <= len(b_idx_kmer) else len(b_idx_kmer)
+                pred_str.append("\t".join([b_sampleinfo[idx], str(prob_0_norm),
+                                           str(prob_1_norm), str(predicted[idx]),
+                                           b_idx_kmer[bkmer_start:bkmer_end]]))
+            batch_num += 1
+    accuracy = np.mean(accuracys)
+
+    return pred_str, accuracy, batch_num
+
+
 def _call_mods2(features_batch, model, batch_size):
     # features_batch: 1. if from _read_features_file(), has 1 * args.batch_size samples
     # --------------: 2. if from _worker_extract_features(), has uncertain number of samples
@@ -269,6 +390,12 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
                             args.n_vocab, args.n_embed,
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
+    elif args.model_type in {"attbigru2s", }:
+        model = ModelAttRNN2s(args.seq_len, args.layer_rnn, args.class_num,
+                              args.dropout_rate, args.hid_rnn,
+                              args.n_vocab, args.n_embed,
+                              is_stds=str2bool(args.is_stds),
+                              model_type=args.model_type)
     elif args.model_type in {"transencoder", }:
         model = ModelTransEncoder(args.seq_len, args.layer_tfe, args.class_num,
                                   args.dropout_rate, args.d_model_tfe, args.nhead_tfe, args.nhid_tfe,
@@ -309,6 +436,8 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
             pred_str, accuracy, batch_num = _call_mods(features_batch, model, args.batch_size)
         elif args.model_type in {"resnet18", }:
             pred_str, accuracy, batch_num = _call_mods2(features_batch, model, args.batch_size)
+        elif args.model_type in {"attbigru2s", }:
+            pred_str, accuracy, batch_num = _call_mods2s(features_batch, model, args.batch_size)
         else:
             raise ValueError("model_type not right!")
 
@@ -359,6 +488,40 @@ def _batch_feature_list1(feature_list):
         pw_stds.append(np.array(kmer_pws, dtype=np.float))
         labels.append(label)
     return sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, labels
+
+
+def _batch_feature_list2s(feature_list):
+    sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, depth_all
+    kmers = []
+    ipd_means = []
+    ipd_stds = []
+    pw_means = []
+    pw_stds = []
+    kmers2 = []
+    ipd_means2 = []
+    ipd_stds2 = []
+    pw_means2 = []
+    pw_stds2 = []
+    labels = []
+    for featureline in feature_list:
+        chrom, abs_loc, strand, holeid, depth_all, \
+            kmer_seq, kmer_depth, kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_subr_ipds, kmer_subr_pws, \
+            kmer_seq2, kmer_depth2, kmer_ipdm2, kmer_ipds2, kmer_pwm2, kmer_pws2, kmer_subr_ipds2, kmer_subr_pws2, \
+            label = featureline
+        sampleinfo.append("\t".join(list(map(str, [chrom, abs_loc, strand, holeid, depth_all]))))
+        kmers.append(np.array([base2code_dna[x] for x in kmer_seq]))
+        ipd_means.append(np.array(kmer_ipdm, dtype=np.float))
+        ipd_stds.append(np.array(kmer_ipds, dtype=np.float))
+        pw_means.append(np.array(kmer_pwm, dtype=np.float))
+        pw_stds.append(np.array(kmer_pws, dtype=np.float))
+        kmers2.append(np.array([base2code_dna[x] for x in kmer_seq2]))
+        ipd_means2.append(np.array(kmer_ipdm2, dtype=np.float))
+        ipd_stds2.append(np.array(kmer_ipds2, dtype=np.float))
+        pw_means2.append(np.array(kmer_pwm2, dtype=np.float))
+        pw_stds2.append(np.array(kmer_pws2, dtype=np.float))
+        labels.append(label)
+    return sampleinfo, kmers, ipd_means, ipd_stds, pw_means, pw_stds, \
+        kmers2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, labels
 
 
 def _batch_feature_list2(feature_list):
@@ -417,6 +580,8 @@ def _worker_extract_features(hole_align_q, features_batch_q, contigs, motifs, ar
         if len(feature_list) > 0:
             if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
                 features_batch_q.put(_batch_feature_list1(feature_list))
+            elif args.model_type in {"attbigru2s", }:
+                features_batch_q.put(_batch_feature_list2s(feature_list))
             elif args.model_type in {"resnet18", }:
                 features_batch_q.put(_batch_feature_list2(feature_list))
             else:
@@ -444,6 +609,9 @@ def call_mods(args):
     if not os.path.exists(input_path):
         raise ValueError("--input_file does not exist!")
 
+    holeids_e = None if args.holeids_e is None else _get_holes(args.holeids_e)
+    holeids_ne = None if args.holeids_ne is None else _get_holes(args.holeids_ne)
+
     if input_path.endswith(".bam") or input_path.endswith(".sam"):
         reference = os.path.abspath(args.ref)
         if not os.path.exists(reference):
@@ -467,7 +635,7 @@ def call_mods(args):
             print("--threads must be > nproc_dp + 2!!")
             nproc = nproc_dp + 2 + 1
 
-        p_read = mp.Process(target=worker_read, args=(input_path, hole_align_q, args))
+        p_read = mp.Process(target=worker_read, args=(input_path, hole_align_q, args, holeids_e, holeids_ne))
         p_read.daemon = True
         p_read.start()
 
@@ -524,7 +692,8 @@ def call_mods(args):
         nproc_cnvt = nproc - nproc_dp - 2
 
         p_read = mp.Process(target=_read_features_file_to_str, args=(input_path, featurestrs_batch_q,
-                                                                     args.batch_size))
+                                                                     args.batch_size,
+                                                                     holeids_e, holeids_ne))
         p_read.daemon = True
         p_read.start()
 
@@ -540,6 +709,13 @@ def call_mods(args):
             for _ in range(nproc_cnvt):
                 p = mp.Process(target=_format_features_from_strbatch2, args=(featurestrs_batch_q,
                                                                              features_batch_q))
+                p.daemon = True
+                p.start()
+                ps_str2value.append(p)
+        elif args.model_type in {"attbigru2s", }:
+            for _ in range(nproc_cnvt):
+                p = mp.Process(target=_format_features_from_strbatch2s, args=(featurestrs_batch_q,
+                                                                              features_batch_q))
                 p.daemon = True
                 p.start()
                 ps_str2value.append(p)
@@ -588,14 +764,16 @@ def main():
                         help="file path of the trained model (.ckpt)")
 
     # model param
-    p_call.add_argument('--model_type', type=str, default="attbigru",
+    p_call.add_argument('--model_type', type=str, default="attbigru2s",
                         choices=["attbilstm", "attbigru", "bilstm", "bigru",
                                  "transencoder",
-                                 "resnet18"],
+                                 "resnet18",
+                                 "attbigru2s"],
                         required=False,
                         help="type of model to use, 'attbilstm', 'attbigru', "
                              "'bilstm', 'bigru', 'transencoder', 'resnet18', "
-                             "default: attbigru")
+                             "'attbigru2s', "
+                             "default: attbigru2s")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     p_call.add_argument('--is_stds', type=str, default="yes", required=False,
@@ -636,6 +814,10 @@ def main():
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--ref", type=str, required=False,
                            help="path to genome reference to be aligned, in fasta/fa format.")
+    p_extract.add_argument("--holeids_e", type=str, default=None, required=False,
+                           help="file contains holeids to be extracted, default None")
+    p_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
+                           help="file contains holeids not to be extracted, default None")
     p_extract.add_argument("--motifs", action="store", type=str,
                            required=False, default='CG',
                            help='motif seq to be extracted, default: CG. '
@@ -657,6 +839,8 @@ def main():
     p_extract.add_argument("--two_strands", action="store_true", default=False, required=False,
                            help="after quality (mapq, identity) control, if then only using CCS reads "
                                 "which have subreads in two strands")
+    p_extract.add_argument("--comb_strands", action="store_true", default=False, required=False,
+                           help="if combining features in two(+/-) strands of one site")
     p_extract.add_argument("--depth", type=int, default=1, required=False,
                            help="(mean) depth (number of subreads) cutoff for "
                                 "selecting high-quality aligned reads/kmers "
@@ -669,14 +853,14 @@ def main():
                            help="not use CodecV1 to decode ipd/pw")
     p_extract.add_argument("--num_subreads", type=int, default=0, required=False,
                            help="info of max num of subreads to be extracted to output, default 0")
-    p_extract.add_argument("--seed", type=int, default=1234, required=False,
-                           help="seed for randomly selecting subreads, default 1234")
     p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
                            help="full path to the executable binary samtools file. "
                                 "If not specified, it is assumed that samtools is in "
                                 "the PATH.")
     p_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                            help="number of holes in an batch to get/put in queues")
+    p_extract.add_argument("--seed", type=int, default=1234, required=False,
+                           help="seed for randomly selecting subreads, default 1234")
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")

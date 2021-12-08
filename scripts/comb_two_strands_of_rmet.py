@@ -89,12 +89,12 @@ def combine_fb_of_bedmethyl(report_fp):
         if pos2info[cgpos][0] == 0:
             del pos2info[cgpos]
         else:
-            pos2info[cgpos][2] = round((pos2info[cgpos][1] / pos2info[cgpos][0]) * 100)
+            pos2info[cgpos][1] = round((pos2info[cgpos][1] / pos2info[cgpos][0]) * 100)
     mposinfo = []
     for cgpos in pos2info.keys():
         chrom, pos = cgpos
         coverage, rmet = pos2info[cgpos][0], pos2info[cgpos][1]
-        mposinfo.append("\t".join([chrom, str(pos), str(pos+1), ".", str(coverage),
+        mposinfo.append("\t".join([chrom, str(pos), str(pos+1), ".", str(coverage), "+",
                                    str(pos), str(pos + 1), "0,0,0", str(coverage),
                                    str(rmet)]))
     return mposinfo
