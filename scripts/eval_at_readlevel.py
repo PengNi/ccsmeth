@@ -167,7 +167,7 @@ if __name__ == '__main__':
                                     fall_out, miss_rate, fdr, npv, auroc, len(tested_sites)])
                 print("")
                 # cal mean
-                metrics = np.array(metrics, dtype=np.float)
+                metrics = np.array(metrics, dtype=float)
                 metrics_mean = np.mean(metrics, 0)
                 mean_tpfntnfp = "\t".join([str(round(x, 1)) for x in metrics_mean[:4]])
                 mean_perf = "\t".join([str(round(x, 4)) for x in metrics_mean[4:13]])

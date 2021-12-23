@@ -21,7 +21,7 @@ from utils.process_utils import complement_seq
 
 code2frames = codecv1_to_frame()
 queen_size_border = 1000
-time_wait = 3
+time_wait = 1
 
 exceptval = 1000
 subreads_value_default = "-"
