@@ -164,7 +164,7 @@ def generate_samtools_view_cmd(path_to_samtools):
     samtools = samtools_exec
     if path_to_samtools is not None:
         samtools = os.path.abspath(path_to_samtools)
-    return samtools + " view -@ 5"
+    return samtools + " view -@ 3 -h"
 
 
 # =================================================================

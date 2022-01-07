@@ -123,7 +123,7 @@ def main():
     parser = argparse.ArgumentParser()
     p_input = parser.add_argument_group("INPUT")
     p_input.add_argument("--subreads", "-i", type=str, required=True,
-                         help="path to subreads.bam/sam/fastq file as input")
+                         help="path to subreads.bam/sam/fastq_with_pulseinfo file as input")
     p_input.add_argument("--ref", type=str, required=True,
                          help="path to genome reference to be aligned, in fasta/fa format. "
                               "If using bwa, the reference must have already been indexed.")

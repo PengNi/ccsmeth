@@ -56,9 +56,7 @@ def cmd_get_stdout_of_input(inputpath, path_to_samtools):
 
 def _get_holeid(subread_id):
     words = subread_id.strip().split("/")
-    # assume movie_id is the same in one bam
-    # holeid = words[0] + "/" + words[1]
-    holeid = words[1]
+    holeid = words[0] + "/" + words[1]
     return holeid
 
 
@@ -692,8 +690,8 @@ def main():
                            choices=[1, 0], required=False, default=1,
                            help="the label of the interested modified bases, this is for training."
                                 " 0 or 1, default 1")
-    p_extract.add_argument("--mapq", type=int, default=30, required=False,
-                           help="MAPping Quality cutoff for selecting alignment items, default 30")
+    p_extract.add_argument("--mapq", type=int, default=20, required=False,
+                           help="MAPping Quality cutoff for selecting alignment items, default 20")
     p_extract.add_argument("--identity", type=float, default=0.8, required=False,
                            help="identity cutoff for selecting alignment items, default 0.8")
     p_extract.add_argument("--two_strands", action="store_true", default=False, required=False,

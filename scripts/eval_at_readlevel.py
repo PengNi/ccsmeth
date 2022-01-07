@@ -58,6 +58,35 @@ def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
     return all_crs
 
 
+def sample_sites_ont(filename, is_methylated, probcf, sampleids=None):
+    all_crs = list()
+    skip_cnt = 0
+    cnt = 0
+    rf = open(filename)
+    for line in rf:
+        cnt += 1
+        words = line.strip().split("\t")
+        sampid = "\t".join([words[0], words[1], words[2], words[3], words[4], words[5]])
+        if sampleids is not None and sampid not in sampleids:
+            skip_cnt += 1
+            continue
+        prob0, prob1 = float(words[6]), float(words[7])
+        if abs(prob0 - prob1) < probcf:
+            skip_cnt += 1
+            continue
+        all_crs.append(CallRecord(words[0], int(words[1]),
+                                  words[2], "-", -1,
+                                  float(words[6]), float(words[7]),
+                                  int(words[8]),
+                                  is_methylated))
+    rf.close()
+    print('there are {} cpg candidates totally, {} cpgs kept, {} cpgs left'.format(cnt,
+                                                                                   len(all_crs),
+                                                                                   skip_cnt))
+    random.shuffle(all_crs)
+    return all_crs
+
+
 def get_sampleids(sampleids_file):
     sampleids = set()
     with open(sampleids_file, "r") as rf:
@@ -84,6 +113,7 @@ if __name__ == '__main__':
                         help='the file contains unmethylated ids of sites to be tested')
     parser.add_argument('--sampleids_file_m', type=str, default=None, required=False,
                         help='the file contains methylated ids of sites to be tested')
+    parser.add_argument('--ont', action='store_true', default=False, help="is call_mods file from deepsignal series")
 
     args = parser.parse_args()
 
@@ -101,8 +131,12 @@ if __name__ == '__main__':
 
     for depth_cf in depth_cfs:
         for prob_cf in prob_cfs:
-            unmethylated_sites = sample_sites(args.unmethylated, False, int(depth_cf), float(prob_cf), sample_ids_u)
-            methylated_sites = sample_sites(args.methylated, True, int(depth_cf), float(prob_cf), sample_ids_m)
+            if args.ont:
+                unmethylated_sites = sample_sites_ont(args.unmethylated, False, float(prob_cf), sample_ids_u)
+                methylated_sites = sample_sites_ont(args.methylated, True, float(prob_cf), sample_ids_m)
+            else:
+                unmethylated_sites = sample_sites(args.unmethylated, False, int(depth_cf), float(prob_cf), sample_ids_u)
+                methylated_sites = sample_sites(args.methylated, True, int(depth_cf), float(prob_cf), sample_ids_m)
 
             for site_num in num_sites:
                 num_rounds = args.round

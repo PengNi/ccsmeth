@@ -725,7 +725,7 @@ def call_mods(args):
                 p.start()
                 ps_str2value.append(p)
         else:
-            raise ValueError("model_type not right!")
+            raise ValueError("--model_type not right!")
 
         predstr_procs = []
         for _ in range(nproc_dp):
@@ -839,8 +839,8 @@ def main():
                            choices=[1, 0], required=False, default=1,
                            help="the label of the interested modified bases, this is for training."
                                 " 0 or 1, default 1")
-    p_extract.add_argument("--mapq", type=int, default=30, required=False,
-                           help="MAPping Quality cutoff for selecting alignment items, default 30")
+    p_extract.add_argument("--mapq", type=int, default=20, required=False,
+                           help="MAPping Quality cutoff for selecting alignment items, default 20")
     p_extract.add_argument("--identity", type=float, default=0.8, required=False,
                            help="identity cutoff for selecting alignment items, default 0.8")
     p_extract.add_argument("--two_strands", action="store_true", default=False, required=False,

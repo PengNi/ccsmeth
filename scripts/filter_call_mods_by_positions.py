@@ -26,7 +26,7 @@ def main():
     parser = argparse.ArgumentParser(description='extract samples with interested ref_positions '
                                                  'from signal feature file')
     parser.add_argument('--cm_path', type=str, required=True, action="append",
-                        help='the call_mods file path needed to be filtered')
+                        help='directory or the call_mods file needed to be filtered')
     parser.add_argument('-p', "--pos_fp",
                         help="the directory of position file, per line: chromosome\tpos_in_forward_strand",
                         type=str, required=True)
@@ -37,11 +37,18 @@ def main():
     positionfp = args.pos_fp  # position file
     wfile = args.wfile
 
+    cmfiles = []
+    for cmfp in cm_fps:
+        if os.path.isdir(cmfp):
+            for subfile in os.listdir(cmfp):
+                cmfiles.append(cmfp + "/" + subfile)
+        else:
+            cmfiles.append(cmfp)
     positions = read_position_file(positionfp)
     print('there are {} positions to be chosen'.format(len(positions)))
     wf = open(wfile, "w")
-    for cmfp in cm_fps:
-        with open(cmfp, "r") as rf:
+    for cmf in cmfiles:
+        with open(cmf, "r") as rf:
             for line in rf:
                 words = line.strip().split("\t")
                 postmp = sep_key.join([words[0], words[1]])
