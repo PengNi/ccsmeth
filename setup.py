@@ -8,13 +8,13 @@ here = os.path.abspath(os.path.dirname(__file__))
 
 
 # Get the version number from _version.py, and exe_path (learn from tombo)
-verstrline = open(os.path.join(here, 'deepsmrt', '_version.py'), 'r').readlines()[-1]
+verstrline = open(os.path.join(here, 'ccsmeth', '_version.py'), 'r').readlines()[-1]
 vsre = r"^VERSION = ['\"]([^'\"]*)['\"]"
 mo = re.search(vsre, verstrline)
 if mo:
     __version__ = mo.group(1)
 else:
-    raise RuntimeError('Unable to find version string in "deepsmrt/_version.py".')
+    raise RuntimeError('Unable to find version string in "ccsmeth/_version.py".')
 
 
 def read(*parts):
@@ -30,12 +30,12 @@ with open('requirements.txt', 'r') as rf:
 
 
 setup(
-    name='none',
-    packages=['nono'],
+    name='ccsmeth',
+    packages=['ccsmeth'],
     keywords=['methylation', 'pacbio', 'neural network'],
     version=__version__,
-    url='https://github.com/PengNi',
-    download_url='https://github.com/PengNi//archive/{}.tar.gz'.format(__version__),
+    url='https://github.com/PengNi/ccsmeth',
+    download_url='https://github.com/PengNi/ccsmeth/archive/{}.tar.gz'.format(__version__),
     license='GNU General Public License v3 (GPLv3)',
     author='Peng Ni',
     # install_requires=['numpy>=1.15.3',
