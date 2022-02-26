@@ -1,4 +1,4 @@
-include methccs/utils/*
+include ccsmeth/utils/*
 include requirements.txt
 include README.rst
 include LICENSE

@@ -49,7 +49,7 @@ setup(
     long_description=long_description,
     entry_points={
         'console_scripts': [
-            '=.:main',
+            'ccsmeth=ccsmeth.ccsmeth:main',
             ],
         },
     platforms='any',

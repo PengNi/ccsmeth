@@ -3,8 +3,8 @@
 
 
 ## Acknowledgements
-- We thank Tse *et al.*, The Chinese University of Hong Kong (CUHK) Department of Chemical Pathology, for sharing their code and data, as reported by in [Proc Natl Acad Sci USA 2021; 118(5): e2019768118](https://doi.org/10.1073/pnas.2019768118).
-- Part of the code for haplotyping were taken from [NanoMethPhase](https://github.com/vahidAK/NanoMethPhase) of Akbari _et al._
+- We thank Tse *et al.*, The Chinese University of Hong Kong (CUHK) Department of Chemical Pathology, for sharing their code and data, as reported in [Proc Natl Acad Sci USA 2021; 118(5): e2019768118](https://doi.org/10.1073/pnas.2019768118). We made use of their data and code for evaluation and comparison.
+- We thank Akbari _et al._, as part of the code for haplotyping were taken from [NanoMethPhase](https://github.com/vahidAK/NanoMethPhase) of Akbari _et al._
 
 
 License
