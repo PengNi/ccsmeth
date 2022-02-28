@@ -27,7 +27,7 @@ python setup.py install
 
 ## Trained models
 See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
-    * _model_cpg_attbigru2s_hg002_15kb_s2.b21_epoch7.ckpt_: a CpG model trained using HG002 PacBio Sequel II (kit2.0) CCS subreads.
+   * _model_cpg_attbigru2s_hg002_15kb_s2.b21_epoch7.ckpt_: a CpG model trained using HG002 PacBio Sequel II (kit 2.0) CCS subreads.
 
 
 ## Quick start
