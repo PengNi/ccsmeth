@@ -52,8 +52,8 @@ def main():
                                                  "ccsmeth contains four modules:\n"
                                                  "\t%(prog)s align: align subreads to reference\n"
                                                  "\t%(prog)s call_mods: call modifications\n"
-                                                 "\t%(prog)s extract: extract features from corrected (tombo) "
-                                                 "fast5s for training or testing\n"
+                                                 "\t%(prog)s extract: extract features from aligned "
+                                                 "subreads for training or testing\n"
                                                  "\t%(prog)s train: train a model, need two independent "
                                                  "datasets for training and validating",
                                      formatter_class=argparse.RawTextHelpFormatter)
@@ -63,7 +63,7 @@ def main():
         help='show ccsmeth version and exit.')
 
     subparsers = parser.add_subparsers(title="modules", help='ccsmeth modules, use -h/--help for help')
-    sub_align = subparsers.add_parser("align", description="align using bwa/minimap2")
+    sub_align = subparsers.add_parser("align", description="align subreads using bwa/minimap2")
     sub_call_mods = subparsers.add_parser("call_mods", description="call modifications")
     sub_extract = subparsers.add_parser("extract", description="extract features from aligned subreads.")
     sub_train = subparsers.add_parser("train", description="train a model, need two independent datasets for training "
