@@ -11,13 +11,13 @@ import re
 import random
 # from collections import Counter
 
-from utils.process_utils import display_args
-from utils.process_utils import codecv1_to_frame
-from utils.process_utils import generate_samtools_view_cmd
-from utils.process_utils import get_refloc_of_methysite_in_motif
-from utils.process_utils import get_motif_seqs
-from utils.ref_reader import DNAReference
-from utils.process_utils import complement_seq
+from .utils.process_utils import display_args
+from .utils.process_utils import codecv1_to_frame
+from .utils.process_utils import generate_samtools_view_cmd
+from .utils.process_utils import get_refloc_of_methysite_in_motif
+from .utils.process_utils import get_motif_seqs
+from .utils.ref_reader import DNAReference
+from .utils.process_utils import complement_seq
 
 code2frames = codecv1_to_frame()
 queen_size_border = 1000

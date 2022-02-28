@@ -11,20 +11,20 @@ import torch.nn as nn
 from sklearn import metrics
 from torch.optim.lr_scheduler import StepLR
 
-from dataloader import FeaData
-from dataloader import FeaData2
-from dataloader import FeaData2s
-from dataloader import clear_linecache
+from .dataloader import FeaData
+from .dataloader import FeaData2
+from .dataloader import FeaData2s
+from .dataloader import clear_linecache
 
-from models import ModelRNN
-from models import ModelAttRNN
-from models import ModelResNet18
-from models import ModelTransEncoder
-from models import ModelAttRNN2s
+from .models import ModelRNN
+from .models import ModelAttRNN
+from .models import ModelResNet18
+from .models import ModelTransEncoder
+from .models import ModelAttRNN2s
 
-from utils.constants_torch import use_cuda
-from utils.process_utils import display_args
-from utils.process_utils import str2bool
+from .utils.constants_torch import use_cuda
+from .utils.process_utils import display_args
+from .utils.process_utils import str2bool
 
 
 def train(args):
@@ -306,71 +306,75 @@ def train(args):
 
 def main():
     parser = argparse.ArgumentParser("")
-    parser.add_argument('--train_file', type=str, required=True)
-    parser.add_argument('--valid_file', type=str, required=True)
-    parser.add_argument('--model_dir', type=str, required=True)
+    st_input = parser.add_argument_group("INPUT")
+    st_input.add_argument('--train_file', type=str, required=True)
+    st_input.add_argument('--valid_file', type=str, required=True)
 
+    st_output = parser.add_argument_group("OUTPUT")
+    st_output.add_argument('--model_dir', type=str, required=True)
+
+    st_train = parser.add_argument_group("TRAIN")
     # model param
-    parser.add_argument('--model_type', type=str, default="attbigru2s",
-                        choices=["attbilstm", "attbigru", "bilstm", "bigru",
-                                 "transencoder",
-                                 "resnet18",
-                                 "attbigru2s"],
-                        required=False,
-                        help="type of model to use, 'attbilstm', 'attbigru', "
-                             "'bilstm', 'bigru', 'transencoder', 'resnet18', "
-                             "'attbigru2s', "
-                             "default: attbigru2s")
-    parser.add_argument('--seq_len', type=int, default=21, required=False,
-                        help="len of kmer. default 21")
-    parser.add_argument('--is_stds', type=str, default="yes", required=False,
-                        help="if using std features at ccs level, yes or no. default yes.")
-    parser.add_argument('--class_num', type=int, default=2, required=False)
-    parser.add_argument('--dropout_rate', type=float, default=0.5, required=False)
+    st_train.add_argument('--model_type', type=str, default="attbigru2s",
+                          choices=["attbilstm", "attbigru", "bilstm", "bigru",
+                                   "transencoder",
+                                   "resnet18",
+                                   "attbigru2s"],
+                          required=False,
+                          help="type of model to use, 'attbilstm', 'attbigru', "
+                               "'bilstm', 'bigru', 'transencoder', 'resnet18', "
+                               "'attbigru2s', "
+                               "default: attbigru2s")
+    st_train.add_argument('--seq_len', type=int, default=21, required=False,
+                          help="len of kmer. default 21")
+    st_train.add_argument('--is_stds', type=str, default="yes", required=False,
+                          help="if using std features at ccs level, yes or no. default yes.")
+    st_train.add_argument('--class_num', type=int, default=2, required=False)
+    st_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
     # BiRNN/transformerencoder model param
-    parser.add_argument('--n_vocab', type=int, default=16, required=False,
-                        help="base_seq vocab_size (15 base kinds from iupac)")
-    parser.add_argument('--n_embed', type=int, default=4, required=False,
-                        help="base_seq embedding_size")
+    st_train.add_argument('--n_vocab', type=int, default=16, required=False,
+                          help="base_seq vocab_size (15 base kinds from iupac)")
+    st_train.add_argument('--n_embed', type=int, default=4, required=False,
+                          help="base_seq embedding_size")
 
     # BiRNN model param
-    parser.add_argument('--layer_rnn', type=int, default=3,
-                        required=False, help="BiRNN layer num, default 3")
-    parser.add_argument('--hid_rnn', type=int, default=256, required=False,
-                        help="BiRNN hidden_size for combined feature")
+    st_train.add_argument('--layer_rnn', type=int, default=3,
+                          required=False, help="BiRNN layer num, default 3")
+    st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
+                          help="BiRNN hidden_size for combined feature")
 
     # transformerencoder model param
-    parser.add_argument('--layer_tfe', type=int, default=6,
-                        required=False, help="transformer encoder layer num, default 6")
-    parser.add_argument('--d_model_tfe', type=int, default=256,
-                        required=False, help="the number of expected features in the "
-                                             "transformer encoder/decoder inputs")
-    parser.add_argument('--nhead_tfe', type=int, default=4,
-                        required=False, help="the number of heads in the multiheadattention models")
-    parser.add_argument('--nhid_tfe', type=int, default=512,
-                        required=False, help="the dimension of the feedforward network model")
+    st_train.add_argument('--layer_tfe', type=int, default=6,
+                          required=False, help="transformer encoder layer num, default 6")
+    st_train.add_argument('--d_model_tfe', type=int, default=256,
+                          required=False, help="the number of expected features in the "
+                                               "transformer encoder/decoder inputs")
+    st_train.add_argument('--nhead_tfe', type=int, default=4,
+                          required=False, help="the number of heads in the multiheadattention models")
+    st_train.add_argument('--nhid_tfe', type=int, default=512,
+                          required=False, help="the dimension of the feedforward network model")
 
     # model training
-    parser.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
-                                                                           "Ranger"],
-                        required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' or 'Ranger', "
-                                             "default Adam")
-    parser.add_argument('--batch_size', type=int, default=512, required=False)
-    parser.add_argument('--lr', type=float, default=0.001, required=False)
-    parser.add_argument('--lr_decay', type=float, default=0.1, required=False)
-    parser.add_argument('--lr_decay_step', type=int, default=1, required=False)
-    parser.add_argument("--max_epoch_num", action="store", default=50, type=int,
-                        required=False, help="max epoch num, default 50")
-    parser.add_argument("--min_epoch_num", action="store", default=10, type=int,
-                        required=False, help="min epoch num, default 10")
-    parser.add_argument('--pos_weight', type=float, default=1.0, required=False)
-    parser.add_argument('--tseed', type=int, default=1234,
-                        help='random seed for pytorch')
-    parser.add_argument('--step_interval', type=int, default=500, required=False)
+    st_train.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
+                                                                             "Ranger"],
+                          required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' or 'Ranger', "
+                                               "default Adam")
+    st_train.add_argument('--batch_size', type=int, default=512, required=False)
+    st_train.add_argument('--lr', type=float, default=0.001, required=False)
+    st_train.add_argument('--lr_decay', type=float, default=0.1, required=False)
+    st_train.add_argument('--lr_decay_step', type=int, default=1, required=False)
+    st_train.add_argument("--max_epoch_num", action="store", default=50, type=int,
+                          required=False, help="max epoch num, default 50")
+    st_train.add_argument("--min_epoch_num", action="store", default=10, type=int,
+                          required=False, help="min epoch num, default 10")
+    st_train.add_argument('--pos_weight', type=float, default=1.0, required=False)
+    st_train.add_argument('--tseed', type=int, default=1234,
+                          help='random seed for pytorch')
+    st_train.add_argument('--step_interval', type=int, default=500, required=False)
 
-    parser.add_argument('--init_model', type=str, default=None, required=False,
-                        help="file path of pre-trained model parameters to load before training")
+    st_train.add_argument('--init_model', type=str, default=None, required=False,
+                          help="file path of pre-trained model parameters to load before training")
 
     args = parser.parse_args()
 

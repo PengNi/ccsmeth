@@ -6,7 +6,7 @@ from __future__ import absolute_import
 import torch
 import torch.nn as nn
 
-from utils.constants_torch import use_cuda
+from .utils.constants_torch import use_cuda
 
 
 # BiRNN ===============================================================

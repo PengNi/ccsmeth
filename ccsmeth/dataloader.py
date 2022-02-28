@@ -4,7 +4,7 @@ import os
 import numpy as np
 # import random
 
-from utils.process_utils import base2code_dna
+from .utils.process_utils import base2code_dna
 
 
 def clear_linecache():

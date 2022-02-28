@@ -24,28 +24,27 @@ from torch.multiprocessing import Queue
 import time
 # import random
 
-from models import ModelRNN
-from models import ModelAttRNN
-from models import ModelAttRNN2s
-from models import ModelResNet18
-from models import ModelTransEncoder
+from .models import ModelRNN
+from .models import ModelAttRNN
+from .models import ModelAttRNN2s
+from .models import ModelResNet18
+from .models import ModelTransEncoder
 
-from utils.process_utils import base2code_dna
-from utils.process_utils import code2base_dna
-from utils.process_utils import display_args
-from utils.process_utils import nproc_to_call_mods_in_cpu_mode
-from utils.process_utils import str2bool
+from .utils.process_utils import base2code_dna
+from .utils.process_utils import code2base_dna
+from .utils.process_utils import display_args
+from .utils.process_utils import nproc_to_call_mods_in_cpu_mode
+from .utils.process_utils import str2bool
 
-from utils.process_utils import get_motif_seqs
-from utils.ref_reader import DNAReference
+from .utils.process_utils import get_motif_seqs
+from .utils.ref_reader import DNAReference
 
-from utils.constants_torch import FloatTensor
-from utils.constants_torch import use_cuda
+from .utils.constants_torch import FloatTensor
+from .utils.constants_torch import use_cuda
 
-from extract_features import worker_read
-from extract_features import handle_one_hole2
-from extract_features import _get_holes
-from extract_features import _get_holeid
+from .extract_features import worker_read
+from .extract_features import handle_one_hole2
+from .extract_features import _get_holes
 
 queen_size_border = 1000
 time_wait = 1
@@ -792,26 +791,26 @@ def main():
                         action="store", help="batch size, default 512")
 
     # BiRNN/transformerencoder model param
-    parser.add_argument('--n_vocab', type=int, default=16, required=False,
+    p_call.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
-    parser.add_argument('--n_embed', type=int, default=4, required=False,
+    p_call.add_argument('--n_embed', type=int, default=4, required=False,
                         help="base_seq embedding_size")
 
     # BiRNN model param
-    parser.add_argument('--layer_rnn', type=int, default=3,
+    p_call.add_argument('--layer_rnn', type=int, default=3,
                         required=False, help="BiRNN layer num, default 3")
-    parser.add_argument('--hid_rnn', type=int, default=256, required=False,
+    p_call.add_argument('--hid_rnn', type=int, default=256, required=False,
                         help="BiRNN hidden_size for combined feature")
 
     # transformerencoder model param
-    parser.add_argument('--layer_tfe', type=int, default=6,
+    p_call.add_argument('--layer_tfe', type=int, default=6,
                         required=False, help="transformer encoder layer num, default 6")
-    parser.add_argument('--d_model_tfe', type=int, default=256,
+    p_call.add_argument('--d_model_tfe', type=int, default=256,
                         required=False, help="the number of expected features in the "
                                              "transformer encoder/decoder inputs")
-    parser.add_argument('--nhead_tfe', type=int, default=4,
+    p_call.add_argument('--nhead_tfe', type=int, default=4,
                         required=False, help="the number of heads in the multiheadattention models")
-    parser.add_argument('--nhid_tfe', type=int, default=512,
+    p_call.add_argument('--nhid_tfe', type=int, default=512,
                         required=False, help="the dimension of the feedforward network model")
 
     p_output = parser.add_argument_group("OUTPUT")

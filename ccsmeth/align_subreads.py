@@ -3,11 +3,11 @@ import argparse
 import sys
 import time
 
-from utils.process_utils import run_cmd
-from utils.process_utils import display_args
-from utils.process_utils import minimap2_exec
-from utils.process_utils import bwa_exec
-from utils.process_utils import generate_samtools_view_cmd
+from .utils.process_utils import run_cmd
+from .utils.process_utils import display_args
+from .utils.process_utils import minimap2_exec
+from .utils.process_utils import bwa_exec
+from .utils.process_utils import generate_samtools_view_cmd
 
 
 here = os.path.abspath(os.path.dirname(__file__))

@@ -1,7 +1,7 @@
 from __future__ import absolute_import
 
-from utils.process_utils import complement_seq
-from utils.process_utils import get_refloc_of_methysite_in_motif
+from .process_utils import complement_seq
+from .process_utils import get_refloc_of_methysite_in_motif
 
 
 def get_contig2len(ref_path):
