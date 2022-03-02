@@ -35,7 +35,7 @@ setup(
     keywords=['methylation', 'pacbio', 'neural network'],
     version=__version__,
     url='https://github.com/PengNi/ccsmeth',
-    download_url='https://github.com/PengNi/ccsmeth/archive/{}.tar.gz'.format(__version__),
+    download_url='https://github.com/PengNi/ccsmeth/archive/refs/tags/{}.tar.gz'.format(__version__),
     license='GNU General Public License v3 (GPLv3)',
     author='Peng Ni',
     # install_requires=['numpy>=1.15.3',
