@@ -138,10 +138,14 @@ def _isright_haped_reads(haptag2readids):
     return True
 
 
-def _phase_call_mods(mcallfile, haptag2readids):
+def _phase_call_mods(mcallfile, haptag2readids, str_id=None):
     fname, fext = os.path.splitext(mcallfile)
-    mcall_hp1 = fname + ".whatshap_HP1" + fext
-    mcall_hp2 = fname + ".whatshap_HP2" + fext
+    if str_id is None:
+        mcall_hp1 = fname + ".whatshap_HP1" + fext
+        mcall_hp2 = fname + ".whatshap_HP2" + fext
+    else:
+        mcall_hp1 = fname + ".{}.whatshap_HP1".format(str_id) + fext
+        mcall_hp2 = fname + ".{}.whatshap_HP2".format(str_id) + fext
 
     cnt_all, cnt_kept, cnt_hp1, cnt_hp2 = 0, 0, 0, 0
     reads_skipped, reads_unknown, reads_hp1, reads_hp2 = set(), set(), set(), set()
@@ -190,8 +194,8 @@ def main():
     parser.add_argument("--readlist", "-r", type=str, required=False, help="readlist file from whatshap haplotag, "
                                                                            "not required, "
                                                                            "only required when --bam is not provided")
-
     parser.add_argument("--methylcall", "-m", type=str, required=False, help="call_mods.tsv from methccs/deepsignal2")
+    parser.add_argument("--id", type=str, required=False, default=None, help="id")
 
     args = parser.parse_args()
 
@@ -202,7 +206,7 @@ def main():
     haptag2readids = _convert_readlist_to_dict(readsinfo)
     if not _isright_haped_reads(haptag2readids):
         raise ValueError("haptag reads error!")
-    _phase_call_mods(args.methylcall, haptag2readids)
+    _phase_call_mods(args.methylcall, haptag2readids, args.id)
 
     endtime = time.time()
     sys.stderr.write("[phase methyl calls]costs {:.1f} seconds\n".format(endtime - start))
