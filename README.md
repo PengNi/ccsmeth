@@ -19,10 +19,10 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [scikit-learn](https://scikit-learn.org/stable/) \
        [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.7.0?)
 
-#### install ccsmeth from github (latest version)
+#### install ccsmeth from github (latest version):
 ```bash
 # it is highly recommended to install ccsmeth in an virtual environment
-conda create -n ccsmethenv python=3.6
+conda create -n ccsmethenv python=3.7
 # activate
 conda activate ccsmethenv
 # download and install ccsmethy from github
@@ -59,13 +59,15 @@ CUDA_VISIBLE_DEVICES=0 csmeth call_mods \
   --input /path/to/output.subreads.minimap2.features.zscore.fb.depth1.tsv \
   --model_file /path/to/ccsmeth/models/model_cpg_attbigru2s_hg002_15kb_s2.b21_epoch7.ckpt \
   --output /path/to/output.subreads.minimap2.features.zscore.fb.depth1.call_mods.tsv \
-  --threads_call 10 --model_type attbigru2s
+  --threads 10 --threads_call 2 --model_type attbigru2s
 ```
 
 
 ## Usage
 
 Users can use `ccsmeth subcommands --help/-h` for help.
+
+<!-- TODO: output file format explanation -->
 
 #### 1. align subreads
 

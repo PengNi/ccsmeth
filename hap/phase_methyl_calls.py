@@ -188,9 +188,9 @@ def _phase_call_mods(mcallfile, haptag2readids, str_id=None):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bam", "-b", type=str, required=False, help=".haplotagged.bam, from whatshap haplotag")
-    parser.add_argument("--mapq", type=int, required=False, default=20, help="mapQ cutoff of aligned reads, "
-                                                                             "default 20, only being used when "
-                                                                             "--bam is provided")
+    parser.add_argument("--mapq", type=int, required=False, default=0, help="mapQ cutoff of aligned reads, "
+                                                                            "default 0, only being used when "
+                                                                            "--bam is provided")
     parser.add_argument("--readlist", "-r", type=str, required=False, help="readlist file from whatshap haplotag, "
                                                                            "not required, "
                                                                            "only required when --bam is not provided")

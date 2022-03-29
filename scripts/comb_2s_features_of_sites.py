@@ -16,7 +16,7 @@ def _comb_fb_features(fwd_feas, bwd_feas):
         fpos = ffea[1]
         bpos = bfea[1]
         if fpos == bpos - 1:
-            ffea[4] = max(ffea[4], bfea[4])
+            ffea[4] = max(int(ffea[4]), int(bfea[4]))
             comb_feas.append(ffea[:13] + bfea[5:])
             idx_f += 1
             idx_b += 1

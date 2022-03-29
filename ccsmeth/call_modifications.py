@@ -18,6 +18,8 @@ try:
     mp.set_start_method('spawn')
 except RuntimeError:
     pass
+except AttributeError:
+    pass
 
 # from utils.process_utils import Queue
 from torch.multiprocessing import Queue
@@ -617,6 +619,8 @@ def call_mods(args):
     holeids_ne = None if args.holeids_ne is None else _get_holes(args.holeids_ne)
 
     if input_path.endswith(".bam") or input_path.endswith(".sam"):
+        if args.ref is None:
+            raise ValueError("please specify a reference genome file (--ref)! ")
         reference = os.path.abspath(args.ref)
         if not os.path.exists(reference):
             raise IOError("refernce(--ref) file does not exist!")

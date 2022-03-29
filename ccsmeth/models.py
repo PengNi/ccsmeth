@@ -7,6 +7,7 @@ import torch
 import torch.nn as nn
 
 from .utils.constants_torch import use_cuda
+from .utils.attention import Attention
 
 
 # BiRNN ===============================================================
@@ -98,9 +99,6 @@ class ModelRNN(nn.Module):
 
 
 # AttBiRNN ===============================================================
-from utils.attention import Attention
-
-
 class ModelAttRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
