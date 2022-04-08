@@ -316,7 +316,62 @@ EXTRACTION:
   --seed SEED           seed for randomly selecting subreads, default 1234
 ```
 
-#### 4. train models
+The call_mods file is a tab-delimited text file in the following format:
+   - **chrom**: the chromosome name
+   - **pos**:   0-based position of the targeted base in the chromosome
+   - **strand**:    +/-, the aligned strand of the read to the reference
+   - **readname**:  read name of the ccs read
+   - **read_depth**:   subreads depth of the ccs read
+   - **prob_0**:    [0, 1], the probability of the targeted base predicted as 0 (unmethylated)
+   - **prob_1**:    [0, 1], the probability of the targeted base predicted as 1 (methylated)
+   - **called_label**:  0/1, unmethylated/methylated
+   - **k_mer**:   the kmer around the targeted base
+
+
+#### 4. call modification frequency
+
+```shell
+python /path/to/ccsmeth/scripts/call_modification_frequency.py -h
+usage: call_modification_frequency.py [-h] --input_path INPUT_PATH
+                                      --result_file RESULT_FILE [--bed]
+                                      [--sort] [--prob_cf PROB_CF]
+                                      [--rm_1strand] [--file_uid FILE_UID]
+
+calculate frequency of interested sites at genome level
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --input_path INPUT_PATH, -i INPUT_PATH
+                        a result file from call_modifications.py, or a
+                        directory contains a bunch of result files.
+  --result_file RESULT_FILE, -o RESULT_FILE
+                        the file path to save the result
+  --bed                 save the result in bedMethyl format
+  --sort                sort items in the result
+  --prob_cf PROB_CF     this is to remove ambiguous calls. if
+                        abs(prob1-prob0)>=prob_cf, then we use the call. e.g.,
+                        proc_cf=0 means use all calls. range [0, 1], default
+                        0.0.
+  --rm_1strand          abandon ccs reads with only 1 strand subreads
+  --file_uid FILE_UID   a unique str which all input files has, this is for
+                        finding all input files and ignoring the un-input-
+                        files in a input directory. if input_path is a file,
+                        ignore this arg.
+```
+
+The modification_frequency file can be either saved in [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) format (by setting `--bed`), or saved as a tab-delimited text file in the following format by default:
+   - **chrom**: the chromosome name
+   - **pos**:   0-based position of the targeted base in the chromosome
+   - **strand**:    +/-, the aligned strand of the read to the reference
+   - **prob_0_sum**:    sum of the probabilities of the targeted base predicted as 0 (unmethylated)
+   - **prob_1_sum**:    sum of the probabilities of the targeted base predicted as 1 (methylated)
+   - **count_modified**:    number of reads in which the targeted base counted as modified
+   - **count_unmodified**:  number of reads in which the targeted base counted as unmodified
+   - **coverage**:  number of reads aligned to the targeted base
+   - **modification_frequency**:    modification frequency
+   - **k_mer**:   the kmer around the targeted base
+
+#### 5. train models
 
 ```shell
 ccsmeth train -h

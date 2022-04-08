@@ -3,7 +3,7 @@ import argparse
 import os
 
 
-def combine_fb_of_deepreport(report_fp):  # deepsmrt
+def combine_fb_of_ccsmeth(report_fp):
     pos2info = {}
     poses = set()
     with open(report_fp, "r") as rf:
@@ -111,25 +111,27 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--report_fp", help="the pred_in_ref report file path",
                         type=str, required=True)
-    parser.add_argument('-t', "--rtype", help="bismark, bedmethyl, or methccs",
-                        type=str, default='bismark')
+    parser.add_argument('-t', "--rtype", help="bismark, bedmethyl, or ccsmeth",
+                        type=str, default='bedmethyl')
+    parser.add_argument("--out", "-o", help="wfile",
+                        type=str, default=None)
     argv = parser.parse_args()
 
     report_fp = argv.report_fp
     rtype = argv.rtype
 
     print('start to combine forward backward strands..')
-    fname, fext = os.path.splitext(report_fp)
-    wfp = fname + '.fb_comb' + fext
     if rtype == 'bismark':
         # ===
         mposinfo = combine_fb_of_bs_bismark_CpG_report(report_fp)
-    elif rtype == 'methccs':
-        mposinfo = combine_fb_of_deepreport(report_fp)
+    elif rtype == 'ccsmeth':
+        mposinfo = combine_fb_of_ccsmeth(report_fp)
     elif rtype == 'bedmethyl':
         mposinfo = combine_fb_of_bedmethyl(report_fp)
     else:
         raise ValueError()
+    fname, fext = os.path.splitext(report_fp)
+    wfp = argv.out if argv.out is not None else fname + '.fb_comb' + fext
     write_mpos2covinfo(mposinfo, wfp)
 
 
