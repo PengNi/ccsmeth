@@ -46,7 +46,7 @@ def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
             skip_cnt += 1
             continue
         all_crs.append(CallRecord(words[0], int(words[1]),
-                                  words[2], int(words[3]), words[4],
+                                  words[2], words[3], words[4],
                                   float(words[5]), float(words[6]),
                                   int(words[7]),
                                   is_methylated))

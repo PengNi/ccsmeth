@@ -5,6 +5,7 @@ import time
 
 from .utils.process_utils import run_cmd
 from .utils.process_utils import display_args
+from .utils.process_utils import pbmm2_exec
 from .utils.process_utils import minimap2_exec
 from .utils.process_utils import bwa_exec
 from .utils.process_utils import generate_samtools_view_cmd
@@ -22,10 +23,14 @@ def check_input_file(inputfile):
     return inputpath
 
 
-def check_output_file(outputfile, inputfile, is_bwa):
+def check_output_file(outputfile, inputfile, is_minimap2, is_bwa):
     if outputfile is None:
         fname, fext = os.path.splitext(inputfile)
-        aligner = "bwa" if is_bwa else "minimap2"
+        aligner = "pbmm2"
+        if is_bwa:
+            aligner = "bwa"
+        if is_minimap2:
+            aligner = "minimap2"
         output_path = fname + "." + aligner + ".bam"
     else:
         if not (outputfile.endswith(".sam") or outputfile.endswith(".bam")):
@@ -34,14 +39,11 @@ def check_output_file(outputfile, inputfile, is_bwa):
     return output_path
 
 
-def generate_aligner_with_options(is_bwa, path_to_bwa, path_to_minimap2, bestn, threads):
-    aligner = minimap2_exec
-    if is_bwa:
-        aligner = bwa_exec
-        if path_to_bwa is not None:
-            aligner = os.path.abspath(path_to_bwa)
-        aligner += " mem -x pacbio -C -V -t {t}".format(t=threads)
-    else:
+def generate_aligner_with_options(is_minimap2, path_to_minimap2, is_bwa, path_to_bwa, path_to_pbmm2,
+                                  bestn, threads):
+    aligner = pbmm2_exec
+    if is_minimap2:
+        aligner = minimap2_exec
         if path_to_minimap2 is not None:
             aligner = os.path.abspath(path_to_minimap2)
         num_sencondary = bestn - 1
@@ -52,6 +54,15 @@ def generate_aligner_with_options(is_bwa, path_to_bwa, path_to_minimap2, bestn, 
         else:
             aligner += " -ax map-pb -y -t {t} -N {N}".format(t=threads,
                                                              N=num_sencondary)
+    elif is_bwa:
+        aligner = bwa_exec
+        if path_to_bwa is not None:
+            aligner = os.path.abspath(path_to_bwa)
+        aligner += " mem -x pacbio -C -V -t {t}".format(t=threads)
+    else:
+        if path_to_pbmm2 is not None:
+            aligner = os.path.abspath(path_to_pbmm2)
+        aligner += " align --preset SUBREAD -j {t} ".format(t=threads)
     return aligner
 
 
@@ -59,7 +70,7 @@ def align_subreads_to_genome(args):
     sys.stderr.write("[align_subreads]start..\n")
     start = time.time()
     inputpath = check_input_file(args.subreads)
-    outputpath = check_output_file(args.output, inputpath, args.bwa)
+    outputpath = check_output_file(args.output, inputpath, args.minimap2, args.bwa)
     reference = os.path.abspath(args.ref)
 
     if not os.path.exists(inputpath):
@@ -67,43 +78,56 @@ def align_subreads_to_genome(args):
     if not os.path.exists(reference):
         raise IOError("refernce(--ref) file does not exist!")
 
-    aligner = generate_aligner_with_options(args.bwa,
-                                            args.path_to_bwa,
+    aligner = generate_aligner_with_options(args.minimap2,
                                             args.path_to_minimap2,
+                                            args.bwa,
+                                            args.path_to_bwa,
+                                            args.path_to_pbmm2,
                                             args.bestn,
                                             args.threads)
-    align_cmds = " ".join([aligner, reference, "-"])
-    if inputpath.endswith(".fq") or inputpath.endswith(".fastq"):
-        align_cmds = " ".join([aligner, reference, inputpath])
-    if outputpath.endswith(".sam"):
-        align_cmds += " > {}".format(outputpath)
 
     samtools_view = generate_samtools_view_cmd(args.path_to_samtools)
 
-    pre_align_cmds = ""
-    if inputpath.endswith(".fq") or inputpath.endswith(".fastq"):
-        # pre_align_cmds += " ".join(["cat", inputpath])
-        pass
-    else:
-        if inputpath.endswith(".bam"):
-            pre_align_cmds += " ".join([samtools_view, "-h", inputpath])
-            pre_align_cmds += " | " + sam2fq_exec
-        elif inputpath.endswith(".sam"):
-            # pre_align_cmds += " ".join(["cat", inputpath])
-            pre_align_cmds += sam2fq_exec + " < " + inputpath
+    if (not args.minimap2) and (not args.bwa):
+        if outputpath.endswith(".bam"):
+            align_cmds = " ".join([aligner, reference, inputpath, outputpath])
+        elif outputpath.endswith(".sam"):
+            align_cmds = " ".join([aligner, reference, inputpath])
+            post_align_cmds = " ".join([samtools_view, "- >", outputpath])
+            align_cmds = " | ".join([align_cmds, post_align_cmds])
         else:
-            raise ValueError()
+            raise ValueError("--output/-o must be in bam/sam format!")
+    else:
+        align_cmds = " ".join([aligner, reference, "-"])
+        if inputpath.endswith(".fq") or inputpath.endswith(".fastq"):
+            align_cmds = " ".join([aligner, reference, inputpath])
+        if outputpath.endswith(".sam"):
+            align_cmds += " > {}".format(outputpath)
 
-    post_align_cmds = ""
-    if outputpath.endswith(".bam"):
-        post_align_cmds = " ".join([samtools_view, "-b - >", outputpath])
-    elif outputpath.endswith(".sam"):
-        pass
+        pre_align_cmds = ""
+        if inputpath.endswith(".fq") or inputpath.endswith(".fastq"):
+            # pre_align_cmds += " ".join(["cat", inputpath])
+            pass
+        else:
+            if inputpath.endswith(".bam"):
+                pre_align_cmds += " ".join([samtools_view, inputpath])
+                pre_align_cmds += " | " + sam2fq_exec
+            elif inputpath.endswith(".sam"):
+                # pre_align_cmds += " ".join(["cat", inputpath])
+                pre_align_cmds += sam2fq_exec + " < " + inputpath
+            else:
+                raise ValueError()
 
-    if pre_align_cmds != "":
-        align_cmds = " | ".join([pre_align_cmds, align_cmds])
-    if post_align_cmds != "":
-        align_cmds = " | ".join([align_cmds, post_align_cmds])
+        post_align_cmds = ""
+        if outputpath.endswith(".bam"):
+            post_align_cmds = " ".join([samtools_view, "-b - >", outputpath])
+        elif outputpath.endswith(".sam"):
+            pass
+
+        if pre_align_cmds != "":
+            align_cmds = " | ".join([pre_align_cmds, align_cmds])
+        if post_align_cmds != "":
+            align_cmds = " | ".join([align_cmds, post_align_cmds])
 
     sys.stderr.write("cmds: {}\n".format(align_cmds))
     stdinfo, returncode = run_cmd(align_cmds)
@@ -137,6 +161,16 @@ def main():
                           help="save header annotations from bam/sam. DEPRECATED")
 
     p_align = parser.add_argument_group("ALIGN")
+    p_align.add_argument("--path_to_pbmm2", type=str, default=None, required=False,
+                         help="full path to the executable binary pbmm2 file. "
+                              "If not specified, it is assumed that pbmm2 is "
+                              "in the PATH.")
+    p_align.add_argument("--minimap2", action="store_true", default=False, required=False,
+                         help="use minimap2 instead of pbmm2 for alignment")
+    p_align.add_argument("--path_to_minimap2", type=str, default=None, required=False,
+                         help="full path to the executable binary minimap2 file. "
+                              "If not specified, it is assumed that minimap2 is "
+                              "in the PATH.")
     p_align.add_argument("--bestn", "-n", type=int, default=3, required=False,
                          help="retain at most n alignments in minimap2. "
                               "default 3, which means 2 secondary alignments are retained. "
@@ -144,11 +178,7 @@ def main():
                               "[This arg is for further extension, for now it is no use cause "
                               "we use only primary alignment.]")
     p_align.add_argument("--bwa", action="store_true", default=False, required=False,
-                         help="use bwa instead of minimap2 for alignment")
-    p_align.add_argument("--path_to_minimap2", type=str, default=None, required=False,
-                         help="full path to the executable binary minimap2 file. "
-                              "If not specified, it is assumed that minimap2 is "
-                              "in the PATH.")
+                         help="use bwa instead of pbmm2 for alignment")
     p_align.add_argument("--path_to_bwa", type=str, default=None, required=False,
                          help="full path to the executable binary bwa file. If not "
                               "specified, it is assumed that bwa is in the PATH.")

@@ -6,6 +6,7 @@ calculate modification frequency at genome level
 import argparse
 import os
 import sys
+import gzip
 
 key_sep = "||"
 
@@ -57,27 +58,31 @@ def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False):
 
     count, used = 0, 0
     for mods_file in mods_files:
-        with open(mods_file, 'r') as rf:
-            for line in rf:
-                count += 1
-                words = line.strip().split("\t")
-                mod_record = ModRecord(words)
-                if rm_1strand and "," not in mod_record._depthstr:
-                    continue
-                if not mod_record.is_record_callable(prob_cf):
-                    continue
-                if mod_record._site_key not in sitekeys:
-                    sitekeys.add(mod_record._site_key)
-                    sitekey2stats[mod_record._site_key] = SiteStats(mod_record._strand,
-                                                                    mod_record._kmer)
-                sitekey2stats[mod_record._site_key]._prob_0 += mod_record._prob_0
-                sitekey2stats[mod_record._site_key]._prob_1 += mod_record._prob_1
-                sitekey2stats[mod_record._site_key]._coverage += 1
-                if mod_record._called_label == 1:
-                    sitekey2stats[mod_record._site_key]._met += 1
-                else:
-                    sitekey2stats[mod_record._site_key]._unmet += 1
-                used += 1
+        if mods_file.endswith(".gz"):
+            infile = gzip.open(mods_file, 'rt')
+        else:
+            infile = open(mods_file, 'r')
+        for line in infile:
+            count += 1
+            words = line.strip().split("\t")
+            mod_record = ModRecord(words)
+            if rm_1strand and "," not in mod_record._depthstr:
+                continue
+            if not mod_record.is_record_callable(prob_cf):
+                continue
+            if mod_record._site_key not in sitekeys:
+                sitekeys.add(mod_record._site_key)
+                sitekey2stats[mod_record._site_key] = SiteStats(mod_record._strand,
+                                                                mod_record._kmer)
+            sitekey2stats[mod_record._site_key]._prob_0 += mod_record._prob_0
+            sitekey2stats[mod_record._site_key]._prob_1 += mod_record._prob_1
+            sitekey2stats[mod_record._site_key]._coverage += 1
+            if mod_record._called_label == 1:
+                sitekey2stats[mod_record._site_key]._met += 1
+            else:
+                sitekey2stats[mod_record._site_key]._unmet += 1
+            used += 1
+        infile.close()
     print("{:.2f}% ({} of {}) calls used..".format(used/float(count) * 100, used, count))
     return sitekey2stats
 

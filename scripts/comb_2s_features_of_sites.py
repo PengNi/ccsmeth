@@ -1,6 +1,7 @@
 #! /usr/bin/python
 import argparse
 import os
+import gzip
 
 
 def _comb_fb_features(fwd_feas, bwd_feas):
@@ -33,30 +34,34 @@ def _comb_grouped_features(fea, wf):
     curr_holeid = ""
     cnt_line = 0
     cnt_holes = 0
-    with open(fea, "r") as rf:
-        for line in rf:
-            cnt_line += 1
-            words = line.strip().split("\t")
-            holeid = words[3]
-            if holeid != curr_holeid:
-                if curr_holeid != "":
-                    cnt_holes += 1
-                    feas_fb = _comb_fb_features(feas_f, feas_b)
-                    for ffbtmp in feas_fb:
-                        wf.write("\t".join(list(map(str, ffbtmp))) + "\n")
-                curr_holeid = holeid
-                feas_f = []
-                feas_b = []
-            strand = words[2]
-            words[1] = int(words[1])
-            if strand == "+":
-                feas_f.append(words)
-            else:
-                feas_b.append(words)
-        cnt_holes += 1
-        feas_fb = _comb_fb_features(feas_f, feas_b)
-        for ffbtmp in feas_fb:
-            wf.write("\t".join(list(map(str, ffbtmp))) + "\n")
+    if fea.endswith(".gz"):
+        infile = gzip.open(fea, 'rt')
+    else:
+        infile = open(fea, 'r')
+    for line in infile:
+        cnt_line += 1
+        words = line.strip().split("\t")
+        holeid = words[3]
+        if holeid != curr_holeid:
+            if curr_holeid != "":
+                cnt_holes += 1
+                feas_fb = _comb_fb_features(feas_f, feas_b)
+                for ffbtmp in feas_fb:
+                    wf.write("\t".join(list(map(str, ffbtmp))) + "\n")
+            curr_holeid = holeid
+            feas_f = []
+            feas_b = []
+        strand = words[2]
+        words[1] = int(words[1])
+        if strand == "+":
+            feas_f.append(words)
+        else:
+            feas_b.append(words)
+    cnt_holes += 1
+    feas_fb = _comb_fb_features(feas_f, feas_b)
+    for ffbtmp in feas_fb:
+        wf.write("\t".join(list(map(str, ffbtmp))) + "\n")
+    infile.close()
     print("proceed {} lines, comb {} holes".format(cnt_line, cnt_holes))
 
 
@@ -66,12 +71,18 @@ def main():
                         type=str, required=True)
     parser.add_argument("--not_grouped", action="store_true", default=False, required=False,
                         help="the --fea file not grouped by holeids")
+    parser.add_argument("--gzip", action="store_true", default=False, required=False,
+                        help="if gzip")
     argv = parser.parse_args()
 
     print('start to combine features of forward backward strands..')
     fname, fext = os.path.splitext(argv.fea)
-    wfile = fname + ".fb" + fext
-    wf = open(wfile, "w")
+    if argv.gzip:
+        wfile = fname + ".fb.txt.gz"
+        wf = gzip.open(wfile, 'wt')
+    else:
+        wfile = fname + ".fb.txt"
+        wf = open(wfile, "w")
     if argv.not_grouped:
         pass
     else:

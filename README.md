@@ -11,7 +11,7 @@
 ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pytorch.org/).
    - Prerequisites: \
        [Python3.*](https://www.python.org/) (version>=3.6)\
-       [minimap2](https://github.com/lh3/minimap2) \
+       [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2) \
        [samtools](https://github.com/samtools/samtools)
    - Dependencies: \
        [numpy](http://www.numpy.org/) \
@@ -69,7 +69,7 @@ Users can use `ccsmeth subcommands --help/-h` for help.
 
 <!-- TODO: output file format explanation -->
 
-#### 1. align subreads
+#### 1. align subreads [needs to be updated]
 
 ```shell
 ccsmeth align -h

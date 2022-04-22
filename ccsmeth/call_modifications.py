@@ -14,6 +14,8 @@ import torch
 import torch.multiprocessing as mp
 from sklearn import metrics
 
+import gzip
+
 try:
     mp.set_start_method('spawn')
 except RuntimeError:
@@ -57,29 +59,33 @@ def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=5
     print("read_features process-{} starts".format(os.getpid()))
     h_num = 0
     preholeid = None
-    with open(features_file, "r") as rf:
-        featurestrs = []
-        for line in rf:
-            words = line.strip().split("\t")
-            holeid = words[3]
-            if holeids_e is not None and holeid not in holeids_e:
-                continue
-            if holeids_ne is not None and holeid in holeids_ne:
-                continue
-            if preholeid is None:
-                preholeid = holeid
-            elif preholeid != holeid:
-                preholeid = holeid
-                h_num += 1
-                if h_num % holes_batch == 0:
-                    featurestrs_batch_q.put(featurestrs)
-                    while featurestrs_batch_q.qsize() > queen_size_border:
-                        time.sleep(time_wait)
-                    featurestrs = []
-            featurestrs.append(words)
-        h_num += 1
-        if len(featurestrs) > 0:
-            featurestrs_batch_q.put(featurestrs)
+    if features_file.endswith(".gz"):
+        infile = gzip.open(features_file, 'rt')
+    else:
+        infile = open(features_file, 'r')
+    featurestrs = []
+    for line in infile:
+        words = line.strip().split("\t")
+        holeid = words[3]
+        if holeids_e is not None and holeid not in holeids_e:
+            continue
+        if holeids_ne is not None and holeid in holeids_ne:
+            continue
+        if preholeid is None:
+            preholeid = holeid
+        elif preholeid != holeid:
+            preholeid = holeid
+            h_num += 1
+            if h_num % holes_batch == 0:
+                featurestrs_batch_q.put(featurestrs)
+                while featurestrs_batch_q.qsize() > queen_size_border:
+                    time.sleep(time_wait)
+                featurestrs = []
+        featurestrs.append(words)
+    infile.close()
+    h_num += 1
+    if len(featurestrs) > 0:
+        featurestrs_batch_q.put(featurestrs)
     featurestrs_batch_q.put("kill")
     print("read_features process-{} ending, read {} holes".format(os.getpid(), h_num))
 
@@ -605,8 +611,11 @@ def _worker_extract_features(hole_align_q, features_batch_q, contigs, motifs, ar
 def call_mods(args):
     print("[main]call_mods starts..")
     start = time.time()
+    print("cuda availability: {}".format(use_cuda))
+
     torch.manual_seed(args.tseed)
-    torch.cuda.manual_seed(args.tseed)
+    if use_cuda:
+        torch.cuda.manual_seed(args.tseed)
 
     model_path = os.path.abspath(args.model_file)
     if not os.path.exists(model_path):

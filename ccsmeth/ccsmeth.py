@@ -63,7 +63,7 @@ def main():
         help='show ccsmeth version and exit.')
 
     subparsers = parser.add_subparsers(title="modules", help='ccsmeth modules, use -h/--help for help')
-    sub_align = subparsers.add_parser("align", description="align subreads using bwa/minimap2")
+    sub_align = subparsers.add_parser("align", description="align subreads using pbmm2/minimap2/bwa, default pbmm2")
     sub_call_mods = subparsers.add_parser("call_mods", description="call modifications")
     sub_extract = subparsers.add_parser("extract", description="extract features from aligned subreads.")
     sub_train = subparsers.add_parser("train", description="train a model, need two independent datasets for training "
@@ -86,6 +86,16 @@ def main():
                            help="save header annotations from bam/sam. DEPRECATED")
 
     sa_align = sub_align.add_argument_group("ALIGN")
+    sa_align.add_argument("--path_to_pbmm2", type=str, default=None, required=False,
+                          help="full path to the executable binary pbmm2 file. "
+                               "If not specified, it is assumed that pbmm2 is "
+                               "in the PATH.")
+    sa_align.add_argument("--minimap2", action="store_true", default=False, required=False,
+                          help="use minimap2 instead of pbmm2 for alignment")
+    sa_align.add_argument("--path_to_minimap2", type=str, default=None, required=False,
+                          help="full path to the executable binary minimap2 file. "
+                               "If not specified, it is assumed that minimap2 is "
+                               "in the PATH.")
     sa_align.add_argument("--bestn", "-n", type=int, default=3, required=False,
                           help="retain at most n alignments in minimap2. "
                                "default 3, which means 2 secondary alignments are retained. "
@@ -93,11 +103,7 @@ def main():
                                "[This arg is for further extension, for now it is no use cause "
                                "we use only primary alignment.]")
     sa_align.add_argument("--bwa", action="store_true", default=False, required=False,
-                          help="use bwa instead of minimap2 for alignment")
-    sa_align.add_argument("--path_to_minimap2", type=str, default=None, required=False,
-                          help="full path to the executable binary minimap2 file. "
-                               "If not specified, it is assumed that minimap2 is "
-                               "in the PATH.")
+                          help="use bwa instead of pbmm2 for alignment")
     sa_align.add_argument("--path_to_bwa", type=str, default=None, required=False,
                           help="full path to the executable binary bwa file. If not "
                                "specified, it is assumed that bwa is in the PATH.")
