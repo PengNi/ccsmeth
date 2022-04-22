@@ -42,23 +42,24 @@ See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
 ## Quick start
 
 ```shell
-# 1. align subreads (should have added minimap2 to $PATH)
+# 1. align subreads
+# should have added pbmm2 to $PATH or the used environment
 ccsmeth align --subreads /path/to/subreads.bam \
   --ref /path/to/genome.fa \
   --threads 10 \
-  --output /path/to/output.subreads.minimap2.bam
+  --output /path/to/output.subreads.pbmm2.bam
 
 # 2. extract features
-ccsmeth extract --input /path/to/output.subreads.minimap2.bam \
+ccsmeth extract --input /path/to/output.subreads.pbmm2.bam \
   --ref /path/to/genome.fa \
   --threads 10 --norm zscore --comb_strands --depth 1 \
-  --output /path/to/output.subreads.minimap2.features.zscore.fb.depth1.tsv
+  --output /path/to/output.subreads.pbmm2.features.zscore.fb.depth1.tsv
 
 # 3. call modifications
 CUDA_VISIBLE_DEVICES=0 csmeth call_mods \
-  --input /path/to/output.subreads.minimap2.features.zscore.fb.depth1.tsv \
+  --input /path/to/output.subreads.pbmm2.features.zscore.fb.depth1.tsv \
   --model_file /path/to/ccsmeth/models/model_cpg_attbigru2s_hg002_15kb_s2.b21_epoch7.ckpt \
-  --output /path/to/output.subreads.minimap2.features.zscore.fb.depth1.call_mods.tsv \
+  --output /path/to/output.subreads.pbmm2.features.zscore.fb.depth1.call_mods.tsv \
   --threads 10 --threads_call 2 --model_type attbigru2s
 ```
 
@@ -74,12 +75,12 @@ Users can use `ccsmeth subcommands --help/-h` for help.
 ```shell
 ccsmeth align -h
 usage: ccsmeth align [-h] --subreads SUBREADS --ref REF [--output OUTPUT]
-                     [--header] [--bestn BESTN] [--bwa]
-                     [--path_to_minimap2 PATH_TO_MINIMAP2]
-                     [--path_to_bwa PATH_TO_BWA]
+                     [--header] [--path_to_pbmm2 PATH_TO_PBMM2] [--minimap2]
+                     [--path_to_minimap2 PATH_TO_MINIMAP2] [--bestn BESTN]
+                     [--bwa] [--path_to_bwa PATH_TO_BWA]
                      [--path_to_samtools PATH_TO_SAMTOOLS] [--threads THREADS]
 
-align subreads using bwa/minimap2
+align subreads using pbmm2/minimap2/bwa, default pbmm2
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -100,6 +101,14 @@ OUTPUT:
   --header              save header annotations from bam/sam. DEPRECATED
 
 ALIGN:
+  --path_to_pbmm2 PATH_TO_PBMM2
+                        full path to the executable binary pbmm2 file. If not
+                        specified, it is assumed that pbmm2 is in the PATH.
+  --minimap2            use minimap2 instead of pbmm2 for alignment
+  --path_to_minimap2 PATH_TO_MINIMAP2
+                        full path to the executable binary minimap2 file. If
+                        not specified, it is assumed that minimap2 is in the
+                        PATH.
   --bestn BESTN, -n BESTN
                         retain at most n alignments in minimap2. default 3,
                         which means 2 secondary alignments are retained. Do
@@ -107,11 +116,7 @@ ALIGN:
                         accuracy of alignment. [This arg is for further
                         extension, for now it is no use cause we use only
                         primary alignment.]
-  --bwa                 use bwa instead of minimap2 for alignment
-  --path_to_minimap2 PATH_TO_MINIMAP2
-                        full path to the executable binary minimap2 file. If
-                        not specified, it is assumed that minimap2 is in the
-                        PATH.
+  --bwa                 use bwa instead of pbmm2 for alignment
   --path_to_bwa PATH_TO_BWA
                         full path to the executable binary bwa file. If not
                         specified, it is assumed that bwa is in the PATH.
