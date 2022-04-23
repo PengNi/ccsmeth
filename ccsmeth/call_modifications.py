@@ -90,7 +90,7 @@ def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=5
     print("read_features process-{} ending, read {} holes".format(os.getpid(), h_num))
 
 
-def _format_features_from_strbatch1(featurestrs_batch_q, features_batch_q):
+def _format_features_from_strbatch1(featurestrs_batch_q, features_batch_q, seq_len):
     print("format_features process-{} starts".format(os.getpid()))
     b_num = 0
     while True:
@@ -111,15 +111,25 @@ def _format_features_from_strbatch1(featurestrs_batch_q, features_batch_q):
         pw_stds = []
         labels = []
 
+        if len(featurestrs) < 1:
+            continue
+        oriklen = len(featurestrs[0][5])
+        if oriklen == seq_len:
+            left_cut = 0
+            right_cut = -oriklen
+        elif oriklen > seq_len:
+            left_cut = right_cut = (oriklen - seq_len) // 2
+        else:
+            continue
         for words in featurestrs:
 
             sampleinfo.append("\t".join(words[0:5]))
-            kmer = np.array([base2code_dna[x] for x in words[5]])
+            kmer = np.array([base2code_dna[x] for x in words[5][left_cut:-right_cut]])
             kmers.append(kmer)
-            ipd_means.append(np.array([float(x) for x in words[7].split(",")]))
-            ipd_stds.append(np.array([float(x) for x in words[8].split(",")]))
-            pw_means.append(np.array([float(x) for x in words[9].split(",")]))
-            pw_stds.append(np.array([float(x) for x in words[10].split(",")]))
+            ipd_means.append(np.array([float(x) for x in words[7].split(",")[left_cut:-right_cut]]))
+            ipd_stds.append(np.array([float(x) for x in words[8].split(",")[left_cut:-right_cut]]))
+            pw_means.append(np.array([float(x) for x in words[9].split(",")[left_cut:-right_cut]]))
+            pw_stds.append(np.array([float(x) for x in words[10].split(",")[left_cut:-right_cut]]))
 
             labels.append(int(words[13]))
 
@@ -127,7 +137,7 @@ def _format_features_from_strbatch1(featurestrs_batch_q, features_batch_q):
     print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
-def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q):
+def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q, seq_len):
     print("format_features process-{} starts".format(os.getpid()))
     b_num = 0
     while True:
@@ -155,22 +165,32 @@ def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q):
 
         labels = []
 
+        if len(featurestrs) < 1:
+            continue
+        oriklen = len(featurestrs[0][5])
+        if oriklen == seq_len:
+            left_cut = 0
+            right_cut = -oriklen
+        elif oriklen > seq_len:
+            left_cut = right_cut = (oriklen - seq_len) // 2
+        else:
+            continue
         for words in featurestrs:
 
             sampleinfo.append("\t".join(words[0:5]))
-            kmer = np.array([base2code_dna[x] for x in words[5]])
+            kmer = np.array([base2code_dna[x] for x in words[5][left_cut:-right_cut]])
             kmers.append(kmer)
-            ipd_means.append(np.array([float(x) for x in words[7].split(",")]))
-            ipd_stds.append(np.array([float(x) for x in words[8].split(",")]))
-            pw_means.append(np.array([float(x) for x in words[9].split(",")]))
-            pw_stds.append(np.array([float(x) for x in words[10].split(",")]))
+            ipd_means.append(np.array([float(x) for x in words[7].split(",")[left_cut:-right_cut]]))
+            ipd_stds.append(np.array([float(x) for x in words[8].split(",")[left_cut:-right_cut]]))
+            pw_means.append(np.array([float(x) for x in words[9].split(",")[left_cut:-right_cut]]))
+            pw_stds.append(np.array([float(x) for x in words[10].split(",")[left_cut:-right_cut]]))
 
-            kmer2 = np.array([base2code_dna[x] for x in words[13]])
+            kmer2 = np.array([base2code_dna[x] for x in words[13][left_cut:-right_cut]])
             kmers2.append(kmer2)
-            ipd_means2.append(np.array([float(x) for x in words[15].split(",")]))
-            ipd_stds2.append(np.array([float(x) for x in words[16].split(",")]))
-            pw_means2.append(np.array([float(x) for x in words[17].split(",")]))
-            pw_stds2.append(np.array([float(x) for x in words[18].split(",")]))
+            ipd_means2.append(np.array([float(x) for x in words[15].split(",")[left_cut:-right_cut]]))
+            ipd_stds2.append(np.array([float(x) for x in words[16].split(",")[left_cut:-right_cut]]))
+            pw_means2.append(np.array([float(x) for x in words[17].split(",")[left_cut:-right_cut]]))
+            pw_stds2.append(np.array([float(x) for x in words[18].split(",")[left_cut:-right_cut]]))
 
             labels.append(int(words[21]))
 
@@ -179,7 +199,7 @@ def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q):
     print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
-def _format_features_from_strbatch2(featurestrs_batch_q, features_batch_q):
+def _format_features_from_strbatch2(featurestrs_batch_q, features_batch_q, seq_len):
     print("format_features process-{} starts".format(os.getpid()))
     b_num = 0
     while True:
@@ -198,26 +218,36 @@ def _format_features_from_strbatch2(featurestrs_batch_q, features_batch_q):
         mats_ccs_std = []
         labels = []
 
+        if len(featurestrs) < 1:
+            continue
+        oriklen = len(featurestrs[0][5])
+        if oriklen == seq_len:
+            left_cut = 0
+            right_cut = -oriklen
+        elif oriklen > seq_len:
+            left_cut = right_cut = (oriklen - seq_len)//2
+        else:
+            continue
         for words in featurestrs:
             sampleinfo.append("\t".join(words[0:5]))
 
-            kmer = np.array([base2code_dna[x] for x in words[5]])
+            kmer = np.array([base2code_dna[x] for x in words[5][left_cut:-right_cut]])
             kmers.append(kmer)
 
             height, width = len(kmer), len(base2code_dna.keys())
 
-            ipd_means = np.array([float(x) for x in words[7].split(",")], dtype=np.float)
+            ipd_means = np.array([float(x) for x in words[7].split(",")[left_cut:-right_cut]], dtype=np.float)
             ipd_m_mat = np.zeros((1, height, width), dtype=np.float)
             ipd_m_mat[0, np.arange(len(kmer)), kmer] = ipd_means
-            pw_means = np.array([float(x) for x in words[9].split(",")], dtype=np.float)
+            pw_means = np.array([float(x) for x in words[9].split(",")[left_cut:-right_cut]], dtype=np.float)
             pw_m_mat = np.zeros((1, height, width), dtype=np.float)
             pw_m_mat[0, np.arange(len(kmer)), kmer] = pw_means
             mats_ccs_mean.append(np.concatenate((ipd_m_mat, pw_m_mat), axis=0))  # (C=2, H, W)
 
-            ipd_stds = np.array([float(x) for x in words[8].split(",")], dtype=np.float)
+            ipd_stds = np.array([float(x) for x in words[8].split(",")[left_cut:-right_cut]], dtype=np.float)
             ipd_s_mat = np.zeros((1, height, width), dtype=np.float)
             ipd_s_mat[0, np.arange(len(kmer)), kmer] = ipd_stds
-            pw_stds = np.array([float(x) for x in words[10].split(",")], dtype=np.float)
+            pw_stds = np.array([float(x) for x in words[10].split(",")[left_cut:-right_cut]], dtype=np.float)
             pw_s_mat = np.zeros((1, height, width), dtype=np.float)
             pw_s_mat[0, np.arange(len(kmer)), kmer] = pw_stds
             mats_ccs_std.append(np.concatenate((ipd_s_mat, pw_s_mat), axis=0))  # (C=2, H, W)
@@ -718,21 +748,24 @@ def call_mods(args):
         if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru", "transencoder", }:
             for _ in range(nproc_cnvt):
                 p = mp.Process(target=_format_features_from_strbatch1, args=(featurestrs_batch_q,
-                                                                             features_batch_q))
+                                                                             features_batch_q,
+                                                                             args.seq_len))
                 p.daemon = True
                 p.start()
                 ps_str2value.append(p)
         elif args.model_type in {"resnet18", }:
             for _ in range(nproc_cnvt):
                 p = mp.Process(target=_format_features_from_strbatch2, args=(featurestrs_batch_q,
-                                                                             features_batch_q))
+                                                                             features_batch_q,
+                                                                             args.seq_len))
                 p.daemon = True
                 p.start()
                 ps_str2value.append(p)
         elif args.model_type in {"attbigru2s", }:
             for _ in range(nproc_cnvt):
                 p = mp.Process(target=_format_features_from_strbatch2s, args=(featurestrs_batch_q,
-                                                                              features_batch_q))
+                                                                              features_batch_q,
+                                                                              args.seq_len))
                 p.daemon = True
                 p.start()
                 ps_str2value.append(p)
