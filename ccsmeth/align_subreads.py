@@ -27,10 +27,10 @@ def check_output_file(outputfile, inputfile, is_minimap2, is_bwa):
     if outputfile is None:
         fname, fext = os.path.splitext(inputfile)
         aligner = "pbmm2"
-        if is_bwa:
-            aligner = "bwa"
         if is_minimap2:
             aligner = "minimap2"
+        elif is_bwa:
+            aligner = "bwa"
         output_path = fname + "." + aligner + ".bam"
     else:
         if not (outputfile.endswith(".sam") or outputfile.endswith(".bam")):

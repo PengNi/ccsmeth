@@ -56,7 +56,7 @@ ccsmeth extract --input /path/to/output.subreads.pbmm2.bam \
   --output /path/to/output.subreads.pbmm2.features.zscore.fb.depth1.tsv
 
 # 3. call modifications
-CUDA_VISIBLE_DEVICES=0 csmeth call_mods \
+CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --input /path/to/output.subreads.pbmm2.features.zscore.fb.depth1.tsv \
   --model_file /path/to/ccsmeth/models/model_cpg_attbigru2s_hg002_15kb_s2.b21_epoch7.ckpt \
   --output /path/to/output.subreads.pbmm2.features.zscore.fb.depth1.call_mods.tsv \
@@ -70,7 +70,7 @@ Users can use `ccsmeth subcommands --help/-h` for help.
 
 <!-- TODO: output file format explanation -->
 
-#### 1. align subreads [needs to be updated]
+#### 1. align subreads
 
 ```shell
 ccsmeth align -h
