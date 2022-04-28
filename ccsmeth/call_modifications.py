@@ -494,21 +494,27 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
                                                                        args.batch_size))
 
 
-def _write_predstr_to_file(write_fp, predstr_q):
+def _write_predstr_to_file(write_fp, predstr_q, is_gzip):
     print('write_process-{} starts'.format(os.getpid()))
-    with open(write_fp, 'w') as wf:
-        while True:
-            # during test, it's ok without the sleep()
-            if predstr_q.empty():
-                time.sleep(time_wait)
-                continue
-            pred_str = predstr_q.get()
-            if pred_str == "kill":
-                print('write_process-{} finished'.format(os.getpid()))
-                break
-            for one_pred_str in pred_str:
-                wf.write(one_pred_str + "\n")
-            wf.flush()
+    if is_gzip:
+        if not write_fp.endswith(".gz"):
+            write_fp += ".gz"
+        wf = gzip.open(write_fp, "wt")
+    else:
+        wf = open(write_fp, 'w')
+    while True:
+        # during test, it's ok without the sleep()
+        if predstr_q.empty():
+            time.sleep(time_wait)
+            continue
+        pred_str = predstr_q.get()
+        if pred_str == "kill":
+            wf.close()
+            print('write_process-{} finished'.format(os.getpid()))
+            break
+        for one_pred_str in pred_str:
+            wf.write(one_pred_str + "\n")
+        wf.flush()
 
 
 def _batch_feature_list1(feature_list):
@@ -686,7 +692,7 @@ def call_mods(args):
         p_read.daemon = True
         p_read.start()
 
-        p_w = mp.Process(target=_write_predstr_to_file, args=(args.output, pred_str_q))
+        p_w = mp.Process(target=_write_predstr_to_file, args=(args.output, pred_str_q, args.gzip))
         p_w.daemon = True
         p_w.start()
 
@@ -780,7 +786,7 @@ def call_mods(args):
             predstr_procs.append(p)
 
         # print("write_process started..")
-        p_w = mp.Process(target=_write_predstr_to_file, args=(args.output, pred_str_q))
+        p_w = mp.Process(target=_write_predstr_to_file, args=(args.output, pred_str_q, args.gzip))
         p_w.daemon = True
         p_w.start()
 
@@ -862,6 +868,8 @@ def main():
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--output", "-o", action="store", type=str, required=True,
                           help="the file path to save the predicted result")
+    p_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                          help="if compressing the output using gzip")
 
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--ref", type=str, required=False,

@@ -24,6 +24,13 @@ def main_call_mods(args):
     call_mods(args)
 
 
+def main_call_freq(args):
+    from .call_mods_freq import call_mods_frequency_to_file
+
+    display_args(args)
+    call_mods_frequency_to_file(args)
+
+
 def main_extract(args):
     from .extract_features import extract_subreads_features
 
@@ -66,6 +73,7 @@ def main():
     sub_align = subparsers.add_parser("align", description="align subreads using pbmm2/minimap2/bwa, default pbmm2")
     sub_call_mods = subparsers.add_parser("call_mods", description="call modifications")
     sub_extract = subparsers.add_parser("extract", description="extract features from aligned subreads.")
+    sub_call_freq = subparsers.add_parser("call_freq", description="call frequency of modifications at genome level")
     sub_train = subparsers.add_parser("train", description="train a model, need two independent datasets for training "
                                                            "and validating")
 
@@ -177,6 +185,8 @@ def main():
     sc_output = sub_call_mods.add_argument_group("OUTPUT")
     sc_output.add_argument("--output", "-o", action="store", type=str, required=True,
                            help="the file path to save the predicted result")
+    sc_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                           help="if compressing the output using gzip")
 
     sc_extract = sub_call_mods.add_argument_group("EXTRACTION")
     sc_extract.add_argument("--ref", type=str, required=False,
@@ -254,6 +264,8 @@ def main():
     se_output.add_argument("--output", "-o", type=str, required=False,
                            help="output file path to save the extracted features. "
                                 "If not specified, use input_prefix.tsv as default.")
+    se_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                           help="if compressing the output using gzip")
 
     se_extract = sub_extract.add_argument_group("EXTRACT")
     se_extract.add_argument("--seq_len", type=int, default=21, required=False,
@@ -379,6 +391,46 @@ def main():
                           help="file path of pre-trained model parameters to load before training")
 
     sub_train.set_defaults(func=main_train)
+
+    # sub_call_freq =====================================================================================
+    scf_input = sub_call_freq.add_argument_group("INPUT")
+    scf_input.add_argument('--input_path', '-i', action="append", type=str, required=True,
+                           help='an output file from call_mods/call_modifications.py, or a directory contains '
+                                'a bunch of output files. this arg is in "append" mode, can be used multiple times')
+    scf_input.add_argument('--file_uid', type=str, action="store", required=False, default=None,
+                           help='a unique str which all input files has, this is for finding all input files '
+                                'and ignoring the not-input-files in a input directory. if input_path is a file, '
+                                'ignore this arg.')
+
+    scf_output = sub_call_freq.add_argument_group("OUTPUT")
+    scf_output.add_argument('--result_file', '-o', action="store", type=str, required=True,
+                            help='the file path to save the result')
+    scf_output.add_argument('--bed', action='store_true', default=False, help="save the result in bedMethyl format")
+    scf_output.add_argument('--sort', action='store_true', default=False, help="sort items in the result")
+    scf_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                            help="if compressing the output using gzip")
+
+    scf_cal = sub_call_freq.add_argument_group("CAlCULATE")
+    scf_cal.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
+                         help='this is to remove ambiguous calls. '
+                              'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
+                              'means use all calls. range [0, 1], default 0.0.')
+    scf_cal.add_argument('--rm_1strand', action='store_true', default=False,
+                         help="abandon ccs reads with only 1 strand subreads [DEPRECATED]")
+
+    scf_para = sub_call_freq.add_argument_group("PARALLEL")
+    scf_para.add_argument('--contigs', action="store", type=str, required=False, default=None,
+                          help="a reference genome file (.fa/.fasta/.fna), used for extracting all "
+                               "contig names for parallel; "
+                               "or path of a file containing chromosome/contig names, one name each line; "
+                               "or a string contains multiple chromosome names splited by comma."
+                               "default None, which means all chromosomes will be processed at one time. "
+                               "If not None, one chromosome will be processed by one subprocess.")
+    scf_para.add_argument('--nproc', action="store", type=int, required=False, default=1,
+                          help="number of subprocesses used when --contigs is set. i.e., number of contigs processed "
+                               "in parallel. default 1")
+
+    sub_call_freq.set_defaults(func=main_call_freq)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

@@ -53,6 +53,13 @@ def str2bool(v):
     return v.lower() in ("yes", "true", "t", "1")
 
 
+# https://thispointer.com/python-three-ways-to-check-if-a-file-is-empty/
+def is_file_empty(file_name):
+    """ Check if file is empty by confirming if its size is 0 bytes"""
+    # Check if file exist and it is empty
+    return os.path.isfile(file_name) and os.path.getsize(file_name) == 0
+
+
 def _alphabet(letter, dbasepairs):
     if letter in dbasepairs.keys():
         return dbasepairs[letter]

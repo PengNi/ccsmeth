@@ -10,6 +10,7 @@ from multiprocessing import Queue
 import re
 import random
 # from collections import Counter
+import gzip
 
 from .utils.process_utils import display_args
 from .utils.process_utils import codecv1_to_frame
@@ -561,21 +562,27 @@ def _worker_extract(hole_align_q, featurestr_q, contigs, motifs, args):
                      "hole_batches({})\n".format(os.getpid(), cnt_holesbatch, args.holes_batch))
 
 
-def _write_featurestr_to_file(write_fp, featurestr_q):
+def _write_featurestr_to_file(write_fp, featurestr_q, is_gzip):
     sys.stderr.write('write_process-{} started\n'.format(os.getpid()))
-    with open(write_fp, 'w') as wf:
-        while True:
-            # during test, it's ok without the sleep(time_wait)
-            if featurestr_q.empty():
-                time.sleep(time_wait)
-                continue
-            features_str = featurestr_q.get()
-            if features_str == "kill":
-                sys.stderr.write('write_process-{} finished\n'.format(os.getpid()))
-                break
-            for one_features_str in features_str:
-                wf.write(one_features_str + "\n")
-            wf.flush()
+    if is_gzip:
+        if not write_fp.endswith(".gz"):
+            write_fp += ".gz"
+        wf = gzip.open(write_fp, "wt")
+    else:
+        wf = open(write_fp, 'w')
+    while True:
+        # during test, it's ok without the sleep(time_wait)
+        if featurestr_q.empty():
+            time.sleep(time_wait)
+            continue
+        features_str = featurestr_q.get()
+        if features_str == "kill":
+            wf.close()
+            sys.stderr.write('write_process-{} finished\n'.format(os.getpid()))
+            break
+        for one_features_str in features_str:
+            wf.write(one_features_str + "\n")
+        wf.flush()
 
 
 def _get_holes(holeidfile):
@@ -631,7 +638,7 @@ def extract_subreads_features(args):
         ps_extract.append(p)
 
     # print("write_process started..")
-    p_w = mp.Process(target=_write_featurestr_to_file, args=(outputpath, featurestr_q))
+    p_w = mp.Process(target=_write_featurestr_to_file, args=(outputpath, featurestr_q, args.gzip))
     p_w.daemon = True
     p_w.start()
 
@@ -673,6 +680,8 @@ def main():
     p_output.add_argument("--output", "-o", type=str, required=False,
                           help="output file path to save the extracted features. "
                                "If not specified, use input_prefix.tsv as default.")
+    p_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                          help="if compressing the output using gzip")
 
     p_extract = parser.add_argument_group("EXTRACT")
     p_extract.add_argument("--seq_len", type=int, default=21, required=False,
