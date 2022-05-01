@@ -46,6 +46,7 @@ pbmm2_exec = "pbmm2"
 minimap2_exec = "minimap2"
 bwa_exec = "bwa"
 samtools_exec = "samtools"
+ccs_exec = "ccs"
 
 
 def str2bool(v):
@@ -175,6 +176,13 @@ def generate_samtools_view_cmd(path_to_samtools):
     return samtools + " view -@ 3 -h"
 
 
+def generate_samtools_index_cmd(path_to_samtools):
+    samtools = samtools_exec
+    if path_to_samtools is not None:
+        samtools = os.path.abspath(path_to_samtools)
+    return samtools + " index -@ 10"
+
+
 # =================================================================
 def count_line_num(sl_filepath, fheader=False):
     count = 0
@@ -263,6 +271,32 @@ def concat_two_files(file1, file2, concated_fp, shuffle_lines_num=2000000,
 
 def codecv1_to_frame():
     code2frames = dict()
+    for i in range(0, 64):
+        code2frames[i] = i
+
+    frames = []
+    for frame in range(64, 190 + 1, 2):
+        frames.append(frame)
+    for i in range(64, 128):
+        code2frames[i] = frames[i - 64]
+
+    frames = []
+    for frame in range(192, 444 + 1, 4):
+        frames.append(frame)
+    for i in range(128, 192):
+        code2frames[i] = frames[i - 128]
+
+    frames = []
+    for frame in range(448, 952 + 1, 8):
+        frames.append(frame)
+    for i in range(192, 256):
+        code2frames[i] = frames[i - 192]
+
+    return code2frames
+
+
+def codecv1_to_frame2():
+    code2frames = [0] * 256
     for i in range(0, 64):
         code2frames[i] = i
 

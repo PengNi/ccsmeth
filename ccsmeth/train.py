@@ -12,15 +12,9 @@ from sklearn import metrics
 from torch.optim.lr_scheduler import StepLR
 
 from .dataloader import FeaData
-from .dataloader import FeaData2
-from .dataloader import FeaData2s
 from .dataloader import clear_linecache
 
-from .models import ModelRNN
 from .models import ModelAttRNN
-from .models import ModelResNet18
-from .models import ModelTransEncoder
-from .models import ModelAttRNN2s
 
 from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
@@ -39,34 +33,13 @@ def train(args):
         print("GPU is not available!")
 
     print("reading data..")
-    if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru",
-                           "transencoder", }:
+    if args.model_type in {"attbigru2s", "attbilstm2s"}:
         train_dataset = FeaData(args.train_file)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
                                                    shuffle=True)
 
         valid_dataset = FeaData(args.valid_file)
-        valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
-                                                   batch_size=args.batch_size,
-                                                   shuffle=False)
-    elif args.model_type in {"resnet18", }:
-        train_dataset = FeaData2(args.train_file)
-        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                                   batch_size=args.batch_size,
-                                                   shuffle=True)
-
-        valid_dataset = FeaData2(args.valid_file)
-        valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
-                                                   batch_size=args.batch_size,
-                                                   shuffle=False)
-    elif args.model_type in {"attbigru2s", }:
-        train_dataset = FeaData2s(args.train_file)
-        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                                   batch_size=args.batch_size,
-                                                   shuffle=True)
-
-        valid_dataset = FeaData2s(args.valid_file)
         valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
@@ -85,32 +58,14 @@ def train(args):
                     os.remove(model_dir + "/" + mfile)
         model_dir += "/"
 
-    if args.model_type in {"bilstm", "bigru", }:
-        model = ModelRNN(args.seq_len, args.layer_rnn, args.class_num,
-                         args.dropout_rate, args.hid_rnn,
-                         args.n_vocab, args.n_embed,
-                         is_stds=str2bool(args.is_stds),
-                         model_type=args.model_type)
-    elif args.model_type in {"attbilstm", "attbigru", }:
+    if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
+                            is_qual=str2bool(args.is_qual),
+                            is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
                             model_type=args.model_type)
-    elif args.model_type in {"attbigru2s", }:
-        model = ModelAttRNN2s(args.seq_len, args.layer_rnn, args.class_num,
-                              args.dropout_rate, args.hid_rnn,
-                              args.n_vocab, args.n_embed,
-                              is_stds=str2bool(args.is_stds),
-                              model_type=args.model_type)
-    elif args.model_type in {"transencoder", }:
-        model = ModelTransEncoder(args.seq_len, args.layer_tfe, args.class_num,
-                                  args.dropout_rate, args.d_model_tfe, args.nhead_tfe, args.nhid_tfe,
-                                  args.n_vocab, args.n_embed,
-                                  is_stds=str2bool(args.is_stds),
-                                  model_type=args.model_type)
-    elif args.model_type == "resnet18":
-        model = ModelResNet18(args.class_num, args.dropout_rate, str2bool(args.is_stds))
     else:
         raise ValueError("model_type not right!")
 
@@ -159,49 +114,34 @@ def train(args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru",
-                                   "transencoder", }:
-                _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, labels = sfeatures
+            if args.model_type in {"attbigru2s", "attbilstm2s"}:
+                _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap, \
+                    rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap, \
+                    label = sfeatures
                 if use_cuda:
-                    kmer = kmer.cuda()
-                    ipd_means = ipd_means.cuda()
-                    ipd_stds = ipd_stds.cuda()
-                    pw_means = pw_means.cuda()
-                    pw_stds = pw_stds.cuda()
-                    labels = labels.cuda()
+                    fkmer = fkmer.cuda()
+                    fpass = fpass.cuda()
+                    fipdm = fipdm.cuda()
+                    fipdsd = fipdsd.cuda()
+                    fpwm = fpwm.cuda()
+                    fpwsd = fpwsd.cuda()
+                    fqual = fqual.cuda()
+                    fmap = fmap.cuda()
+
+                    rkmer = rkmer.cuda()
+                    rpass = rpass.cuda()
+                    ripdm = ripdm.cuda()
+                    ripdsd = ripdsd.cuda()
+                    rpwm = rpwm.cuda()
+                    rpwsd = rpwsd.cuda()
+                    rqual = rqual.cuda()
+                    rmap = rmap.cuda()
+
+                    label = label.cuda()
                 # Forward pass
-                outputs, logits = model(kmer, ipd_means, ipd_stds, pw_means, pw_stds)
-                loss = criterion(outputs, labels)
-                tlosses.append(loss.detach().item())
-            elif args.model_type in {"resnet18", }:
-                _, _, mats_ccs_mean, mats_ccs_std, labels = sfeatures
-                if use_cuda:
-                    mats_ccs_mean = mats_ccs_mean.cuda()
-                    mats_ccs_std = mats_ccs_std.cuda()
-                    labels = labels.cuda()
-                # Forward pass
-                outputs, logits = model(mats_ccs_mean, mats_ccs_std)
-                loss = criterion(outputs, labels)
-                tlosses.append(loss.detach().item())
-            elif args.model_type in {"attbigru2s", }:
-                _, kmer, ipd_means, ipd_stds, pw_means, pw_stds, kmer2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, \
-                    labels = sfeatures
-                if use_cuda:
-                    kmer = kmer.cuda()
-                    ipd_means = ipd_means.cuda()
-                    ipd_stds = ipd_stds.cuda()
-                    pw_means = pw_means.cuda()
-                    pw_stds = pw_stds.cuda()
-                    kmer2 = kmer2.cuda()
-                    ipd_means2 = ipd_means2.cuda()
-                    ipd_stds2 = ipd_stds2.cuda()
-                    pw_means2 = pw_means2.cuda()
-                    pw_stds2 = pw_stds2.cuda()
-                    labels = labels.cuda()
-                # Forward pass
-                outputs, logits = model(kmer, ipd_means, ipd_stds, pw_means, pw_stds,
-                                        kmer2, ipd_means2, ipd_stds2, pw_means2, pw_stds2)
-                loss = criterion(outputs, labels)
+                outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap,
+                                        rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap)
+                loss = criterion(outputs, label)
                 tlosses.append(loss.detach().item())
             else:
                 raise ValueError("model_type not right!")
@@ -217,47 +157,34 @@ def train(args):
                 with torch.no_grad():
                     vlosses, vlabels_total, vpredicted_total = [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"bilstm", "bigru", "attbilstm", "attbigru",
-                                               "transencoder", }:
-                            _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
-                                vlabels = vsfeatures
+                        if args.model_type in {"attbigru2s", }:
+                            _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap, \
+                                vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap, \
+                                vlabel = vsfeatures
                             if use_cuda:
-                                vkmer = vkmer.cuda()
-                                vipd_means = vipd_means.cuda()
-                                vipd_stds = vipd_stds.cuda()
-                                vpw_means = vpw_means.cuda()
-                                vpw_stds = vpw_stds.cuda()
-                                vlabels = vlabels.cuda()
-                            voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds)
-                            vloss = criterion(voutputs, vlabels)
-                        elif args.model_type in {"attbigru2s", }:
-                            _, vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds, \
-                                vkmer2, vipd_means2, vipd_stds2, vpw_means2, vpw_stds2, \
-                                vlabels = vsfeatures
-                            if use_cuda:
-                                vkmer = vkmer.cuda()
-                                vipd_means = vipd_means.cuda()
-                                vipd_stds = vipd_stds.cuda()
-                                vpw_means = vpw_means.cuda()
-                                vpw_stds = vpw_stds.cuda()
-                                vkmer2 = vkmer2.cuda()
-                                vipd_means2 = vipd_means2.cuda()
-                                vipd_stds2 = vipd_stds2.cuda()
-                                vpw_means2 = vpw_means2.cuda()
-                                vpw_stds2 = vpw_stds2.cuda()
-                                vlabels = vlabels.cuda()
-                            voutputs, vlogits = model(vkmer, vipd_means, vipd_stds, vpw_means, vpw_stds,
-                                                      vkmer2, vipd_means2, vipd_stds2, vpw_means2, vpw_stds2)
-                            vloss = criterion(voutputs, vlabels)
-                        elif args.model_type in {"resnet18", }:
-                            _, _, vmats_ccs_mean, vmats_ccs_std, vlabels = vsfeatures
-                            if use_cuda:
-                                vmats_ccs_mean = vmats_ccs_mean.cuda()
-                                vmats_ccs_std = vmats_ccs_std.cuda()
-                                vlabels = vlabels.cuda()
+                                vfkmer = vfkmer.cuda()
+                                vfpass = vfpass.cuda()
+                                vfipdm = vfipdm.cuda()
+                                vfipdsd = vfipdsd.cuda()
+                                vfpwm = vfpwm.cuda()
+                                vfpwsd = vfpwsd.cuda()
+                                vfqual = vfqual.cuda()
+                                vfmap = vfmap.cuda()
+
+                                vrkmer = vrkmer.cuda()
+                                vrpass = vrpass.cuda()
+                                vripdm = vripdm.cuda()
+                                vripdsd = vripdsd.cuda()
+                                vrpwm = vrpwm.cuda()
+                                vrpwsd = vrpwsd.cuda()
+                                vrqual = vrqual.cuda()
+                                vrmap = vrmap.cuda()
+
+                                vlabel = vlabel.cuda()
                             # Forward pass
-                            voutputs, vlogits = model(vmats_ccs_mean, vmats_ccs_std)
-                            vloss = criterion(voutputs, vlabels)
+                            voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap,
+                                                      vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap)
+                            vloss = criterion(voutputs, vlabel)
                         else:
                             raise ValueError("model_type not right!")
 
@@ -305,7 +232,7 @@ def train(args):
 
 
 def main():
-    parser = argparse.ArgumentParser("")
+    parser = argparse.ArgumentParser("train a model")
     st_input = parser.add_argument_group("INPUT")
     st_input.add_argument('--train_file', type=str, required=True)
     st_input.add_argument('--valid_file', type=str, required=True)
@@ -316,44 +243,30 @@ def main():
     st_train = parser.add_argument_group("TRAIN")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm", "attbigru", "bilstm", "bigru",
-                                   "transencoder",
-                                   "resnet18",
-                                   "attbigru2s"],
+                          choices=["attbilstm2s", "attbigru2s"],
                           required=False,
-                          help="type of model to use, 'attbilstm', 'attbigru', "
-                               "'bilstm', 'bigru', 'transencoder', 'resnet18', "
-                               "'attbigru2s', "
+                          help="type of model to use, 'attbilstm2s', 'attbigru2s', "
                                "default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
-    st_train.add_argument('--is_stds', type=str, default="yes", required=False,
-                          help="if using std features at ccs level, yes or no. default yes.")
+    st_train.add_argument('--is_qual', type=str, default="yes", required=False,
+                          help="if using base_quality features, yes or no, default yes")
+    st_train.add_argument('--is_map', type=str, default="no", required=False,
+                          help="if using mapping features, yes or no, default no")
+    st_train.add_argument('--is_stds', type=str, default="no", required=False,
+                          help="if using std features, yes or no, default no")
     st_train.add_argument('--class_num', type=int, default=2, required=False)
     st_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
-    # BiRNN/transformerencoder model param
+    # BiRNN model param
     st_train.add_argument('--n_vocab', type=int, default=16, required=False,
                           help="base_seq vocab_size (15 base kinds from iupac)")
     st_train.add_argument('--n_embed', type=int, default=4, required=False,
                           help="base_seq embedding_size")
-
-    # BiRNN model param
     st_train.add_argument('--layer_rnn', type=int, default=3,
                           required=False, help="BiRNN layer num, default 3")
     st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
                           help="BiRNN hidden_size for combined feature")
-
-    # transformerencoder model param
-    st_train.add_argument('--layer_tfe', type=int, default=6,
-                          required=False, help="transformer encoder layer num, default 6")
-    st_train.add_argument('--d_model_tfe', type=int, default=256,
-                          required=False, help="the number of expected features in the "
-                                               "transformer encoder/decoder inputs")
-    st_train.add_argument('--nhead_tfe', type=int, default=4,
-                          required=False, help="the number of heads in the multiheadattention models")
-    st_train.add_argument('--nhid_tfe', type=int, default=512,
-                          required=False, help="the dimension of the feedforward network model")
 
     # model training
     st_train.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",

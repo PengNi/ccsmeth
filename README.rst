@@ -1,9 +1,14 @@
-deepsmrt
+ccsmeth
 ========
 
 
 Documentation
 -------------
+
+
+v0.2.0
+----------
+use hifi reads instead of subreads as input
 
 
 v0.1.2
