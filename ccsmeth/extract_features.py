@@ -148,6 +148,7 @@ def _parse_cigar(cigarseq):
     refpos2querypos = {}
     cnt_s, cnt_m, cnt_i, cnt_d = 0, 0, 0, 0
     cidx_q, cidx_t = 0, 0
+    # TODO: queryseq_poses is wrong? need to calculate it (query_to_refloc) the right way
     for match in it:
         num = int(match[0][:-1])
         if match[0].endswith('S'):
