@@ -44,7 +44,7 @@ def train(args):
                                                    batch_size=args.batch_size,
                                                    shuffle=False)
     else:
-        raise ValueError("model_type not right!")
+        raise ValueError("--model_type not right!")
 
     model_dir = args.model_dir
     model_regex = re.compile(r"" + args.model_type + "\.b\d+_epoch\d+\.ckpt*")
@@ -65,9 +65,10 @@ def train(args):
                             is_qual=str2bool(args.is_qual),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
+                            is_npass=str2bool(args.is_npass),
                             model_type=args.model_type)
     else:
-        raise ValueError("model_type not right!")
+        raise ValueError("--model_type not right!")
 
     if use_cuda:
         model = model.cuda()
@@ -144,7 +145,7 @@ def train(args):
                 loss = criterion(outputs, label)
                 tlosses.append(loss.detach().item())
             else:
-                raise ValueError("model_type not right!")
+                raise ValueError("--model_type not right!")
 
             # Backward and optimize
             optimizer.zero_grad()
@@ -157,10 +158,10 @@ def train(args):
                 with torch.no_grad():
                     vlosses, vlabels_total, vpredicted_total = [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"attbigru2s", }:
+                        if args.model_type in {"attbigru2s", "attbilstm2s"}:
                             _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap, \
                                 vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap, \
-                                vlabel = vsfeatures
+                                vlabels = vsfeatures
                             if use_cuda:
                                 vfkmer = vfkmer.cuda()
                                 vfpass = vfpass.cuda()
@@ -180,13 +181,13 @@ def train(args):
                                 vrqual = vrqual.cuda()
                                 vrmap = vrmap.cuda()
 
-                                vlabel = vlabel.cuda()
+                                vlabels = vlabels.cuda()
                             # Forward pass
                             voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap,
                                                       vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap)
-                            vloss = criterion(voutputs, vlabel)
+                            vloss = criterion(voutputs, vlabels)
                         else:
-                            raise ValueError("model_type not right!")
+                            raise ValueError("--model_type not right!")
 
                         _, vpredicted = torch.max(vlogits.data, 1)
 
@@ -251,6 +252,8 @@ def main():
                           help="len of kmer. default 21")
     st_train.add_argument('--is_qual', type=str, default="yes", required=False,
                           help="if using base_quality features, yes or no, default yes")
+    st_train.add_argument('--is_npass', type=str, default="yes", required=False,
+                          help="if using num_pass features, yes or no, default yes")
     st_train.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     st_train.add_argument('--is_stds', type=str, default="no", required=False,

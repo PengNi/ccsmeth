@@ -11,13 +11,16 @@
 ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pytorch.org/).
    - Prerequisites: \
        [Python3.*](https://www.python.org/) (version>=3.6)\
-       [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2) \
-       [samtools](https://github.com/samtools/samtools)
+       [pbccs](https://ccs.how/) (version>=6.3.0) \
+       [pbmm2](https://github.com/PacificBiosciences/pbmm2) (version>=1.9.0) or [minimap2](https://github.com/lh3/minimap2) (version>=2.22-r1101) \
+       [samtools](https://github.com/samtools/samtools) (version>=1.12)
    - Dependencies: \
        [numpy](http://www.numpy.org/) \
        [statsmodels](https://github.com/statsmodels/statsmodels/) \
        [scikit-learn](https://scikit-learn.org/stable/) \
-       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.7.0?)
+       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.7.0?) \
+       [tqdm](https://github.com/tqdm/tqdm) \
+       [pysam](https://pysam.readthedocs.io/en/latest/installation.html)
 
 #### install ccsmeth from github (latest version):
 ```bash

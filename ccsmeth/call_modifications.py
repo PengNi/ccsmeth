@@ -40,6 +40,8 @@ from .utils.process_utils import str2bool
 
 from .utils.process_utils import get_motif_seqs
 
+from .utils.ref_reader import DNAReference
+
 from .utils.constants_torch import FloatTensor
 from .utils.constants_torch import use_cuda
 
@@ -78,8 +80,12 @@ def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=5
     hbatch_num = h_num_total // holes_batch
     if h_num_total % holes_batch > 0:
         hbatch_num += 1
+    print("read_features process-{} - generate {} hole/read batches({})\n".format(os.getpid(),
+                                                                                  hbatch_num,
+                                                                                  holes_batch))
 
     h_num = 0
+    hbatch_num_got = 0
     preholeid = None
     if features_file.endswith(".gz"):
         infile = gzip.open(features_file, 'rt')
@@ -87,7 +93,7 @@ def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=5
         infile = open(features_file, 'r')
     featurestrs = []
     with tqdm(total=hbatch_num,
-              desc="batch_reader:") as pbar:
+              desc="batch_reader") as pbar:
         for line in infile:
             words = line.strip().split("\t")
             holeid = words[3]
@@ -101,17 +107,19 @@ def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=5
                     while featurestrs_batch_q.qsize() > queen_size_border:
                         time.sleep(time_wait)
                     featurestrs = []
-                pbar.update(1)
+                    pbar.update(1)
+                    hbatch_num_got += 1
             featurestrs.append(words)
         infile.close()
         h_num += 1
         if len(featurestrs) > 0:
             featurestrs_batch_q.put(featurestrs)
-        pbar.update(1)
-        assert h_num == hbatch_num
+            pbar.update(1)
+            hbatch_num_got += 1
+        assert hbatch_num_got == hbatch_num
     featurestrs_batch_q.put("kill")
     print("read_features process-{} ending, read {} reads/holes batches({})".format(os.getpid(),
-                                                                                    h_num,
+                                                                                    hbatch_num_got,
                                                                                     holes_batch))
 
 
@@ -255,7 +263,7 @@ def _call_mods2s(features_batch, model, batch_size):
             accuracys.append(acc_batch)
 
             for idx in range(len(b_sampleinfo)):
-                # chromosome, pos, strand, holeid, loc, prob_0, prob_1, called_label, seq
+                # chromosome, pos, strand, holeid, loc, depth, prob_0, prob_1, called_label, seq
                 prob_0, prob_1 = logits[idx][0], logits[idx][1]
                 prob_0_norm = round(prob_0 / (prob_0 + prob_1), 6)
                 prob_1_norm = round(prob_1 / (prob_0 + prob_1), 6)
@@ -263,8 +271,9 @@ def _call_mods2s(features_batch, model, batch_size):
                 center_idx = int(np.floor(len(b_idx_kmer)/2))
                 bkmer_start = center_idx - 2 if center_idx - 2 >= 0 else 0
                 bkmer_end = center_idx + 3 if center_idx + 3 <= len(b_idx_kmer) else len(b_idx_kmer)
-                pred_str.append("\t".join([b_sampleinfo[idx], str(prob_0_norm),
-                                           str(prob_1_norm), str(predicted[idx]),
+                pred_str.append("\t".join([b_sampleinfo[idx],
+                                           str(b_fpasss[idx][0]) + "," + str(b_rpasss[idx][0]),
+                                           str(prob_0_norm), str(prob_1_norm), str(predicted[idx]),
                                            b_idx_kmer[bkmer_start:bkmer_end]]))
             batch_num += 1
     accuracy = np.mean(accuracys)
@@ -281,6 +290,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
                             is_qual=str2bool(args.is_qual),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
+                            is_npass=str2bool(args.is_npass),
                             model_type=args.model_type)
     else:
         raise ValueError("--model_type not right!")
@@ -371,6 +381,23 @@ def call_mods(args):
     holeids_ne = None if args.holeids_ne is None else _get_holes(args.holeids_ne)
 
     if input_path.endswith(".bam") or input_path.endswith(".sam"):
+
+        if args.seq_len % 2 == 0:
+            raise ValueError("--seq_len must be odd")
+
+        if str2bool(args.is_map) and not str2bool(args.is_mapfea):
+            print("as --is_map is True, setting --is_mapfea as True")
+            args.is_mapfea = "yes"
+
+        dnacontigs = None
+        if args.mode == "reference":
+            if args.ref is None:
+                raise ValueError("--ref must be provided when using reference mode!")
+            reference = os.path.abspath(args.ref)
+            if not os.path.exists(reference):
+                raise IOError("refernce(--ref) file does not exist!")
+            dnacontigs = DNAReference(reference).getcontigs()
+
         motifs = get_motif_seqs(args.motifs)
 
         hole_batch_q = Queue()
@@ -406,7 +433,7 @@ def call_mods(args):
             if i < nproc_ext:
                 p = mp.Process(target=worker_extract_features_from_holebatches,
                                args=(hole_batch_q, features_batch_q,
-                                     motifs, holeids_e, holeids_ne,
+                                     motifs, holeids_e, holeids_ne, dnacontigs,
                                      args, False, True))
                 p.daemon = True
                 p.start()
@@ -526,6 +553,8 @@ def main():
                         help="len of kmer. default 21")
     p_call.add_argument('--is_qual', type=str, default="yes", required=False,
                         help="if using base_quality features, yes or no, default yes")
+    p_call.add_argument('--is_npass', type=str, default="yes", required=False,
+                        help="if using num_pass features, yes or no, default yes")
     p_call.add_argument('--is_map', type=str, default="no", required=False,
                         help="if using mapping features, yes or no, default no")
     p_call.add_argument('--is_stds', type=str, default="no", required=False,
@@ -561,9 +590,9 @@ def main():
     p_extract.add_argument("--mode", type=str, default="denovo", required=False,
                            choices=["denovo", "reference"],
                            help="denovo mode: extract features from unaligned hifi.bam -> without "
-                                "mapQ features;\n"
+                                "mapping features;\n"
                                 "reference mode: extract features from aligned hifi.bam -> with "
-                                "mapQ features. default: denovo")
+                                "mapping features. default: denovo")
     p_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                            help="file contains holeids to be extracted, default None")
     p_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
@@ -592,12 +621,18 @@ def main():
                            help="full path to the executable binary samtools file. "
                                 "If not specified, it is assumed that samtools is in "
                                 "the PATH.")
+    p_extract.add_argument("--loginfo", type=str, default="no", required=False,
+                           help="if printing more info of feature extraction on reads")
 
     p_extract_ref = parser.add_argument_group("EXTRACTION REFERENCE_MODE")
+    p_extract_ref.add_argument("--ref", type=str, required=False,
+                               help="path to genome reference to be aligned, in fasta/fa format.")
     p_extract_ref.add_argument("--mapq", type=int, default=15, required=False,
                                help="MAPping Quality cutoff for selecting alignment items, default 15")
     p_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                help="identity cutoff for selecting alignment items, default 0.8")
+    p_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
+                               help="if extract mapping features, yes or no, default no")
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")

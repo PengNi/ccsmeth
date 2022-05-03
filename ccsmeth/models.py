@@ -16,7 +16,7 @@ class ModelAttRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
                  vocab_size=16, embedding_size=4,
-                 is_qual=True, is_map=False, is_stds=False,
+                 is_qual=True, is_map=False, is_stds=False, is_npass=False,
                  model_type="attbilstm2s"):
         super(ModelAttRNN, self).__init__()
         self.model_type = model_type
@@ -29,11 +29,14 @@ class ModelAttRNN(nn.Module):
         self.embed = nn.Embedding(vocab_size, embedding_size)  # for dna/rna base
 
         self.is_stds = is_stds
+        self.is_npass = is_npass
         self.is_qual = is_qual
         self.is_map = is_map
-        self.feas_ccs = 3
+        self.feas_ccs = 2
         if self.is_stds:
             self.feas_ccs += 2
+        if self.is_npass:
+            self.feas_ccs += 1
         if self.is_qual:
             self.feas_ccs += 1
         if self.is_map:
@@ -79,17 +82,21 @@ class ModelAttRNN(nn.Module):
     def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, quals, maps,
                 kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, quals2, maps2):
         kmer_embed = self.embed(kmer.long())
-        kpass = torch.reshape(kpass, (-1, self.seq_len, 1)).float()
+
         ipd_means = torch.reshape(ipd_means, (-1, self.seq_len, 1)).float()
         pw_means = torch.reshape(pw_means, (-1, self.seq_len, 1)).float()
         kmer_embed2 = self.embed(kmer2.long())
-        kpass2 = torch.reshape(kpass2, (-1, self.seq_len, 1)).float()
         ipd_means2 = torch.reshape(ipd_means2, (-1, self.seq_len, 1)).float()
         pw_means2 = torch.reshape(pw_means2, (-1, self.seq_len, 1)).float()
 
-        out1 = torch.cat((kmer_embed, kpass, ipd_means, pw_means), 2)  # (N, L, C)
-        out2 = torch.cat((kmer_embed2, kpass2, ipd_means2, pw_means2), 2)  # (N, L, C)
+        out1 = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
+        out2 = torch.cat((kmer_embed2, ipd_means2, pw_means2), 2)  # (N, L, C)
 
+        if self.is_npass:
+            kpass = torch.reshape(kpass, (-1, self.seq_len, 1)).float()
+            out1 = torch.cat((out1, kpass), 2)  # (N, L, C)
+            kpass2 = torch.reshape(kpass2, (-1, self.seq_len, 1)).float()
+            out2 = torch.cat((out2, kpass2), 2)  # (N, L, C)
         if self.is_stds:
             ipd_stds = torch.reshape(ipd_stds, (-1, self.seq_len, 1)).float()
             pw_stds = torch.reshape(pw_stds, (-1, self.seq_len, 1)).float()
@@ -101,12 +108,12 @@ class ModelAttRNN(nn.Module):
             quals = torch.reshape(quals, (-1, self.seq_len, 1)).float()
             out1 = torch.cat((out1, quals), 2)  # (N, L, C)
             quals2 = torch.reshape(quals2, (-1, self.seq_len, 1)).float()
-            out2 = torch.cat((out1, quals2), 2)  # (N, L, C)
+            out2 = torch.cat((out2, quals2), 2)  # (N, L, C)
         if self.is_map:
             maps = torch.reshape(maps, (-1, self.seq_len, 1)).float()
             out1 = torch.cat((out1, maps), 2)  # (N, L, C)
             maps2 = torch.reshape(maps2, (-1, self.seq_len, 1)).float()
-            out2 = torch.cat((out1, maps2), 2)  # (N, L, C)
+            out2 = torch.cat((out2, maps2), 2)  # (N, L, C)
 
         out1, n_states1 = self.rnn(out1, self.init_hidden(out1.size(0),
                                                           self.num_layers,

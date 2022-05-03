@@ -9,6 +9,7 @@ from .utils.process_utils import pbmm2_exec
 from .utils.process_utils import minimap2_exec
 from .utils.process_utils import bwa_exec
 from .utils.process_utils import generate_samtools_view_cmd
+from .utils.process_utils import generate_samtools_index_cmd
 
 
 here = os.path.abspath(os.path.dirname(__file__))
@@ -62,14 +63,14 @@ def generate_aligner_with_options(is_minimap2, path_to_minimap2, is_bwa, path_to
     else:
         if path_to_pbmm2 is not None:
             aligner = os.path.abspath(path_to_pbmm2)
-        aligner += " align --preset HIFI -j {t} ".format(t=threads)
+        aligner += " align --preset HIFI -j {t} --sort ".format(t=threads)
     return aligner
 
 
 def align_hifi_reads_to_genome(args):
     sys.stderr.write("[align_hifi_reads]start..\n")
     start = time.time()
-    inputpath = check_input_file(args.subreads)
+    inputpath = check_input_file(args.hifireads)
     outputpath = check_output_file(args.output, inputpath, args.minimap2, args.bwa)
     reference = os.path.abspath(args.ref)
 
@@ -86,11 +87,14 @@ def align_hifi_reads_to_genome(args):
                                             args.bestn,
                                             args.threads)
 
-    samtools_view = generate_samtools_view_cmd(args.path_to_samtools)
+    samtools_view = generate_samtools_view_cmd(args.path_to_samtools, args.threads)
+    samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)
 
     if (not args.minimap2) and (not args.bwa):
         if outputpath.endswith(".bam"):
             align_cmds = " ".join([aligner, reference, inputpath, outputpath])
+            post_align_cmd = " ".join([samtools_index, outputpath])
+            align_cmds = " && ".join([align_cmds, post_align_cmd])
         elif outputpath.endswith(".sam"):
             align_cmds = " ".join([aligner, reference, inputpath])
             post_align_cmds = " ".join([samtools_view, "- >", outputpath])
@@ -98,6 +102,7 @@ def align_hifi_reads_to_genome(args):
         else:
             raise ValueError("--output/-o must be in bam/sam format!")
     else:
+        # TODO: sort and index?
         align_cmds = " ".join([aligner, reference, "-"])
         if inputpath.endswith(".fq") or inputpath.endswith(".fastq"):
             align_cmds = " ".join([aligner, reference, inputpath])

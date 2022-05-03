@@ -14,7 +14,7 @@ from sklearn.metrics import roc_auc_score
 num_sites = [10000, 100000, 200000, 1000000000]
 # num_sites = [100000, ]
 CallRecord = namedtuple('CallRecord', ['chrom', 'pos', 'strand',
-                                       'holeid', 'depth',
+                                       'holeid', 'loc', 'depth',
                                        'prob0', 'prob1',
                                        'predicted_label',
                                        'is_true_methylated'])
@@ -32,7 +32,7 @@ def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
         if sampleids is not None and sampid not in sampleids:
             skip_cnt += 1
             continue
-        depth = words[4]
+        depth = words[5]
         if "," in depth:
             depthW, depthC = float(depth.split(",")[0]), float(depth.split(",")[1])
             if depthW < depthcf or depthC < depthcf:
@@ -41,14 +41,14 @@ def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
         elif float(depth) < depthcf:
             skip_cnt += 1
             continue
-        prob0, prob1 = float(words[5]), float(words[6])
+        prob0, prob1 = float(words[6]), float(words[7])
         if abs(prob0 - prob1) < probcf:
             skip_cnt += 1
             continue
         all_crs.append(CallRecord(words[0], int(words[1]),
-                                  words[2], words[3], words[4],
-                                  float(words[5]), float(words[6]),
-                                  int(words[7]),
+                                  words[2], words[3], int(words[4]), depth,
+                                  prob0, prob1,
+                                  int(words[8]),
                                   is_methylated))
     print('there are {} cpg candidates totally, {} cpgs kept, {} cpgs left'.format(cnt,
                                                                                    len(all_crs),
@@ -75,7 +75,7 @@ def sample_sites_ont(filename, is_methylated, probcf, sampleids=None):
             skip_cnt += 1
             continue
         all_crs.append(CallRecord(words[0], int(words[1]),
-                                  words[2], "-", -1,
+                                  words[2], "-", -1, -1,
                                   float(words[6]), float(words[7]),
                                   int(words[8]),
                                   is_methylated))

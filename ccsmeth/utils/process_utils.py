@@ -3,6 +3,7 @@ import gc
 from subprocess import Popen, PIPE
 import os
 import sys
+import re
 
 
 basepairs = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N',
@@ -37,6 +38,11 @@ iupac_alphabets_rna = {'A': ['A'], 'C': ['C'], 'G': ['G'], 'U': ['U'],
                        'B': ['C', 'G', 'U'], 'D': ['A', 'G', 'U'],
                        'H': ['A', 'C', 'U'], 'V': ['A', 'C', 'G'],
                        'N': ['A', 'C', 'G', 'U']}
+
+CODE2CIGAR = "MIDNSHP=XB"
+CIGAR_REGEX = re.compile("(\d+)([MIDNSHP=XB])")
+CIGAR2CODE = dict([y, x] for x, y in enumerate(CODE2CIGAR))
+
 
 # max_queue_size = 2000
 
@@ -82,6 +88,7 @@ def complement_seq(base_seq, seq_type="DNA"):
     return comseq
 
 
+# motifs ======================================================================
 def get_refloc_of_methysite_in_motif(seqstr, motifset, methyloc_in_motif=0):
     """
 
@@ -133,6 +140,63 @@ def get_motif_seqs(motifs, is_dna=True):
     return motif_seqs
 
 
+# CIGAR =============================================================================
+def compute_pct_identity(cigarnum_array):
+    try:
+        nalign, nmatch = 0, 0
+        for idx in range(len(CODE2CIGAR)):
+            if idx not in {4, 5}:
+                nalign += cigarnum_array[idx]
+            if idx in {0, 7}:
+                nmatch += cigarnum_array[idx]
+        return nmatch / float(nalign)
+    except IndexError:
+        return 0.
+    except ZeroDivisionError:
+        return 0.
+
+
+# modified version of parse_cigar() in megalodon.mapping
+def get_q2tloc_from_cigar(r_cigar_tuple, strand, seq_len):
+    """
+    insertion: -1, deletion: -2, mismatch: -3
+    :param r_cigar_tuple: pysam.alignmentSegment.cigartuples
+    :param strand: 1/-1 for fwd/rev
+    :param seq_len: read alignment length
+    :return: query pos to ref pos
+    """
+    fill_invalid = -2
+    # get each base calls genomic position
+    q_to_r_poss = np.full(seq_len + 1, fill_invalid, dtype=np.int32)
+    # process cigar ops in read direction
+    curr_r_pos, curr_q_pos = 0, 0
+    cigar_ops = r_cigar_tuple if strand == 1 else r_cigar_tuple[::-1]
+    for op, op_len in cigar_ops:
+        if op == 1:
+            # inserted bases into ref
+            for q_pos in range(curr_q_pos, curr_q_pos + op_len):
+                q_to_r_poss[q_pos] = -1
+            curr_q_pos += op_len
+        elif op in (2, 3):
+            # deleted ref bases
+            curr_r_pos += op_len
+        elif op in (0, 7, 8):
+            # aligned bases
+            for op_offset in range(op_len):
+                q_to_r_poss[curr_q_pos + op_offset] = curr_r_pos + op_offset
+            curr_q_pos += op_len
+            curr_r_pos += op_len
+        elif op == 6:
+            # padding (shouldn't happen in mappy)
+            pass
+    q_to_r_poss[curr_q_pos] = curr_r_pos
+    if q_to_r_poss[-1] == fill_invalid:
+        raise ValueError(('Invalid cigar string encountered. Reference length: {}  Cigar ' +
+                          'implied reference length: {}').format(seq_len, curr_r_pos))
+    return q_to_r_poss
+
+
+# arg display ========================================================================
 def display_args(args, is_stderr=False):
     def print_outputstr(outstr):
         if is_stderr:
@@ -149,6 +213,7 @@ def display_args(args, is_stderr=False):
     print_outputstr("# ===============================================")
 
 
+# subprocess ========================================================================
 def run_cmd(args_list):
     proc = Popen(args_list, shell=True, stdout=PIPE, stderr=PIPE)
     stdinfo = proc.communicate()
@@ -169,18 +234,18 @@ def run_cmd_live_stdout(args_list):
     return rc
 
 
-def generate_samtools_view_cmd(path_to_samtools):
+def generate_samtools_view_cmd(path_to_samtools, threads=3):
     samtools = samtools_exec
     if path_to_samtools is not None:
         samtools = os.path.abspath(path_to_samtools)
-    return samtools + " view -@ 3 -h"
+    return samtools + " view -@ {} -h".format(threads)
 
 
-def generate_samtools_index_cmd(path_to_samtools):
+def generate_samtools_index_cmd(path_to_samtools, threads=10):
     samtools = samtools_exec
     if path_to_samtools is not None:
         samtools = os.path.abspath(path_to_samtools)
-    return samtools + " index -@ 10"
+    return samtools + " index -@ {}".format(threads)
 
 
 # =================================================================

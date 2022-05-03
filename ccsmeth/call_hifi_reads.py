@@ -54,8 +54,8 @@ def ccs_call_hifi_reads(args):
     outputpath = check_output_file(args.output, inputpath)
 
     ccscaller = generate_ccscmd_with_options(args)
-    samtools_view = generate_samtools_view_cmd(args.path_to_samtools)
-    samtools_index = generate_samtools_index_cmd(args.path_to_samtools)
+    samtools_view = generate_samtools_view_cmd(args.path_to_samtools, args.threads)
+    samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)
 
     if outputpath.endswith(".bam"):
         ccs_cmds = " ".join([ccscaller, inputpath, outputpath])

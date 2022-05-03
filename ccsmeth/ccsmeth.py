@@ -195,6 +195,8 @@ def main():
                           help="len of kmer. default 21")
     scm_call.add_argument('--is_qual', type=str, default="yes", required=False,
                           help="if using base_quality features, yes or no, default yes")
+    scm_call.add_argument('--is_npass', type=str, default="yes", required=False,
+                          help="if using num_pass features, yes or no, default yes")
     scm_call.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     scm_call.add_argument('--is_stds', type=str, default="no", required=False,
@@ -230,9 +232,9 @@ def main():
     scm_extract.add_argument("--mode", type=str, default="denovo", required=False,
                              choices=["denovo", "reference"],
                              help="denovo mode: extract features from unaligned hifi.bam -> without "
-                                  "mapQ features;\n"
+                                  "mapping features;\n"
                                   "reference mode: extract features from aligned hifi.bam -> with "
-                                  "mapQ features. default: denovo")
+                                  "mapping features. default: denovo")
     scm_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                              help="file contains holeids to be extracted, default None")
     scm_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
@@ -261,12 +263,18 @@ def main():
                              help="full path to the executable binary samtools file. "
                                   "If not specified, it is assumed that samtools is in "
                                   "the PATH.")
+    scm_extract.add_argument("--loginfo", type=str, default="no", required=False,
+                             help="if printing more info of feature extraction on reads")
 
     scm_extract_ref = sub_call_mods.add_argument_group("EXTRACTION REFERENCE_MODE")
+    scm_extract_ref.add_argument("--ref", type=str, required=False,
+                                 help="path to genome reference to be aligned, in fasta/fa format.")
     scm_extract_ref.add_argument("--mapq", type=int, default=15, required=False,
                                  help="MAPping Quality cutoff for selecting alignment items, default 15")
     scm_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                  help="identity cutoff for selecting alignment items, default 0.8")
+    scm_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
+                                 help="if extract mapping features, yes or no, default no")
 
     sub_call_mods.add_argument("--threads", "-p", action="store", type=int, default=10,
                                required=False, help="number of threads to be used, default 10.")
@@ -281,6 +289,9 @@ def main():
     # sub_extract ============================================================================
     sub_extract.add_argument("--threads", type=int, default=5, required=False,
                              help="number of threads, default 5")
+    sub_extract.add_argument("--loginfo", type=str, default="no", required=False,
+                             help="if printing more info of feature extraction on reads")
+
     se_input = sub_extract.add_argument_group("INPUT")
     se_input.add_argument("--input", "-i", type=str, required=True,
                           help="input file in bam/sam format, "
@@ -301,9 +312,9 @@ def main():
     se_extract.add_argument("--mode", type=str, default="denovo", required=False,
                             choices=["denovo", "reference"],
                             help="denovo mode: extract features from unaligned hifi.bam -> without "
-                                 "mapQ features;\n"
+                                 "mapping features;\n"
                                  "reference mode: extract features from aligned hifi.bam -> with "
-                                 "mapQ features. default: denovo")
+                                 "mapping features. default: denovo")
     se_extract.add_argument("--seq_len", type=int, default=21, required=False,
                             help="len of kmer. default 21")
     se_extract.add_argument("--motifs", action="store", type=str,
@@ -334,10 +345,14 @@ def main():
                             help="number of holes/hifi-reads in an batch to get/put in queues, default 50")
 
     se_extract_ref = sub_extract.add_argument_group("EXTRACTION REFERENCE_MODE")
+    se_extract_ref.add_argument("--ref", type=str, required=False,
+                                help="path to genome reference to be aligned, in fasta/fa format.")
     se_extract_ref.add_argument("--mapq", type=int, default=15, required=False,
                                 help="MAPping Quality cutoff for selecting alignment items, default 15")
     se_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                 help="identity cutoff for selecting alignment items, default 0.8")
+    se_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
+                                help="if extract mapping features, yes or no, default no")
 
     sub_extract.set_defaults(func=main_extract)
 
@@ -382,14 +397,14 @@ def main():
     sub_call_freq.set_defaults(func=main_call_freq)
 
     # sub_train =====================================================================================
-    st_input = parser.add_argument_group("INPUT")
+    st_input = sub_train.add_argument_group("INPUT")
     st_input.add_argument('--train_file', type=str, required=True)
     st_input.add_argument('--valid_file', type=str, required=True)
 
-    st_output = parser.add_argument_group("OUTPUT")
+    st_output = sub_train.add_argument_group("OUTPUT")
     st_output.add_argument('--model_dir', type=str, required=True)
 
-    st_train = parser.add_argument_group("TRAIN")
+    st_train = sub_train.add_argument_group("TRAIN")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s"],
@@ -400,6 +415,8 @@ def main():
                           help="len of kmer. default 21")
     st_train.add_argument('--is_qual', type=str, default="yes", required=False,
                           help="if using base_quality features, yes or no, default yes")
+    st_train.add_argument('--is_npass', type=str, default="yes", required=False,
+                          help="if using num_pass features, yes or no, default yes")
     st_train.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     st_train.add_argument('--is_stds', type=str, default="no", required=False,

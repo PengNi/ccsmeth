@@ -40,7 +40,7 @@ def split_holeids(holeids, ratio, seed):
 
 
 def split_fastq(args):
-    print("[split_fastq]start..")
+    print("[split_fastq]starts..")
     start = time.time()
     inputpath = os.path.abspath(args.fastq)
     if not os.path.exists(inputpath):
