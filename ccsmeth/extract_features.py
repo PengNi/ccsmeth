@@ -70,8 +70,8 @@ def _get_holes(holeidfile):
 # read bam/sam inputfile =============================================
 def _get_necessary_items_of_a_alignedsegment(readitem):
     seq_name = readitem.query_name
-    seq_start = readitem.query_alignment_start
-    seq_end = readitem.query_alignment_end
+    qalign_start = readitem.query_alignment_start
+    qalign_end = readitem.query_alignment_end
     fwd_seq = readitem.get_forward_sequence()
     fwd_qual = readitem.get_forward_qualities()
     ref_name = readitem.reference_name
@@ -99,7 +99,7 @@ def _get_necessary_items_of_a_alignedsegment(readitem):
         tag_rn = readitem.get_tag("rn")
     except KeyError:
         tag_fn = tag_rn = 0
-    return seq_name, seq_start, seq_end, fwd_seq, fwd_qual, ref_name, ref_start, ref_end, \
+    return seq_name, qalign_start, qalign_end, fwd_seq, fwd_qual, ref_name, ref_start, ref_end, \
         cigar_tuples, cigar_stats, flag, mapq, is_unmapped, is_secondary, is_duplicate, is_supplementary, \
         is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn
 
@@ -189,54 +189,49 @@ def _get_q2t_mapinfo(q2t_loc, q_seq, t_seq):
 
 
 def _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases, q_to_r_mapinfo):
-    q_to_r_mapinfo = q_to_r_mapinfo[:-1]  # ori len of q_to_r_mapinfo = len(seq_seq) + 1
-    try:
-        fkmer_map = q_to_r_mapinfo[(offset_idx - num_bases):(offset_idx + num_bases + 1)]
-    except IndexError:
-        if offset_idx - num_bases >= 0:
-            offset_s = offset_idx - num_bases
-            pad_l = 0
-        else:
-            offset_s = 0
-            pad_l = num_bases - offset_idx
-        if offset_idx + num_bases < len(q_to_r_mapinfo):
-            offset_e = offset_idx + num_bases + 1
-            pad_r = 0
-        else:
-            offset_e = len(q_to_r_mapinfo)
-            pad_r = num_bases + 1 - (len(q_to_r_mapinfo) - offset_idx)
-        fkmer_map = np.pad(q_to_r_mapinfo[offset_s:offset_e],
-                           (pad_l, pad_r),
-                           mode='constant', constant_values=1)
-    try:
-        rkmer_map = np.flip(q_to_r_mapinfo[(offset_revidx - num_bases):
-                                           (offset_revidx + num_bases + 1)])
-    except IndexError:
-        if offset_revidx - num_bases >= 0:
-            offset_s = offset_revidx - num_bases
-            pad_l = 0
-        else:
-            offset_s = 0
-            pad_l = num_bases - offset_revidx
-        if offset_revidx + num_bases < len(q_to_r_mapinfo):
-            offset_e = offset_revidx + num_bases + 1
-            pad_r = 0
-        else:
-            offset_e = len(q_to_r_mapinfo)
-            pad_r = num_bases + 1 - (len(q_to_r_mapinfo) - offset_revidx)
-        rkmer_map = np.flip(np.pad(q_to_r_mapinfo[offset_s:offset_e],
-                                   (pad_l, pad_r),
-                                   mode='constant', constant_values=1))
+    q_to_r_mapinfo_s = q_to_r_mapinfo[:-1]  # ori len of q_to_r_mapinfo = len(seq_seq) + 1
+
+    if offset_idx - num_bases >= 0:
+        offset_s = offset_idx - num_bases
+        pad_l = 0
+    else:
+        offset_s = 0
+        pad_l = num_bases - offset_idx
+    if offset_idx + num_bases < len(q_to_r_mapinfo_s):
+        offset_e = offset_idx + num_bases + 1
+        pad_r = 0
+    else:
+        offset_e = len(q_to_r_mapinfo_s)
+        pad_r = num_bases + 1 - (len(q_to_r_mapinfo_s) - offset_idx)
+    fkmer_map = np.pad(q_to_r_mapinfo_s[offset_s:offset_e],
+                       (pad_l, pad_r),
+                       mode='constant', constant_values=1)
+
+    if offset_revidx - num_bases >= 0:
+        offset_s = offset_revidx - num_bases
+        pad_l = 0
+    else:
+        offset_s = 0
+        pad_l = num_bases - offset_revidx
+    if offset_revidx + num_bases < len(q_to_r_mapinfo_s):
+        offset_e = offset_revidx + num_bases + 1
+        pad_r = 0
+    else:
+        offset_e = len(q_to_r_mapinfo_s)
+        pad_r = num_bases + 1 - (len(q_to_r_mapinfo_s) - offset_revidx)
+    rkmer_map = np.flip(np.pad(q_to_r_mapinfo_s[offset_s:offset_e],
+                               (pad_l, pad_r),
+                               mode='constant', constant_values=1))
 
     return fkmer_map, rkmer_map
 
 
 def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeids_ne, dnacontigs,
                                              args):
-    seq_name, seq_start, seq_end, fwd_seq, fwd_qual, ref_name, ref_start, ref_end, \
+    seq_name, qalign_start, qalign_end, fwd_seq, fwd_qual, ref_name, ref_start, ref_end, \
         cigar_tuples, cigar_stats, flag, mapq, is_unmapped, is_secondary, is_duplicate, is_supplementary, \
         is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn = readinfo
-    # print(tag_fi, type(tag_fi), seq_start, seq_end, cigar_tuples, flag)
+
     if holeids_e is not None and seq_name not in holeids_e:
         return []
     if holeids_ne is not None and seq_name in holeids_ne:
@@ -262,6 +257,14 @@ def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeid
     seq_qual = np.array(fwd_qual, dtype=int)
     seq_qual = _normalize_signals(seq_qual, args.norm)
     reverse = is_reverse
+
+    # change seq_start/seq_end if is_reverse
+    if reverse:
+        seq_start = len(seq_seq) - qalign_end
+        seq_end = len(seq_seq) - qalign_start
+    else:
+        seq_start = qalign_start
+        seq_end = qalign_end
 
     q_to_r_poss = None
     q_to_r_mapinfo = None
@@ -506,7 +509,7 @@ def worker_extract_features_from_holebatches(holebatch_q, features_q,
         cnt_holesbatch += 1
     sys.stderr.write("extrac_features process-{} ending, proceed {} "
                      "hole_batches({}): {} holes/reads in total, "
-                     "{} failed/skipped.\n".format(os.getpid(),
+                     "{} skipped/failed.\n".format(os.getpid(),
                                                    cnt_holesbatch,
                                                    args.holes_batch,
                                                    total_num_batch,

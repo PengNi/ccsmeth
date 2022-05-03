@@ -1,6 +1,6 @@
 """
 call modifications from bam/sam files or extracted features.
-output format: chromosome, pos, strand, read_name, read_loc,
+output format: chromosome, pos, strand, read_name, read_loc, depth,
 prob_0, prob_1, called_label, seq
 """
 
@@ -208,6 +208,8 @@ def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q, seq_
 
         features_batch_q.put((sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fquals, fmaps,
                               rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rquals, rmaps, labels))
+        while features_batch_q.qsize() > queen_size_border:
+            time.sleep(time_wait)
     print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
@@ -326,6 +328,8 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
             raise ValueError("--model_type not right!")
 
         pred_str_q.put(pred_str)
+        while pred_str_q.qsize() > queen_size_border:
+            time.sleep(time_wait)
         # for debug
         # print("call_mods process-{} reads 1 batch, features_batch_q:{}, "
         #       "pred_str_q: {}".format(os.getpid(), features_batch_q.qsize(), pred_str_q.qsize()))
