@@ -193,10 +193,10 @@ def main():
                                "default: attbigru2s")
     scm_call.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
-    scm_call.add_argument('--is_qual', type=str, default="yes", required=False,
-                          help="if using base_quality features, yes or no, default yes")
     scm_call.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
+    scm_call.add_argument('--is_qual', type=str, default="no", required=False,
+                          help="if using base_quality features, yes or no, default no")
     scm_call.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     scm_call.add_argument('--is_stds', type=str, default="no", required=False,
@@ -275,7 +275,7 @@ def main():
                                  help="identity cutoff for selecting alignment items, default 0.8")
     scm_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                  help="not use supplementary alignment")
-    scm_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
+    scm_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                  help="if extract mapping features, yes or no, default no")
 
     sub_call_mods.add_argument("--threads", "-p", action="store", type=int, default=10,
@@ -355,7 +355,7 @@ def main():
                                 help="identity cutoff for selecting alignment items, default 0.8")
     se_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                 help="not use supplementary alignment")
-    se_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
+    se_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                 help="if extract mapping features, yes or no, default no")
 
     sub_extract.set_defaults(func=main_extract)
@@ -417,10 +417,10 @@ def main():
                                "default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
-    st_train.add_argument('--is_qual', type=str, default="yes", required=False,
-                          help="if using base_quality features, yes or no, default yes")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
+    st_train.add_argument('--is_qual', type=str, default="no", required=False,
+                          help="if using base_quality features, yes or no, default no")
     st_train.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     st_train.add_argument('--is_stds', type=str, default="no", required=False,

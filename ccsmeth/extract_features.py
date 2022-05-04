@@ -258,7 +258,9 @@ def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeid
     # extract features
     seq_seq = fwd_seq
     seq_rc = complement_seq(seq_seq)
-    seq_qual = np.array(fwd_qual, dtype=int)
+    seq_qual = np.array(fwd_qual, dtype=int) if len(fwd_qual) > 0 else np.full(len(seq_seq), 0, dtype=np.int32)
+    if str2bool(args.loginfo):
+        sys.stderr.write("[WARN]read-{} has no base quality\n".format(seq_name))
     seq_qual = _normalize_signals(seq_qual, args.norm)
     reverse = is_reverse
 
@@ -682,7 +684,7 @@ def main():
                                help="identity cutoff for selecting alignment items, default 0.8")
     p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                help="not use supplementary alignment")
-    p_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
+    p_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                help="if extract mapping features, yes or no, default no")
 
     args = parser.parse_args()

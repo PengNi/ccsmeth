@@ -555,10 +555,10 @@ def main():
                              "default: attbigru2s")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
-    p_call.add_argument('--is_qual', type=str, default="yes", required=False,
-                        help="if using base_quality features, yes or no, default yes")
     p_call.add_argument('--is_npass', type=str, default="yes", required=False,
                         help="if using num_pass features, yes or no, default yes")
+    p_call.add_argument('--is_qual', type=str, default="no", required=False,
+                        help="if using base_quality features, yes or no, default no")
     p_call.add_argument('--is_map', type=str, default="no", required=False,
                         help="if using mapping features, yes or no, default no")
     p_call.add_argument('--is_stds', type=str, default="no", required=False,
@@ -637,7 +637,7 @@ def main():
                                help="identity cutoff for selecting alignment items, default 0.8")
     p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                help="not use supplementary alignment")
-    p_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
+    p_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                help="if extract mapping features, yes or no, default no")
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,

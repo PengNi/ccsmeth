@@ -250,10 +250,10 @@ def main():
                                "default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
-    st_train.add_argument('--is_qual', type=str, default="yes", required=False,
-                          help="if using base_quality features, yes or no, default yes")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
+    st_train.add_argument('--is_qual', type=str, default="no", required=False,
+                          help="if using base_quality features, yes or no, default no")
     st_train.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     st_train.add_argument('--is_stds', type=str, default="no", required=False,
