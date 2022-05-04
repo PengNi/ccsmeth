@@ -3,6 +3,7 @@ import argparse
 from subprocess import Popen, PIPE
 import sys
 import time
+import gzip
 
 contigs = set(["chr" + str(idx) for idx in range(1, 23)] + ["chrX", "chrY"])
 samtools_exec = "samtools"
@@ -140,6 +141,8 @@ def _isright_haped_reads(haptag2readids):
 
 def _phase_call_mods(mcallfile, haptag2readids, str_id=None):
     fname, fext = os.path.splitext(mcallfile)
+    if fext == ".gz":
+        fname, fext = os.path.splitext(fname)
     if str_id is None:
         mcall_hp1 = fname + ".whatshap_HP1" + fext
         mcall_hp2 = fname + ".whatshap_HP2" + fext
@@ -151,26 +154,30 @@ def _phase_call_mods(mcallfile, haptag2readids, str_id=None):
     reads_skipped, reads_unknown, reads_hp1, reads_hp2 = set(), set(), set(), set()
     wf_hp1 = open(mcall_hp1, "w")
     wf_hp2 = open(mcall_hp2, "w")
-    with open(mcallfile, "r") as rf:
-        for line in rf:
-            words = line.strip().split("\t")
-            cnt_all += 1
-            chromname = words[0]
-            readid = words[len(words) - 6]  # 10:4, 9:3
-            if chromname not in contigs:
-                reads_skipped.add(readid)
-                continue
-            cnt_kept += 1
-            if readid in haptag2readids["HP1"]:
-                wf_hp1.write(line)
-                reads_hp1.add(readid)
-                cnt_hp1 += 1
-            elif readid in haptag2readids["HP2"]:
-                wf_hp2.write(line)
-                reads_hp2.add(readid)
-                cnt_hp2 += 1
-            else:
-                reads_unknown.add(readid)
+    if str(mcallfile).endswith(".gz"):
+        rf = gzip.open(mcallfile, "rt")
+    else:
+        rf = open(mcallfile, "r")
+    for line in rf:
+        words = line.strip().split("\t")
+        cnt_all += 1
+        chromname = words[0]
+        readid = words[len(words) - 6]  # 10:4, 9:3
+        if chromname not in contigs:
+            reads_skipped.add(readid)
+            continue
+        cnt_kept += 1
+        if readid in haptag2readids["HP1"]:
+            wf_hp1.write(line)
+            reads_hp1.add(readid)
+            cnt_hp1 += 1
+        elif readid in haptag2readids["HP2"]:
+            wf_hp2.write(line)
+            reads_hp2.add(readid)
+            cnt_hp2 += 1
+        else:
+            reads_unknown.add(readid)
+    rf.close()
     wf_hp1.close()
     wf_hp2.close()
     cnt_rhp1 = len(reads_hp1)

@@ -25,10 +25,14 @@ def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
     rf = open(filename)
     skip_cnt = 0
     cnt = 0
+    repeat_cnt = 0
+    read_sampleids = set()
     for line in rf:
         cnt += 1
         words = line.strip().split("\t")
-        sampid = "\t".join([words[0], words[1], words[3]])  # chrom, pos, holeid
+        holeid = words[3].split("/")[1]
+        pos = int(words[1]) if words[2] == "+" else int(words[1]) - 1
+        sampid = "\t".join([words[0], str(pos), holeid])  # chrom, pos, holeid
         if sampleids is not None and sampid not in sampleids:
             skip_cnt += 1
             continue
@@ -45,14 +49,17 @@ def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
         if abs(prob0 - prob1) < probcf:
             skip_cnt += 1
             continue
+        if sampid in read_sampleids:
+            repeat_cnt += 1
+            continue
+        read_sampleids.add(sampid)
         all_crs.append(CallRecord(words[0], int(words[1]),
                                   words[2], words[3], int(words[4]), depth,
                                   prob0, prob1,
                                   int(words[8]),
                                   is_methylated))
-    print('there are {} cpg candidates totally, {} cpgs kept, {} cpgs left'.format(cnt,
-                                                                                   len(all_crs),
-                                                                                   skip_cnt))
+    print('there are {} cpg candidates totally, {} cpgs kept, {} cpgs left, '
+          '{} cpgs repeat'.format(cnt, len(all_crs), skip_cnt, repeat_cnt))
     rf.close()
     random.shuffle(all_crs)
     return all_crs
@@ -97,6 +104,8 @@ def get_sampleids(sampleids_file):
 
 
 if __name__ == '__main__':
+    random.seed(1234)
+
     parser = argparse.ArgumentParser(description='Calculate call accuracy stats of hkmodel for cpgs')
     parser.add_argument('--unmethylated', type=str, required=True)
     parser.add_argument('--methylated', type=str, required=True)

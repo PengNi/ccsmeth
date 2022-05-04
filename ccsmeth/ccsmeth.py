@@ -273,6 +273,8 @@ def main():
                                  help="MAPping Quality cutoff for selecting alignment items, default 15")
     scm_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                  help="identity cutoff for selecting alignment items, default 0.8")
+    scm_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
+                                 help="not use supplementary alignment")
     scm_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
                                  help="if extract mapping features, yes or no, default no")
 
@@ -351,6 +353,8 @@ def main():
                                 help="MAPping Quality cutoff for selecting alignment items, default 15")
     se_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                 help="identity cutoff for selecting alignment items, default 0.8")
+    se_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
+                                help="not use supplementary alignment")
     se_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
                                 help="if extract mapping features, yes or no, default no")
 

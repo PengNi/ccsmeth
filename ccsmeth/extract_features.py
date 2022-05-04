@@ -237,9 +237,13 @@ def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeid
     if holeids_ne is not None and seq_name in holeids_ne:
         return []
     if args.mode == "reference":
-        if is_unmapped or is_secondary or is_duplicate or is_supplementary:
+        if is_unmapped or is_secondary or is_duplicate:
             if str2bool(args.loginfo):
-                sys.stderr.write("[WARN]read-{} is unmapped/secondary/duplicate/supplementary\n".format(seq_name))
+                sys.stderr.write("[WARN]read-{} is unmapped/secondary/duplicate\n".format(seq_name))
+            return []
+        if args.no_supplementary and is_supplementary:
+            if str2bool(args.loginfo):
+                sys.stderr.write("[WARN]read-{} is supplementary\n".format(seq_name))
             return []
         if mapq < args.mapq:
             if str2bool(args.loginfo):
@@ -676,6 +680,8 @@ def main():
                                help="MAPping Quality cutoff for selecting alignment items, default 15")
     p_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                help="identity cutoff for selecting alignment items, default 0.8")
+    p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
+                               help="not use supplementary alignment")
     p_extract_ref.add_argument("--is_mapfea", type=str, default="yes", required=False,
                                help="if extract mapping features, yes or no, default no")
 
