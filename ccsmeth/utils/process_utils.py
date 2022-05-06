@@ -238,14 +238,14 @@ def generate_samtools_view_cmd(path_to_samtools, threads=3):
     samtools = samtools_exec
     if path_to_samtools is not None:
         samtools = os.path.abspath(path_to_samtools)
-    return samtools + " view -@ {} -h".format(threads)
+    return samtools + " view -@ {} -h".format(threads if threads is not None else 3)
 
 
 def generate_samtools_index_cmd(path_to_samtools, threads=10):
     samtools = samtools_exec
     if path_to_samtools is not None:
         samtools = os.path.abspath(path_to_samtools)
-    return samtools + " index -@ {}".format(threads)
+    return samtools + " index -@ {}".format(threads if threads is not None else 3)
 
 
 # =================================================================

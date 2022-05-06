@@ -46,17 +46,9 @@ def main_extract(args):
 
 def main_train(args):
     from .train import train
-    import time
-
-    print("[main] start..")
-    total_start = time.time()
 
     display_args(args)
-
     train(args)
-
-    endtime = time.time()
-    print("[main] costs {} seconds".format(endtime - total_start))
 
 
 def main():
@@ -220,7 +212,7 @@ def main():
     scm_output = sub_call_mods.add_argument_group("OUTPUT")
     scm_output.add_argument("--output", "-o", action="store", type=str, required=True,
                             help="the prefix of output files to save the predicted results. "
-                                 "output files will be [--output].per_site.tsv/.per_read.tsv")
+                                 "output files will be [--output].per_readsite.tsv/.per_read.bed")
     scm_output.add_argument("--gzip", action="store_true", default=False, required=False,
                             help="if compressing the output using gzip")
     scm_output.add_argument("--per_read", action="store_true", default=False, required=False,

@@ -379,13 +379,12 @@ def call_mods(args):
     if not os.path.exists(input_path):
         raise ValueError("--input_file does not exist!")
 
-    out_per_site = args.output + ".per_site.tsv"
+    out_per_readsite = args.output + ".per_readsite.tsv"
 
     holeids_e = None if args.holeids_e is None else _get_holes(args.holeids_e)
     holeids_ne = None if args.holeids_ne is None else _get_holes(args.holeids_ne)
 
     if input_path.endswith(".bam") or input_path.endswith(".sam"):
-
         if args.seq_len % 2 == 0:
             raise ValueError("--seq_len must be odd")
 
@@ -425,7 +424,7 @@ def call_mods(args):
         p_read.daemon = True
         p_read.start()
 
-        p_w = mp.Process(target=_write_predstr_to_file, args=(out_per_site, pred_str_q, args.gzip))
+        p_w = mp.Process(target=_write_predstr_to_file, args=(out_per_readsite, pred_str_q, args.gzip))
         p_w.daemon = True
         p_w.start()
 
@@ -505,7 +504,7 @@ def call_mods(args):
             predstr_procs.append(p)
 
         # print("write_process started..")
-        p_w = mp.Process(target=_write_predstr_to_file, args=(out_per_site, pred_str_q, args.gzip))
+        p_w = mp.Process(target=_write_predstr_to_file, args=(out_per_readsite, pred_str_q, args.gzip))
         p_w.daemon = True
         p_w.start()
 
@@ -523,9 +522,11 @@ def call_mods(args):
 
     if args.per_read or args.modbam:
         # generate per_read.tsv
-        out_per_read = args.output + ".per_read.tsv"
+        print("now generating per_read results")
+        out_per_read = args.output + ".per_read.bed"
 
     if args.modbam:
+        print("now generating .modbam file")
         out_modbam = args.output + ".modbam.bam"
 
     print("[main]call_mods costs %.2f seconds.." % (time.time() - start))
@@ -582,7 +583,7 @@ def main():
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--output", "-o", action="store", type=str, required=True,
                           help="the prefix of output files to save the predicted results. "
-                               "output files will be [--output].per_site.tsv/.per_read.tsv")
+                               "output files will be [--output].per_readsite.tsv/.per_read.bed")
     p_output.add_argument("--gzip", action="store_true", default=False, required=False,
                           help="if compressing the output using gzip")
     p_output.add_argument("--per_read", action="store_true", default=False, required=False,

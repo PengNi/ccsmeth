@@ -52,7 +52,7 @@ setup(
             'ccsmeth=ccsmeth.ccsmeth:main',
             ],
         },
-    platforms='any',
+    platforms=['Linux', 'MacOS'],
     zip_safe=False,
     include_package_data=True,
     classifiers=[
@@ -60,6 +60,7 @@ setup(
         'Development Status :: 4 - Beta',
         'Natural Language :: English',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
-        'Operating System :: OS Independent',
+        'Operating System :: MacOS :: MacOS X',
+        'Operating System :: Linux',
         ],
 )

@@ -42,7 +42,7 @@ See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
    * _model_cpg_attbigru2s_hg002_15kb_s2.b21_epoch7.ckpt_: a CpG model trained using HG002 PacBio Sequel II (kit 2.0) CCS subreads.
 
 
-## Quick start
+## Quick start [need to be updated]
 
 ```shell
 # 1. align subreads
@@ -67,7 +67,7 @@ CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
 ```
 
 
-## Usage
+## Usage [need to be updated]
 
 Users can use `ccsmeth subcommands --help/-h` for help.
 

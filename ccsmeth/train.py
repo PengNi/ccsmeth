@@ -26,7 +26,7 @@ def train(args):
     torch.manual_seed(args.tseed)
     torch.cuda.manual_seed(args.tseed)
 
-    print("[train]start..")
+    print("[main]train starts..")
     if use_cuda:
         print("GPU is available!")
     else:
@@ -109,9 +109,11 @@ def train(args):
     total_step = len(train_loader)
     print("total_step: {}".format(total_step))
     curr_best_accuracy = 0
+    curr_best_accuracy_loc = 0
     model.train()
     for epoch in range(args.max_epoch_num):
         curr_best_accuracy_epoch = 0
+        no_best_model = True
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
@@ -201,35 +203,41 @@ def train(args):
                     v_accuracy = metrics.accuracy_score(vlabels_total, vpredicted_total)
                     v_precision = metrics.precision_score(vlabels_total, vpredicted_total)
                     v_recall = metrics.recall_score(vlabels_total, vpredicted_total)
+                    v_meanloss = np.mean(vlosses)
                     if v_accuracy > curr_best_accuracy_epoch:
                         curr_best_accuracy_epoch = v_accuracy
                         if curr_best_accuracy_epoch > curr_best_accuracy - 0.0002:
                             torch.save(model.state_dict(),
                                        model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
                                                                                                 epoch + 1))
+                            if curr_best_accuracy_epoch > curr_best_accuracy:
+                                curr_best_accuracy = curr_best_accuracy_epoch
+                                curr_best_accuracy_loc = epoch + 1
+                                no_best_model = False
 
                     time_cost = time.time() - start
                     print('Epoch [{}/{}], Step [{}/{}], TrainLoss: {:.4f}; '
                           'ValidLoss: {:.4f}, '
-                          'Accuracy: {:.4f}, Precision: {:.4f}, Recall: {:.4f}, '
-                          'curr_epoch_best_accuracy: {:.4f}; Time: {:.2f}s'
+                          'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                          'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
                           .format(epoch + 1, args.max_epoch_num, i + 1, total_step, np.mean(tlosses),
-                                  np.mean(vlosses), v_accuracy, v_precision, v_recall,
-                                  curr_best_accuracy_epoch, time_cost))
+                                  v_meanloss, v_accuracy, v_precision, v_recall,
+                                  curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
                     tlosses = []
                     start = time.time()
                     sys.stdout.flush()
                 model.train()
         scheduler.step()
-        if curr_best_accuracy_epoch > curr_best_accuracy:
-            curr_best_accuracy = curr_best_accuracy_epoch
-        else:
-            if epoch >= args.min_epoch_num - 1:
-                print("best accuracy: {}, early stop!".format(curr_best_accuracy))
-                break
+
+        if no_best_model and epoch >= args.min_epoch_num - 1:
+            print("early stop!")
+            break
     endtime = time.time()
     clear_linecache()
-    print("[train]training cost {} seconds".format(endtime - total_start))
+    print("[main]train costs {} seconds, "
+          "best accuracy: {} (epoch {})".format(endtime - total_start,
+                                                curr_best_accuracy,
+                                                curr_best_accuracy_loc))
 
 
 def main():
