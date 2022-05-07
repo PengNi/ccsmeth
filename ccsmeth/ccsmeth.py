@@ -212,11 +212,9 @@ def main():
     scm_output = sub_call_mods.add_argument_group("OUTPUT")
     scm_output.add_argument("--output", "-o", action="store", type=str, required=True,
                             help="the prefix of output files to save the predicted results. "
-                                 "output files will be [--output].per_readsite.tsv/.per_read.bed")
+                                 "output files will be [--output].per_readsite.tsv/.modbam.bam")
     scm_output.add_argument("--gzip", action="store_true", default=False, required=False,
-                            help="if compressing the output using gzip")
-    scm_output.add_argument("--per_read", action="store_true", default=False, required=False,
-                            help="if generating per_read result file")
+                            help="if compressing .per_readsite.tsv using gzip")
     scm_output.add_argument("--modbam", action="store_true", default=False, required=False,
                             help="if generating modbam file")
 

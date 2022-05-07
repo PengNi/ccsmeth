@@ -48,6 +48,7 @@ from .utils.constants_torch import use_cuda
 from .extract_features import worker_read_split_holebatches_to_queue
 from .extract_features import worker_extract_features_from_holebatches
 from .extract_features import _get_holes
+from .extract_features import index_bam_if_needed
 
 queen_size_border = 1000
 time_wait = 1
@@ -278,7 +279,7 @@ def _call_mods2s(features_batch, model, batch_size):
                                            str(prob_0_norm), str(prob_1_norm), str(predicted[idx]),
                                            b_idx_kmer[bkmer_start:bkmer_end]]))
             batch_num += 1
-    accuracy = np.mean(accuracys)
+    accuracy = np.mean(accuracys) if len(accuracys) > 0 else 0.
 
     return pred_str, accuracy, batch_num
 
@@ -391,6 +392,8 @@ def call_mods(args):
         if str2bool(args.is_map) and not str2bool(args.is_mapfea):
             print("as --is_map is True, setting --is_mapfea as True")
             args.is_mapfea = "yes"
+
+        index_bam_if_needed(input_path, args)
 
         dnacontigs = None
         if args.mode == "reference":
@@ -520,12 +523,9 @@ def call_mods(args):
 
         p_w.join()
 
-    if args.per_read or args.modbam:
-        # generate per_read.tsv
-        print("now generating per_read results")
-        out_per_read = args.output + ".per_read.bed"
-
     if args.modbam:
+        print("now generating per_read results")
+        out_per_read = args.output + ".per_read.bed.gz"
         print("now generating .modbam file")
         out_modbam = args.output + ".modbam.bam"
 
@@ -583,11 +583,9 @@ def main():
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--output", "-o", action="store", type=str, required=True,
                           help="the prefix of output files to save the predicted results. "
-                               "output files will be [--output].per_readsite.tsv/.per_read.bed")
+                               "output files will be [--output].per_readsite.tsv/.modbam.bam")
     p_output.add_argument("--gzip", action="store_true", default=False, required=False,
-                          help="if compressing the output using gzip")
-    p_output.add_argument("--per_read", action="store_true", default=False, required=False,
-                          help="if generating per_read result file")
+                          help="if compressing .per_readsite.tsv using gzip")
     p_output.add_argument("--modbam", action="store_true", default=False, required=False,
                           help="if generating modbam file")
 
