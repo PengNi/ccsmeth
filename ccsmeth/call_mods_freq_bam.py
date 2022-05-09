@@ -16,9 +16,8 @@ from torch.multiprocessing import Queue
 from .utils.process_utils import is_file_empty
 import uuid
 
-from .utils.process_utils import default_ref_loc
-
 time_wait = 3
+
 key_sep = "||"
 
 
@@ -87,8 +86,6 @@ def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False, contig_name=
         for line in infile:
             words = line.strip().split("\t")
             mod_record = ModRecord(words)
-            if mod_record._pos == default_ref_loc:
-                continue
             if contig_name is not None and mod_record._chromosome != contig_name:
                 continue
             count += 1
@@ -309,7 +306,7 @@ def call_mods_frequency_to_file(args):
         contigs_q.put("kill")
         resfiles_q = Queue()
         procs_contig = []
-        for _ in range(args.threads):
+        for _ in range(args.nproc):
             p_contig = mp.Process(target=_call_and_write_modsfreq_process,
                                   args=(wprefix, prob_cf, result_file, issort, isbed, rm_1strand, is_gzip,
                                         contigs_q, resfiles_q))
@@ -335,39 +332,37 @@ def call_mods_frequency_to_file(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description='calculate frequency of interested sites at genome level')
-    parser.add_argument('--input_path', '-i', action="append", type=str, required=True,
-                        help='an output file from call_mods/call_modifications.py, or a directory contains '
-                             'a bunch of output files. this arg is in "append" mode, can be used multiple times')
-    parser.add_argument('--file_uid', type=str, action="store", required=False, default=None,
-                        help='a unique str which all input files has, this is for finding all input files '
-                             'and ignoring the not-input-files in a input directory. if input_path is a file, '
-                             'ignore this arg.')
+    parser = argparse.ArgumentParser(description='calculate frequency of interested sites at genome level '
+                                                 'from aligned.sorted.bam')
 
-    parser.add_argument('--result_file', '-o', action="store", type=str, required=True,
-                        help='the file path to save the result')
-
-    parser.add_argument('--contigs', action="store", type=str, required=False, default=None,
-                        help="a reference genome file (.fa/.fasta/.fna), used for extracting all "
-                             "contig names for parallel; "
-                             "or path of a file containing chromosome/contig names, one name each line; "
-                             "or a string contains multiple chromosome names splited by comma."
-                             "default None, which means all chromosomes will be processed at one time. "
-                             "If not None, one chromosome will be processed by one subprocess.")
-    parser.add_argument('--threads', action="store", type=int, required=False, default=1,
+    parser.add_argument('--threads', action="store", type=int, required=False, default=5,
                         help="number of subprocesses used when --contigs is set. i.e., number of contigs processed "
-                             "in parallel. default 1")
+                             "in parallel. default 5")
 
-    parser.add_argument('--bed', action='store_true', default=False, help="save the result in bedMethyl format")
-    parser.add_argument('--sort', action='store_true', default=False, help="sort items in the result")
-    parser.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
-                        help='this is to remove ambiguous calls. '
-                             'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
-                             'means use all calls. range [0, 1], default 0.0.')
-    parser.add_argument('--rm_1strand', action='store_true', default=False,
-                        help="abandon ccs reads with only 1 strand subreads [DEPRECATED]")
-    parser.add_argument("--gzip", action="store_true", default=False, required=False,
-                        help="if compressing the output using gzip")
+    scfb_input = parser.add_argument_group("INPUT")
+    scfb_input.add_argument('--input_bam', action="store", type=str, required=True,
+                            help='input bam/sam, should be aligned and sorted')
+    scfb_input.add_argument("--ref", type=str, required=False,
+                            help="path to genome reference, in fasta/fa format.")
+    scfb_input.add_argument('--contigs', action="store", type=str, required=False, default=None,
+                            help="path of a file containing chromosome/contig names, one name each line; "
+                                 "or a string contains multiple chromosome names splited by comma."
+                                 "default None, which means all chromosomes will be processed.")
+
+    scfb_output = parser.add_argument_group("OUTPUT")
+    scfb_output.add_argument('--result_file', '-o', action="store", type=str, required=True,
+                             help='the file path to save the result')
+    scfb_output.add_argument('--bed', action='store_true', default=False,
+                             help="save the result in bedMethyl format")
+    scfb_output.add_argument('--sort', action='store_true', default=False, help="sort items in the result")
+    scfb_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                             help="if compressing the output using gzip")
+
+    scfb_callfreq = parser.add_argument_group("CALL_FREQ")
+    scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
+                               help='this is to remove ambiguous calls. '
+                               'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
+                               'means use all calls. range [0, 1], default 0.0.')
 
     args = parser.parse_args()
 

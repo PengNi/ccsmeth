@@ -215,16 +215,15 @@ def main():
                                  "output files will be [--output].per_readsite.tsv/.modbam.bam")
     scm_output.add_argument("--gzip", action="store_true", default=False, required=False,
                             help="if compressing .per_readsite.tsv using gzip")
-    scm_output.add_argument("--modbam", action="store_true", default=False, required=False,
-                            help="if generating modbam file")
+    scm_output.add_argument("--modbam", type=str, default="yes", required=False,
+                            help="if generating modbam file when --input is in bam/sam format. "
+                                 "yes or no, default yes")
 
     scm_extract = sub_call_mods.add_argument_group("EXTRACTION")
     scm_extract.add_argument("--mode", type=str, default="denovo", required=False,
                              choices=["denovo", "reference"],
-                             help="denovo mode: extract features from unaligned hifi.bam -> without "
-                                  "mapping features;\n"
-                                  "reference mode: extract features from aligned hifi.bam -> with "
-                                  "mapping features. default: denovo")
+                             help="denovo mode: extract features from unaligned hifi.bam;\n"
+                                  "reference mode: extract features from aligned hifi.bam. default: denovo")
     scm_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                              help="file contains holeids to be extracted, default None")
     scm_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
@@ -249,12 +248,13 @@ def main():
                                   "zscore, min-mean, min-max or mad, default zscore")
     scm_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                              help="not use CodecV1 to decode ipd/pw")
-    scm_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
-                             help="full path to the executable binary samtools file. "
-                                  "If not specified, it is assumed that samtools is in "
-                                  "the PATH.")
+    # scm_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
+    #                          help="full path to the executable binary samtools file. "
+    #                               "If not specified, it is assumed that samtools is in "
+    #                               "the PATH.")
     scm_extract.add_argument("--loginfo", type=str, default="no", required=False,
-                             help="if printing more info of feature extraction on reads")
+                             help="if printing more info of feature extraction on reads. "
+                                  "yes or no, default no")
 
     scm_extract_ref = sub_call_mods.add_argument_group("EXTRACTION REFERENCE_MODE")
     scm_extract_ref.add_argument("--ref", type=str, required=False,
@@ -267,6 +267,8 @@ def main():
                                  help="not use supplementary alignment")
     scm_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                  help="if extract mapping features, yes or no, default no")
+    scm_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
+                                 help="if skipping unmapped sites in reads, yes or no, default yes")
 
     sub_call_mods.add_argument("--threads", "-p", action="store", type=int, default=10,
                                required=False, help="number of threads to be used, default 10.")
@@ -282,7 +284,8 @@ def main():
     sub_extract.add_argument("--threads", type=int, default=5, required=False,
                              help="number of threads, default 5")
     sub_extract.add_argument("--loginfo", type=str, default="no", required=False,
-                             help="if printing more info of feature extraction on reads")
+                             help="if printing more info of feature extraction on reads. "
+                                  "yes or no, default no")
 
     se_input = sub_extract.add_argument_group("INPUT")
     se_input.add_argument("--input", "-i", type=str, required=True,
@@ -303,10 +306,8 @@ def main():
     se_extract = sub_extract.add_argument_group("EXTRACTION")
     se_extract.add_argument("--mode", type=str, default="denovo", required=False,
                             choices=["denovo", "reference"],
-                            help="denovo mode: extract features from unaligned hifi.bam -> without "
-                                 "mapping features;\n"
-                                 "reference mode: extract features from aligned hifi.bam -> with "
-                                 "mapping features. default: denovo")
+                            help="denovo mode: extract features from unaligned hifi.bam;\n"
+                                 "reference mode: extract features from aligned hifi.bam. default: denovo")
     se_extract.add_argument("--seq_len", type=int, default=21, required=False,
                             help="len of kmer. default 21")
     se_extract.add_argument("--motifs", action="store", type=str,
@@ -329,10 +330,10 @@ def main():
                                  "zscore, min-mean, min-max or mad, default zscore")
     se_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                             help="not use CodecV1 to decode ipd/pw")
-    se_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
-                            help="full path to the executable binary samtools file. "
-                                 "If not specified, it is assumed that samtools is in "
-                                 "the PATH.")
+    # se_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
+    #                         help="full path to the executable binary samtools file. "
+    #                              "If not specified, it is assumed that samtools is in "
+    #                              "the PATH.")
     se_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                             help="number of holes/hifi-reads in an batch to get/put in queues, default 50")
 
@@ -347,6 +348,8 @@ def main():
                                 help="not use supplementary alignment")
     se_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                 help="if extract mapping features, yes or no, default no")
+    se_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
+                                help="if skipping unmapped sites in reads, yes or no, default yes")
 
     sub_extract.set_defaults(func=main_extract)
 
@@ -368,7 +371,7 @@ def main():
     scf_output.add_argument("--gzip", action="store_true", default=False, required=False,
                             help="if compressing the output using gzip")
 
-    scf_cal = sub_call_freq.add_argument_group("CAlCULATE")
+    scf_cal = sub_call_freq.add_argument_group("CALL_FREQ")
     scf_cal.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
                          help='this is to remove ambiguous calls. '
                               'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '

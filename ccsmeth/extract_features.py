@@ -21,10 +21,12 @@ from .utils.process_utils import compute_pct_identity
 from .utils.process_utils import get_q2tloc_from_cigar
 from .utils.process_utils import str2bool
 
-from .utils.process_utils import run_cmd
-from .utils.process_utils import generate_samtools_index_cmd
+# from .utils.process_utils import run_cmd
+# from .utils.process_utils import generate_samtools_index_cmd
 
 from .utils.ref_reader import DNAReference
+
+from .utils.process_utils import default_ref_loc
 
 code2frames = codecv1_to_frame2()
 queen_size_border = 1000
@@ -342,7 +344,7 @@ def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeid
 
             if q_to_r_poss is not None:
                 chrom = ref_name
-                chrom_pos = -1
+                chrom_pos = default_ref_loc
                 strand = "-" if reverse else "+"
                 fkmer_map = "."
                 rkmer_map = "."
@@ -363,9 +365,11 @@ def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeid
                     if str2bool(args.is_mapfea):
                         fkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
                         rkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
+                    if str2bool(args.skip_unmapped):
+                        continue
             else:
                 chrom = "."
-                chrom_pos = -1
+                chrom_pos = default_ref_loc
                 strand = "."
                 fkmer_map = "."
                 rkmer_map = "."
@@ -507,17 +511,19 @@ def worker_extract_features_from_holebatches(holebatch_q, features_q,
                                                                      args)
         total_num_batch += total_num
         failed_num_batch += failed_num
-        features_batch = []
-        if is_tostr:
-            for feature in feature_list:
-                features_batch.append(_features_to_str(feature))
-        else:
-            features_batch = feature_list
-        if not is_tostr and is_batchlize:  # if is_to_str, then ignore is_batchlize
-            features_batch = _batch_feature_list2s(features_batch)
-        features_q.put(features_batch)
-        while features_q.qsize() > queen_size_border:
-            time.sleep(time_wait)
+        if len(feature_list) > 0:
+            features_batch = []
+            if is_tostr:
+                for feature in feature_list:
+                    features_batch.append(_features_to_str(feature))
+            else:
+                features_batch = feature_list
+            if not is_tostr and is_batchlize:  # if is_to_str, then ignore is_batchlize
+                features_batch = _batch_feature_list2s(features_batch)
+
+            features_q.put(features_batch)
+            while features_q.qsize() > queen_size_border:
+                time.sleep(time_wait)
         cnt_holesbatch += 1
     sys.stderr.write("extract_features process-{} ending, proceed {} "
                      "hole_batches({}): {} holes/reads in total, "
@@ -552,16 +558,22 @@ def _write_featurestr_to_file(write_fp, featurestr_q, is_gzip):
         wf.flush()
 
 
-def index_bam_if_needed(inputfile, args):
+# def index_bam_if_needed(inputfile, args):
+#     if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
+#         samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)
+#         index_cmd = " ".join([samtools_index, inputfile])
+#         sys.stderr.write("indexing bam file: {}\n".format(index_cmd))
+#         stdinfo, returncode = run_cmd(index_cmd)
+#         if returncode:
+#             raise ValueError("indexing bam file failed, please try indexing it mannually using samtools")
+#         else:
+#             sys.stderr.write("indexing bam file succeeded..\n")
+
+
+def index_bam_if_needed2(inputfile, args):
     if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
-        samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)
-        index_cmd = " ".join([samtools_index, inputfile])
-        sys.stderr.write("indexing bam file: {}\n".format(index_cmd))
-        stdinfo, returncode = run_cmd(index_cmd)
-        if returncode:
-            raise ValueError("indexing bam file failed, please try indexing it mannually using samtools")
-        else:
-            sys.stderr.write("indexing bam file succeeded..\n")
+        sys.stderr.write("indexing bam file-{}\n".format(inputfile))
+        pysam.index("-@", str(args.threads), inputfile)
 
 
 def extract_hifireads_features(args):
@@ -571,7 +583,7 @@ def extract_hifireads_features(args):
     inputpath = check_input_file(args.input)
     if not os.path.exists(inputpath):
         raise IOError("input file does not exist!")
-    index_bam_if_needed(inputpath, args)
+    index_bam_if_needed2(inputpath, args)
 
     outputpath = check_output_file(args.output, inputpath)
 
@@ -640,7 +652,8 @@ def main():
     parser.add_argument("--threads", type=int, default=5, required=False,
                         help="number of threads, default 5")
     parser.add_argument("--loginfo", type=str, default="no", required=False,
-                        help="if printing more info of feature extraction on reads")
+                        help="if printing more info of feature extraction on reads. "
+                             "yes or no, default no")
 
     p_input = parser.add_argument_group("INPUT")
     p_input.add_argument("--input", "-i", type=str, required=True,
@@ -661,10 +674,8 @@ def main():
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--mode", type=str, default="denovo", required=False,
                            choices=["denovo", "reference"],
-                           help="denovo mode: extract features from unaligned hifi.bam -> without "
-                                "mapping features;\n"
-                                "reference mode: extract features from aligned hifi.bam -> with "
-                                "mapping features. default: denovo")
+                           help="denovo mode: extract features from unaligned hifi.bam;\n"
+                                "reference mode: extract features from aligned hifi.bam. default: denovo")
     p_extract.add_argument("--seq_len", type=int, default=21, required=False,
                            help="len of kmer. default 21")
     p_extract.add_argument("--motifs", action="store", type=str,
@@ -687,10 +698,10 @@ def main():
                                 "zscore, min-mean, min-max or mad, default zscore")
     p_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                            help="not use CodecV1 to decode ipd/pw")
-    p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
-                           help="full path to the executable binary samtools file. "
-                                "If not specified, it is assumed that samtools is in "
-                                "the PATH.")
+    # p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
+    #                        help="full path to the executable binary samtools file. "
+    #                             "If not specified, it is assumed that samtools is in "
+    #                             "the PATH.")
     p_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                            help="number of holes/hifi-reads in an batch to get/put in queues, default 50")
 
@@ -705,6 +716,8 @@ def main():
                                help="not use supplementary alignment")
     p_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                help="if extract mapping features, yes or no, default no")
+    p_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
+                               help="if skipping unmapped sites in reads, yes or no, default yes")
 
     args = parser.parse_args()
 

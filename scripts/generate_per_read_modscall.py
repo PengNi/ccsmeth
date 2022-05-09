@@ -4,8 +4,10 @@ import gzip
 import pysam
 import pybedtools
 
+default_ref_loc = -1
 
-def _generate_per_read_calls(per_readsite, output):
+
+def _generate_per_read_calls(per_readsite, output, skip_unmapped=False):
     # chromosome, pos, strand, read_name, read_loc, depth, prob_0, prob_1, called_label, seq
     wf = open(output, "w")
     if per_readsite.endswith(".gz"):
@@ -16,6 +18,9 @@ def _generate_per_read_calls(per_readsite, output):
     holeid_info = []
     for line in rf:
         words = line.strip().split("\t")
+        ref_loc = int(words[1])
+        if skip_unmapped and ref_loc == default_ref_loc:
+            continue
         holeid, loc, prob_1 = words[3], int(words[4]), float(words[7])
         if holeid != holeid_curr:
             if len(holeid_info) > 0:
@@ -23,7 +28,9 @@ def _generate_per_read_calls(per_readsite, output):
                 holeid_info = list(zip(*holeid_info))
                 locs = holeid_info[0]
                 prob_1s = holeid_info[1]
+                # format: holeid, start, end, num_locs, locs_list, probs_list
                 wf.write("\t".join([holeid_curr, str(locs[0]), str(locs[-1]+1),
+                                    str(len(locs)),
                                     ",".join(list(map(str, locs))),
                                     ",".join(list(map(str, prob_1s)))]) + "\n")
             holeid_info = []
@@ -35,6 +42,7 @@ def _generate_per_read_calls(per_readsite, output):
         locs = holeid_info[0]
         prob_1s = holeid_info[1]
         wf.write("\t".join([holeid_curr, str(locs[0]), str(locs[-1]+1),
+                            str(len(locs)),
                             ",".join(list(map(str, locs))),
                             ",".join(list(map(str, prob_1s)))]) + "\n")
     rf.close()
@@ -50,7 +58,7 @@ def _sort_and_index_bedfile(bedfile):
                       keep_original=False)
 
 
-def _generate_sorted_per_read_calls(per_readsite, output, is_gzip):
+def _generate_sorted_per_read_calls(per_readsite, output, is_gzip, skip_unmapped):
     fname, fext = os.path.splitext(per_readsite)
     if output is None:
         wfile = fname + ".per_read.bed"
@@ -58,7 +66,7 @@ def _generate_sorted_per_read_calls(per_readsite, output, is_gzip):
         wfile = output
         if wfile.endswith(".gz"):
             wfile = wfile[:-3]
-    _generate_per_read_calls(per_readsite, wfile)
+    _generate_per_read_calls(per_readsite, wfile, skip_unmapped)
     if (output is not None and output.endswith(".gz")) or is_gzip:
         _sort_and_index_bedfile(wfile)
         return wfile + ".gz"
@@ -72,10 +80,12 @@ def main():
     parser.add_argument("--output", type=str, required=False, help="per_read.bed/per_read.bed.gz")
     parser.add_argument("--gzip", action="store_true", default=False, required=False,
                         help="if compressing result file using gzip")
+    parser.add_argument("--skip_unmapped", action="store_true", default=False, required=False,
+                        help="skip unmapped sites")
 
     args = parser.parse_args()
 
-    _generate_sorted_per_read_calls(args.per_readsite, args.output, args.gzip)
+    _generate_sorted_per_read_calls(args.per_readsite, args.output, args.gzip, args.skip_unmapped)
 
 
 if __name__ == '__main__':

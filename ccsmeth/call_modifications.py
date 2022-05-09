@@ -48,7 +48,7 @@ from .utils.constants_torch import use_cuda
 from .extract_features import worker_read_split_holebatches_to_queue
 from .extract_features import worker_extract_features_from_holebatches
 from .extract_features import _get_holes
-from .extract_features import index_bam_if_needed
+from .extract_features import index_bam_if_needed2
 
 queen_size_border = 1000
 time_wait = 1
@@ -393,7 +393,7 @@ def call_mods(args):
             print("as --is_map is True, setting --is_mapfea as True")
             args.is_mapfea = "yes"
 
-        index_bam_if_needed(input_path, args)
+        index_bam_if_needed2(input_path, args)
 
         dnacontigs = None
         if args.mode == "reference":
@@ -461,6 +461,14 @@ def call_mods(args):
         pred_str_q.put("kill")
 
         p_w.join()
+
+        if str2bool(args.modbam):
+            from ._bam2modbam import add_mm_ml_tags_to_bam
+            out_modbam = args.output + ".modbam.bam"
+            skip_unmapped = True if args.mode == "reference" else False
+            add_mm_ml_tags_to_bam(input_path, out_per_readsite, out_modbam,
+                                  rm_pulse=True, skip_unmapped=skip_unmapped,
+                                  threads=args.threads)
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()
@@ -523,12 +531,6 @@ def call_mods(args):
 
         p_w.join()
 
-    if args.modbam:
-        print("now generating per_read results")
-        out_per_read = args.output + ".per_read.bed.gz"
-        print("now generating .modbam file")
-        out_modbam = args.output + ".modbam.bam"
-
     print("[main]call_mods costs %.2f seconds.." % (time.time() - start))
 
 
@@ -586,16 +588,15 @@ def main():
                                "output files will be [--output].per_readsite.tsv/.modbam.bam")
     p_output.add_argument("--gzip", action="store_true", default=False, required=False,
                           help="if compressing .per_readsite.tsv using gzip")
-    p_output.add_argument("--modbam", action="store_true", default=False, required=False,
-                          help="if generating modbam file")
+    p_output.add_argument("--modbam", type=str, default="yes", required=False,
+                          help="if generating modbam file when --input is in bam/sam format. "
+                               "yes or no, default yes")
 
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--mode", type=str, default="denovo", required=False,
                            choices=["denovo", "reference"],
-                           help="denovo mode: extract features from unaligned hifi.bam -> without "
-                                "mapping features;\n"
-                                "reference mode: extract features from aligned hifi.bam -> with "
-                                "mapping features. default: denovo")
+                           help="denovo mode: extract features from unaligned hifi.bam;\n"
+                                "reference mode: extract features from aligned hifi.bam. default: denovo")
     p_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                            help="file contains holeids to be extracted, default None")
     p_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
@@ -620,12 +621,13 @@ def main():
                                 "zscore, min-mean, min-max or mad, default zscore")
     p_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                            help="not use CodecV1 to decode ipd/pw")
-    p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
-                           help="full path to the executable binary samtools file. "
-                                "If not specified, it is assumed that samtools is in "
-                                "the PATH.")
+    # p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
+    #                        help="full path to the executable binary samtools file. "
+    #                             "If not specified, it is assumed that samtools is in "
+    #                             "the PATH.")
     p_extract.add_argument("--loginfo", type=str, default="no", required=False,
-                           help="if printing more info of feature extraction on reads")
+                           help="if printing more info of feature extraction on reads. "
+                                "yes or no, default no")
 
     p_extract_ref = parser.add_argument_group("EXTRACTION REFERENCE_MODE")
     p_extract_ref.add_argument("--ref", type=str, required=False,
@@ -638,6 +640,8 @@ def main():
                                help="not use supplementary alignment")
     p_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
                                help="if extract mapping features, yes or no, default no")
+    p_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
+                               help="if skipping unmapped sites in reads, yes or no, default yes")
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")

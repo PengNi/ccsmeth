@@ -43,7 +43,6 @@ CODE2CIGAR = "MIDNSHP=XB"
 CIGAR_REGEX = re.compile("(\d+)([MIDNSHP=XB])")
 CIGAR2CODE = dict([y, x] for x, y in enumerate(CODE2CIGAR))
 
-
 # max_queue_size = 2000
 
 nproc_to_call_mods_in_cpu_mode = 2
@@ -53,6 +52,8 @@ minimap2_exec = "minimap2"
 bwa_exec = "bwa"
 samtools_exec = "samtools"
 ccs_exec = "ccs"
+
+default_ref_loc = -1
 
 
 def str2bool(v):
