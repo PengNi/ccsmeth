@@ -21,8 +21,8 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.7.0?) \
        [tqdm](https://github.com/tqdm/tqdm) \
        [pysam](https://pysam.readthedocs.io/en/latest/installation.html) \
-       pybedtools>=0.8.1 \
-       pytabix>=0.1
+       [pybedtools](https://daler.github.io/pybedtools/) \
+       [pytabix](https://github.com/slowkow/pytabix)
 
 #### install ccsmeth from github (latest version):
 ```bash

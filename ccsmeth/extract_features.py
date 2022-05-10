@@ -29,7 +29,7 @@ from .utils.ref_reader import DNAReference
 from .utils.process_utils import default_ref_loc
 
 code2frames = codecv1_to_frame2()
-queen_size_border = 1000
+queue_size_border = 1000
 time_wait = 1
 
 
@@ -138,14 +138,14 @@ def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, args):
         for readitem in all_reads:
             readinfo = _get_necessary_items_of_a_alignedsegment(readitem)
             holebatchtmp.append(readinfo)
-            if (count + 1) % args.holes_batch == 0 or (count + 1) == totalnum:
+            count += 1
+            if count % args.holes_batch == 0 or count == totalnum:
                 holebatch_q.put(holebatchtmp)
                 pbar.update(1)
                 count_batch += 1
                 holebatchtmp = []
-                while holebatch_q.qsize() > queen_size_border:
+                while holebatch_q.qsize() > queue_size_border:
                     time.sleep(time_wait)
-            count += 1
         inputreads.close()
         if count_batch != len(holebatches):
             sys.stderr.write("[WARN]read {} batches while it should be {} batches!".format(count_batch,
@@ -522,7 +522,7 @@ def worker_extract_features_from_holebatches(holebatch_q, features_q,
                 features_batch = _batch_feature_list2s(features_batch)
 
             features_q.put(features_batch)
-            while features_q.qsize() > queen_size_border:
+            while features_q.qsize() > queue_size_border:
                 time.sleep(time_wait)
         cnt_holesbatch += 1
     sys.stderr.write("extract_features process-{} ending, proceed {} "

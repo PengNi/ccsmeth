@@ -336,12 +336,11 @@ def main():
                                                  'from aligned.sorted.bam')
 
     parser.add_argument('--threads', action="store", type=int, required=False, default=5,
-                        help="number of subprocesses used when --contigs is set. i.e., number of contigs processed "
-                             "in parallel. default 5")
+                        help="number of subprocesses used. default 5")
 
     scfb_input = parser.add_argument_group("INPUT")
     scfb_input.add_argument('--input_bam', action="store", type=str, required=True,
-                            help='input bam/sam, should be aligned and sorted')
+                            help='input bam, should be aligned and sorted')
     scfb_input.add_argument("--ref", type=str, required=False,
                             help="path to genome reference, in fasta/fa format.")
     scfb_input.add_argument('--contigs', action="store", type=str, required=False, default=None,
@@ -350,10 +349,8 @@ def main():
                                  "default None, which means all chromosomes will be processed.")
 
     scfb_output = parser.add_argument_group("OUTPUT")
-    scfb_output.add_argument('--result_file', '-o', action="store", type=str, required=True,
-                             help='the file path to save the result')
-    scfb_output.add_argument('--bed', action='store_true', default=False,
-                             help="save the result in bedMethyl format")
+    scfb_output.add_argument('--output', '-o', action="store", type=str, required=True,
+                             help='the prefix of file path to save the results')
     scfb_output.add_argument('--sort', action='store_true', default=False, help="sort items in the result")
     scfb_output.add_argument("--gzip", action="store_true", default=False, required=False,
                              help="if compressing the output using gzip")

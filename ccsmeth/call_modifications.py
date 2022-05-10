@@ -50,7 +50,7 @@ from .extract_features import worker_extract_features_from_holebatches
 from .extract_features import _get_holes
 from .extract_features import index_bam_if_needed2
 
-queen_size_border = 1000
+queue_size_border = 1000
 time_wait = 1
 
 
@@ -105,7 +105,7 @@ def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=5
                 h_num += 1
                 if h_num % holes_batch == 0:
                     featurestrs_batch_q.put(featurestrs)
-                    while featurestrs_batch_q.qsize() > queen_size_border:
+                    while featurestrs_batch_q.qsize() > queue_size_border:
                         time.sleep(time_wait)
                     featurestrs = []
                     pbar.update(1)
@@ -209,7 +209,7 @@ def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q, seq_
 
         features_batch_q.put((sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fquals, fmaps,
                               rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rquals, rmaps, labels))
-        while features_batch_q.qsize() > queen_size_border:
+        while features_batch_q.qsize() > queue_size_border:
             time.sleep(time_wait)
     print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
@@ -329,7 +329,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
             raise ValueError("--model_type not right!")
 
         pred_str_q.put(pred_str)
-        while pred_str_q.qsize() > queen_size_border:
+        while pred_str_q.qsize() > queue_size_border:
             time.sleep(time_wait)
         # for debug
         # print("call_mods process-{} reads 1 batch, features_batch_q:{}, "

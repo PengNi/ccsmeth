@@ -10,10 +10,17 @@ import pybedtools
 import gzip
 import numpy as np
 
+import multiprocessing as mp
+from multiprocessing import Queue
+
 from .utils.process_utils import default_ref_loc
+from .utils.process_utils import complement_seq
 
 base = "C"
 pred_base = "CG"
+
+queue_size_border = 1000
+time_wait = 1
 
 
 # generate per_read bed file ==============================
@@ -87,6 +94,55 @@ def _generate_sorted_per_read_calls(per_readsite, output, is_gzip, skip_unmapped
 
 
 # generate modbam files ============
+def open_input_bamfile(bamfile):
+    if bamfile.endswith(".bam"):
+        try:
+            ori_bam = pysam.AlignmentFile(bamfile, 'rb')
+        except ValueError:
+            ori_bam = pysam.AlignmentFile(bamfile, 'rb', check_sq=False)
+    else:
+        ori_bam = pysam.AlignmentFile(bamfile, 'r')
+    return ori_bam
+
+
+def _get_necessary_alignment_items(readitem):
+    seq_name = readitem.query_name
+    flag = readitem.flag
+    ref_name = readitem.reference_name
+    ref_start = readitem.reference_start
+    mapq = readitem.mapping_quality
+    cigartuples = readitem.cigartuples
+    rnext = readitem.next_reference_name
+    pnext = readitem.next_reference_start
+    tlen = readitem.template_length
+    seq_seq = readitem.query_sequence
+    seq_qual = readitem.query_qualities
+    all_tags = readitem.get_tags(with_value_type=True)
+    is_reverse = readitem.is_reverse
+    return (seq_name, flag, ref_name, ref_start, mapq, cigartuples,
+            rnext, pnext, tlen, seq_seq, seq_qual, all_tags, is_reverse)
+
+
+def _worker_reader(bamfile, batch_size, rreads_q):
+    ori_bam = open_input_bamfile(bamfile)
+    cnt_all = 0
+    reads_batch = []
+    for readitem in ori_bam.fetch(until_eof=True):
+        readitem_info = _get_necessary_alignment_items(readitem)
+        reads_batch.append(readitem_info)
+        cnt_all += 1
+        if cnt_all % batch_size == 0:
+            rreads_q.put(reads_batch)
+            reads_batch = []
+            while rreads_q.qsize() > queue_size_border:
+                time.sleep(time_wait)
+    ori_bam.close()
+    if len(reads_batch) > 0:
+        rreads_q.put(reads_batch)
+    rreads_q.put("kill")
+    sys.stderr.write("read {} reads from input file\n".format(cnt_all))
+
+
 # def _fetch_a_read_from_tabixobj(readname, tabixobj):
 #     # pysam
 #     try:
@@ -154,23 +210,6 @@ def _convert_probs_to_mltag(probs):
     return [math.floor(prob * 256) for prob in probs]
 
 
-def _get_necessary_alignment_items(readitem):
-    seq_name = readitem.query_name
-    flag = readitem.flag
-    ref_name = readitem.reference_name
-    ref_start = readitem.reference_start
-    mapq = readitem.mapping_quality
-    cigartuples = readitem.cigartuples
-    rnext = readitem.next_reference_name
-    pnext = readitem.next_reference_start
-    tlen = readitem.template_length
-    seq_seq = readitem.query_sequence
-    seq_qual = readitem.query_qualities
-    all_tags = readitem.get_tags(with_value_type=True)
-    return (seq_name, flag, ref_name, ref_start, mapq, cigartuples,
-            rnext, pnext, tlen, seq_seq, seq_qual, all_tags)
-
-
 def _refill_tags(all_tags, mm_values, ml_values, rm_pulse=True):
     new_tags = []
     # TODO: if with_value_type, pysam has a bug (0.19.0, pysam/libcalignedsegment.pyx line 396)
@@ -189,19 +228,56 @@ def _refill_tags(all_tags, mm_values, ml_values, rm_pulse=True):
     return new_tags
 
 
-def write_alignedsegment(readitem_info, output_bam, mm_values, ml_values, rm_pulse=True):
+def _worker_process_reads_batch(rreads_q, wreads_q, tabix_file, rm_pulse=True):
+    # perread_tbx = pysam.TabixFile(tabix_file)
+    perread_tbx = tabix.open(tabix_file)
+    while True:
+        if rreads_q.empty():
+            time.sleep(time_wait)
+            continue
+        reads_batch = rreads_q.get()
+        if reads_batch == "kill":
+            rreads_q.put("kill")
+            break
+        wreads_tmp = []
+        for rread in reads_batch:
+            seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, tlen, \
+                seq_seq, seq_qual, all_tags, is_reverse = rread
+            seq_fwdseq = complement_seq(seq_seq) if is_reverse else seq_seq
+
+            # MM: Base modifications / methylation, ML:Base modification probabilities tags
+            mm_values = ml_values = None
+            mm_flag = 0
+            # TODO: there are chances that supplementary alignments cannot get corresponding mm/ml values
+            locs, probs = query_locs_probs_of_a_read(seq_name, perread_tbx)
+            if locs is not None:
+                try:
+                    mm_values = _convert_locs_to_mmtag(locs, seq_fwdseq)
+                    ml_values = _convert_probs_to_mltag(probs)
+                    mm_flag = 1
+                except AssertionError:
+                    # sys.stderr.write("AssertionError, skip this alignment.\n"
+                    #       "\tDetails: {}, {}, {}\n".format(seq_name, locs, probs))
+                    sys.stderr.write("AssertionError, skip this alignment-{}.\n".format(seq_name))
+                    continue
+            new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse)
+            wreads_tmp.append((seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, tlen,
+                               seq_seq, seq_qual, new_tags, mm_flag))
+        if len(wreads_tmp) > 0:
+            wreads_q.put(wreads_tmp)
+            while wreads_q.qsize() > queue_size_border:
+                time.sleep(time_wait)
+
+
+def write_alignedsegment(readitem_info, output_bam):
     """
     Writes the readitem_info(tuple) to a bam file
     :param readitem_info:
     :param output_bam:
-    :param mm_values:
-    :param ml_values:
-    :param rm_pulse:
     :return:
     """
     seq_name, flag, ref_name, ref_start, mapq, cigartuples, \
-        rnext, pnext, tlen, seq_seq, seq_qual, all_tags = readitem_info
-    new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse)
+        rnext, pnext, tlen, seq_seq, seq_qual, all_tags, mm_flag = readitem_info
 
     out_read = pysam.AlignedSegment(output_bam.header)
     out_read.query_name = seq_name
@@ -215,63 +291,76 @@ def write_alignedsegment(readitem_info, output_bam, mm_values, ml_values, rm_pul
     out_read.template_length = tlen
     out_read.query_sequence = seq_seq
     out_read.query_qualities = seq_qual
-    if len(new_tags) >= 1:
-        out_read.set_tags(new_tags)
+    if len(all_tags) >= 1:
+        out_read.set_tags(all_tags)
     output_bam.write(out_read)
 
 
+def _worker_write_modbam(wreads_q, modbamfile, inputbamfile):
+    ori_bam = open_input_bamfile(inputbamfile)
+    w_bam = pysam.AlignmentFile(modbamfile, "wb", template=ori_bam)
+    ori_bam.close()
+    cnt_w, cnt_mm = 0, 0
+    while True:
+        if wreads_q.empty():
+            time.sleep(time_wait)
+            continue
+        wreads_batch = wreads_q.get()
+        if wreads_batch == "kill":
+            w_bam.close()
+            sys.stderr.write("write {} reads, in which {} were added mm tags\n".format(cnt_w,
+                                                                                       cnt_mm))
+            break
+        for walignseg in wreads_batch:
+            mm_flag = walignseg[-1]
+            write_alignedsegment(walignseg, w_bam)
+            cnt_w += 1
+            cnt_mm += mm_flag
+
+
 def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
-                          rm_pulse=True, skip_unmapped=False, threads=3):
+                          rm_pulse=True, skip_unmapped=False, threads=3,
+                          reads_batch=100):
     sys.stderr.write("[generate_modbam_file]starts\n")
     start = time.time()
 
     sys.stderr.write("generating per_read mod_calls..\n")
     per_read_file = _generate_sorted_per_read_calls(per_readsite, None, is_gzip=True,
                                                     skip_unmapped=skip_unmapped)
-    # perread_tbx = pysam.TabixFile(per_read_file)
-    perread_tbx = tabix.open(per_read_file)
 
     sys.stderr.write("add per_read mod_calls to bam file..\n")
-    if bamfile.endswith(".bam"):
-        try:
-            ori_bam = pysam.AlignmentFile(bamfile, 'rb')
-        except ValueError:
-            ori_bam = pysam.AlignmentFile(bamfile, 'rb', check_sq=False)
-    else:
-        ori_bam = pysam.AlignmentFile(bamfile, 'r')
+    rreads_q = Queue()
+    wreads_q = Queue()
+
+    p_read = mp.Process(target=_worker_reader,
+                        args=(bamfile, reads_batch, rreads_q))
+    p_read.daemon = True
+    p_read.start()
+
+    nproc = threads
+    if nproc < 3:
+        nproc = 3
+    ps_gen = []
+    for _ in range(nproc - 2):
+        p_gen = mp.Process(target=_worker_process_reads_batch,
+                           args=(rreads_q, wreads_q, per_read_file, rm_pulse))
+        p_gen.daemon = True
+        p_gen.start()
+        ps_gen.append(p_gen)
+
     fname, fext = os.path.splitext(bamfile)
     if modbamfile is None:
         modbamfile = fname + ".modbam.bam"
-    w_bam = pysam.AlignmentFile(modbamfile, "wb", template=ori_bam)
+    p_w = mp.Process(target=_worker_write_modbam,
+                     args=(wreads_q, modbamfile, bamfile))
+    p_w.daemon = True
+    p_w.start()
 
-    cnt_all = cnt_write = cnt_mm_added = 0
-    for readitem in ori_bam.fetch(until_eof=True):
-        cnt_all += 1
-        seq_name = readitem.query_name
-        seq_fwseq = readitem.get_forward_sequence()
-
-        # MM: Base modifications / methylation, ML:Base modification probabilities tags
-        mm_values = ml_values = None
-        # TODO: there are chances that supplementary alignments cannot get corresponding mm/ml values
-        locs, probs = query_locs_probs_of_a_read(seq_name, perread_tbx)
-        if locs is not None:
-            try:
-                mm_values = _convert_locs_to_mmtag(locs, seq_fwseq)
-                ml_values = _convert_probs_to_mltag(probs)
-                cnt_mm_added += 1
-            except AssertionError:
-                # print("AssertionError, skip this alignment.\n"
-                #       "\tDetails: {}, {}, {}".format(seq_name, locs, probs))
-                print("AssertionError, skip this alignment-{}.".format(seq_name))
-                continue
-
-        readitem_info = _get_necessary_alignment_items(readitem)
-        write_alignedsegment(readitem_info, w_bam, mm_values, ml_values, rm_pulse)
-        cnt_write += 1
-
-    # perread_tbx.close()
-    ori_bam.close()
-    w_bam.close()
+    for p in ps_gen:
+        p.join()
+    p_read.join()
+    wreads_q.put("kill")
+    p_w.join()
 
     if modbamfile.endswith(".bam"):
         sys.stderr.write("sorting and indexing new bam file..\n")
@@ -286,29 +375,30 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
         os.remove(per_read_file + ".tbi")
 
     endtime = time.time()
-    sys.stderr.write("[generate_modbam_file]costs {:.1f} seconds, {} reads in total, "
-                     "{} reads written, {} reads added mm tags\n".format(endtime - start,
-                                                                         cnt_all,
-                                                                         cnt_write,
-                                                                         cnt_mm_added))
+    sys.stderr.write("[generate_modbam_file]costs {:.1f} seconds\n".format(endtime - start))
 
 
 def main():
     parser = argparse.ArgumentParser("add MM/ML tags to bam/sam")
     parser.add_argument("--per_readsite", type=str, required=True, help="from call_mods module")
     parser.add_argument("--bam", type=str, required=True, help="input bam file")
+
     parser.add_argument("--modbam", type=str, required=False, help="output modbam file")
     parser.add_argument("--rm_pulse", action="store_true", default=False, required=False,
                         help="if remove ipd/pw tags in the bam file")
     parser.add_argument("--skip_unmapped", action="store_true", default=False, required=False,
                         help="skip unmapped sites")
+
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")
+    parser.add_argument("--batch_size", type=int, required=False, default=100,
+                        help="batch size of reads to be processed at one time, default 100")
 
     args = parser.parse_args()
 
     add_mm_ml_tags_to_bam(args.bam, args.per_readsite, args.modbam,
-                          args.rm_pulse, args.skip_unmapped, args.threads)
+                          args.rm_pulse, args.skip_unmapped, args.threads,
+                          args.batch_size)
 
 
 if __name__ == '__main__':
