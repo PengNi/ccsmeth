@@ -37,8 +37,8 @@ from .utils.process_utils import code2base_dna
 from .utils.process_utils import display_args
 from .utils.process_utils import nproc_to_call_mods_in_cpu_mode
 from .utils.process_utils import str2bool
-
 from .utils.process_utils import get_motif_seqs
+from .utils.process_utils import index_bam_if_needed2
 
 from .utils.ref_reader import DNAReference
 
@@ -48,7 +48,6 @@ from .utils.constants_torch import use_cuda
 from .extract_features import worker_read_split_holebatches_to_queue
 from .extract_features import worker_extract_features_from_holebatches
 from .extract_features import _get_holes
-from .extract_features import index_bam_if_needed2
 
 queue_size_border = 1000
 time_wait = 1
@@ -393,7 +392,7 @@ def call_mods(args):
             print("as --is_map is True, setting --is_mapfea as True")
             args.is_mapfea = "yes"
 
-        index_bam_if_needed2(input_path, args)
+        index_bam_if_needed2(input_path, args.threads)
 
         dnacontigs = None
         if args.mode == "reference":
@@ -632,8 +631,8 @@ def main():
     p_extract_ref = parser.add_argument_group("EXTRACTION REFERENCE_MODE")
     p_extract_ref.add_argument("--ref", type=str, required=False,
                                help="path to genome reference to be aligned, in fasta/fa format.")
-    p_extract_ref.add_argument("--mapq", type=int, default=15, required=False,
-                               help="MAPping Quality cutoff for selecting alignment items, default 15")
+    p_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
+                               help="MAPping Quality cutoff for selecting alignment items, default 10")
     p_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                help="identity cutoff for selecting alignment items, default 0.8")
     p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,

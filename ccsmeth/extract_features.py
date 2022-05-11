@@ -20,6 +20,7 @@ from .utils.process_utils import base2code_dna
 from .utils.process_utils import compute_pct_identity
 from .utils.process_utils import get_q2tloc_from_cigar
 from .utils.process_utils import str2bool
+from .utils.process_utils import index_bam_if_needed2
 
 # from .utils.process_utils import run_cmd
 # from .utils.process_utils import generate_samtools_index_cmd
@@ -558,24 +559,6 @@ def _write_featurestr_to_file(write_fp, featurestr_q, is_gzip):
         wf.flush()
 
 
-# def index_bam_if_needed(inputfile, args):
-#     if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
-#         samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)
-#         index_cmd = " ".join([samtools_index, inputfile])
-#         sys.stderr.write("indexing bam file: {}\n".format(index_cmd))
-#         stdinfo, returncode = run_cmd(index_cmd)
-#         if returncode:
-#             raise ValueError("indexing bam file failed, please try indexing it mannually using samtools")
-#         else:
-#             sys.stderr.write("indexing bam file succeeded..\n")
-
-
-def index_bam_if_needed2(inputfile, args):
-    if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
-        sys.stderr.write("indexing bam file-{}\n".format(inputfile))
-        pysam.index("-@", str(args.threads), inputfile)
-
-
 def extract_hifireads_features(args):
     sys.stderr.write("[extract_features_hifi]starts\n")
     start = time.time()
@@ -583,7 +566,7 @@ def extract_hifireads_features(args):
     inputpath = check_input_file(args.input)
     if not os.path.exists(inputpath):
         raise IOError("input file does not exist!")
-    index_bam_if_needed2(inputpath, args)
+    index_bam_if_needed2(inputpath, args.threads)
 
     outputpath = check_output_file(args.output, inputpath)
 
@@ -708,8 +691,8 @@ def main():
     p_extract_ref = parser.add_argument_group("EXTRACTION REFERENCE_MODE")
     p_extract_ref.add_argument("--ref", type=str, required=False,
                                help="path to genome reference to be aligned, in fasta/fa format.")
-    p_extract_ref.add_argument("--mapq", type=int, default=15, required=False,
-                               help="MAPping Quality cutoff for selecting alignment items, default 15")
+    p_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
+                               help="MAPping Quality cutoff for selecting alignment items, default 10")
     p_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                help="identity cutoff for selecting alignment items, default 0.8")
     p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,

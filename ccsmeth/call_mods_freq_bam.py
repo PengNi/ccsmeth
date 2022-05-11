@@ -10,154 +10,29 @@ import os
 import sys
 import gzip
 import time
+import numpy as np
 
 import multiprocessing as mp
-from torch.multiprocessing import Queue
+from multiprocessing import Queue
+from tqdm import tqdm
+import pysam
+import pybedtools
+
+from .utils.ref_reader import DNAReference
+from .utils.process_utils import compute_pct_identity
 from .utils.process_utils import is_file_empty
-import uuid
+from .utils.process_utils import index_bam_if_needed2
 
-time_wait = 3
-
+time_wait = 1
 key_sep = "||"
 
 
-class ModRecord:
-    def __init__(self, fields):
-        self._chromosome = fields[0]
-        self._pos = int(fields[1])
-        self._site_key = key_sep.join([self._chromosome, str(self._pos)])
-
-        self._strand = fields[2]
-        self.holeid = fields[3]
-
-        self._depthstr = fields[4]
-        self._depth = sum(list(map(int, self._depthstr.split(",")))) if "," in self._depthstr else int(self._depthstr)
-        self._prob_0 = float(fields[5])
-        self._prob_1 = float(fields[6])
-        self._called_label = int(fields[7])
-        self._kmer = fields[8]
-
-    def is_record_callable(self, prob_threshold):
-        if abs(self._prob_0 - self._prob_1) < prob_threshold:
-            return False
-        return True
-
-
-def split_key(key):
-    words = key.split(key_sep)
-    return words[0], int(words[1])
-
-
-class SiteStats:
-    def __init__(self, strand, kmer):
-
-        self._strand = strand
-        self._kmer = kmer
-
-        self._prob_0 = 0.0
-        self._prob_1 = 0.0
-        self._met = 0
-        self._unmet = 0
-        self._coverage = 0
-        # self._rmet = -1.0
-
-
-def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False, contig_name=None):
-    """
-    call mod_freq from call_mods files
-    :param mods_files: a list of call_mods files
-    :param prob_cf:
-    :param rm_1strand:
-    :param contig_name:
-    :return: key2value obj
-    """
-    sitekeys = set()
-    sitekey2stats = dict()
-
-    if type(mods_files) is str:
-        mods_files = [mods_files, ]
-
-    count, used = 0, 0
-    for mods_file in mods_files:
-        if mods_file.endswith(".gz"):
-            infile = gzip.open(mods_file, 'rt')
-        else:
-            infile = open(mods_file, 'r')
-        for line in infile:
-            words = line.strip().split("\t")
-            mod_record = ModRecord(words)
-            if contig_name is not None and mod_record._chromosome != contig_name:
-                continue
-            count += 1
-            if rm_1strand and "," not in mod_record._depthstr:
-                continue
-            if not mod_record.is_record_callable(prob_cf):
-                continue
-            if mod_record._site_key not in sitekeys:
-                sitekeys.add(mod_record._site_key)
-                sitekey2stats[mod_record._site_key] = SiteStats(mod_record._strand,
-                                                                mod_record._kmer)
-            sitekey2stats[mod_record._site_key]._prob_0 += mod_record._prob_0
-            sitekey2stats[mod_record._site_key]._prob_1 += mod_record._prob_1
-            sitekey2stats[mod_record._site_key]._coverage += 1
-            if mod_record._called_label == 1:
-                sitekey2stats[mod_record._site_key]._met += 1
-            else:
-                sitekey2stats[mod_record._site_key]._unmet += 1
-            used += 1
-        infile.close()
-    if contig_name is None:
-        print("{:.2f}% ({} of {}) calls used..".format(used/float(count) * 100, used, count))
-    else:
-        print("{:.2f}% ({} of {}) calls used for {}..".format(used / float(count) * 100, used, count, contig_name))
-    return sitekey2stats
-
-
-def write_sitekey2stats(sitekey2stats, result_file, is_sort, is_bed, is_gzip):
-    """
-    write methylfreq of sites into files
-    :param sitekey2stats:
-    :param result_file:
-    :param is_sort: sorted by poses
-    :param is_bed: in bed format or not
-    :prarm is_gzip:
-    :return:
-    """
-    if is_sort:
-        keys = sorted(list(sitekey2stats.keys()), key=lambda x: split_key(x))
-    else:
-        keys = list(sitekey2stats.keys())
-
-    if is_gzip:
-        if not result_file.endswith(".gz"):
-            result_file += ".gz"
-        wf = gzip.open(result_file, "wt")
-    else:
-        wf = open(result_file, 'w')
-    # wf.write('\t'.join(['chromosome', 'pos', 'strand', 'prob0', 'prob1',
-    #                     'met', 'unmet', 'coverage', 'rmet', 'kmer']) + '\n')
-    for key in keys:
-        chrom, pos = split_key(key)
-        sitestats = sitekey2stats[key]
-        assert(sitestats._coverage == (sitestats._met + sitestats._unmet))
-        if sitestats._coverage > 0:
-            rmet = float(sitestats._met) / sitestats._coverage
-            if is_bed:
-                wf.write("\t".join([chrom, str(pos), str(pos + 1), ".", str(sitestats._coverage),
-                                    sitestats._strand,
-                                    str(pos), str(pos + 1), "0,0,0", str(sitestats._coverage),
-                                    str(int(round(rmet * 100, 0)))]) + "\n")
-            else:
-                wf.write("%s\t%d\t%s\t%.3f\t%.3f\t%d\t%d\t%d\t%.4f\t%s\n" % (chrom, pos, sitestats._strand,
-                                                                             sitestats._prob_0,
-                                                                             sitestats._prob_1,
-                                                                             sitestats._met, sitestats._unmet,
-                                                                             sitestats._coverage, rmet,
-                                                                             sitestats._kmer))
-        else:
-            print("{} {} has no coverage..".format(chrom, pos))
-    wf.flush()
-    wf.close()
+def _check_input_file(inputpath):
+    if not inputpath.endswith(".bam"):
+        raise ValueError("--input_bam not a bam file!")
+    if not os.path.exists(inputpath):
+        raise ValueError("--input_bam does not exist!")
+    return os.path.abspath(inputpath)
 
 
 def _read_file_lines(cfile):
@@ -165,170 +40,333 @@ def _read_file_lines(cfile):
         return rf.read().splitlines()
 
 
-def _get_contignams_from_genome_fasta(genomefa):
-    contigs = []
-    with open(genomefa, "r") as rf:
-        for line in rf:
-            if line.startswith(">"):
-                contigname = line.strip()[1:].split(' ')[0]
-                contigs.append(contigname)
-    return contigs
-
-
-def _is_file_a_genome_fasta(contigfile):
-    with open(contigfile, "r") as rf:
-        for line in rf:
-            if line.startswith("#"):
-                continue
-            elif line.startswith(">"):
-                return True
-    return False
-
-
-def _get_contigfile_name(wprefix, contig):
-    return wprefix + "." + contig + ".txt"
-
-
-def _split_file_by_contignames(mods_files, wprefix, contigs):
-    contigs = set(contigs)
-    wfs = {}
-    for contig in contigs:
-        wfs[contig] = open(_get_contigfile_name(wprefix, contig), "w")
-    for input_file in mods_files:
-        if input_file.endswith(".gz"):
-            infile = gzip.open(input_file, 'rt')
+def _get_reference_chunks(dnacontigs, contig_str, chunk_len=300000, motifs="CG"):
+    if contig_str is not None:
+        if os.path.isfile(contig_str):
+            contigs = sorted(list(set(_read_file_lines(contig_str))))
         else:
-            infile = open(input_file, 'r')
-        for line in infile:
-            chrom = line.strip().split("\t")[0]
-            if chrom not in contigs:
-                continue
-            wfs[chrom].write(line)
-        infile.close()
+            contigs = sorted(list(set(contig_str.strip().split(","))))
+    else:
+        contigs = sorted(list(dnacontigs.keys()))
+    ref_chunks = []
     for contig in contigs:
-        wfs[contig].flush()
-        wfs[contig].close()
+        contig_len = len(dnacontigs[contig])
+        for i in np.arange(0, contig_len, chunk_len):
+            if i + chunk_len < contig_len:
+                istart, iend = i, i + chunk_len
+            else:
+                istart, iend = i, contig_len
+            ref_chunks.append((contig, istart, iend))
+    # adjust start, end if motifs=='CG'
+    if motifs == "CG":
+        sys.stderr.write("adjust regions for CG motif\n")
+        for idx in range(1, len(ref_chunks)):
+            pre_ref, pre_s, pre_e = ref_chunks[idx-1]
+            cur_ref, cur_s, cur_e = ref_chunks[idx]
+            if pre_ref != cur_ref:
+                continue
+            assert cur_s == pre_e
+            if dnacontigs[pre_ref][(pre_e-1):(pre_e+1)] == "CG":
+                ref_chunks[idx-1] = (pre_ref, pre_s, pre_e + 1)
+                ref_chunks[idx] = (cur_ref, cur_s + 1, cur_e)
+                # sys.stderr.write("adjust region {},{} to {},{}\n".format((pre_ref, pre_s, pre_e),
+                #                                                          (cur_ref, cur_s, cur_e),
+                #                                                          ref_chunks[idx - 1],
+                #                                                          ref_chunks[idx]))
+    return ref_chunks
 
 
-def _call_and_write_modsfreq_process(wprefix, prob_cf, result_file, issort, isbed, rm_1strand, isgzip,
-                                     contigs_q, resfiles_q):
-    print("process-{} -- starts".format(os.getpid()))
-    while True:
-        if contigs_q.empty():
-            time.sleep(time_wait)
-        contig_name = contigs_q.get()
-        if contig_name == "kill":
-            contigs_q.put("kill")
+def _worker_split_ref_regions(ref_fa, region_q, args):
+    sys.stderr.write("worker_split_regions process-{} starts\n".format(os.getpid()))
+    dnacontigs = DNAReference(ref_fa).getcontigs()
+    ref_chunks = _get_reference_chunks(dnacontigs, args.contigs, args.chunk_len, args.motifs)
+    del dnacontigs
+    sys.stderr.write("worker_split_regions process-{} generates {} regions\n".format(os.getpid(),
+                                                                                     len(ref_chunks)))
+    with tqdm(total=len(ref_chunks),
+              desc="region_reader") as pbar:
+        for ref_chunk in ref_chunks:
+            region_q.put(ref_chunk)
+            pbar.update(1)
+            while region_q.qsize() > args.threads * 3:
+                time.sleep(time_wait)
+    region_q.put("kill")
+
+
+def _cal_mod_prob(ml_value):
+    return round(ml_value / float(256), 6)
+
+
+def _get_moddict(readitem, modbase="C", modification="m"):
+    """
+
+    :param readitem:
+    :return: moddict: query_pos(in alignment strand) 2 mod_probs([0,1])
+    """
+    # mmtag, mltag = None, None
+    # try:
+    #     mmtag = readitem.get_tag('MM')
+    #     mltag = readitem.get_tag('ML')
+    #     seq_fwdseq = readitem.get_forward_sequence()
+    #     is_reverse = readitem.is_reverse
+    # except KeyError:
+    #     pass
+    # if mmtag is None or mltag is None:
+    #     return {}
+
+    # use .modified_bases instead of MM/ML tags to get moddict
+    modinfo = readitem.modified_bases
+    modtuple = None
+    for modkey in modinfo.keys():
+        if modkey[0] == modbase and modkey[2] == modification:
+            modtuple = modinfo[modkey]
             break
-        print("process-{} for contig-{} -- reading the input files..".format(os.getpid(), contig_name))
-        input_file = _get_contigfile_name(wprefix, contig_name)
-        if not os.path.isfile(input_file):
-            print("process-{} for contig-{} -- the input file does not exist..".format(os.getpid(), contig_name))
+    if modtuple is None:
+        return {}
+    moddict = dict(modtuple)
+    for modloc in moddict.keys():
+        moddict[modloc] = _cal_mod_prob(moddict[modloc])
+    return moddict
+
+
+def _cal_modprob_in_count_mode(modprobs, prob_cf=0):
+    cnt_all, cnt_mod = 0, 0
+    for modprob in modprobs:
+        if abs(modprob - (1 - modprob)) < prob_cf:
             continue
-        if is_file_empty(input_file):
-            print("process-{} for contig-{} -- the input file is empty..".format(os.getpid(), contig_name))
+        cnt_all += 1
+        if modprob > 0.5:
+            cnt_mod += 1
+    modfreq = cnt_mod / float(cnt_all) if cnt_all > 0 else 0.
+    return cnt_all, cnt_mod, modfreq
+
+
+def _call_modfreq_of_one_region(refpos2modinfo, args):
+    refpos_results = []
+    if args.call_mode == "count":
+        for refpos in sorted(refpos2modinfo.keys()):
+            modinfo = refpos2modinfo[refpos]
+            total_mods, hp1_mods, hp2_mods = [], [], []
+            for modprob, hap in modinfo:
+                total_mods.append(modprob)
+                if hap == 1:
+                    hp1_mods.append(modprob)
+                elif hap == 2:
+                    hp2_mods.append(modprob)
+            info_all = _cal_modprob_in_count_mode(total_mods, args.prob_cf) if len(total_mods) > 0 else None
+            info_hp1 = _cal_modprob_in_count_mode(hp1_mods, args.prob_cf) if len(hp1_mods) > 0 else None
+            info_hp2 = _cal_modprob_in_count_mode(hp2_mods, args.prob_cf) if len(hp2_mods) > 0 else None
+            refpos_results.append((refpos, info_all, info_hp1, info_hp2))
+    elif args.call_mode == "aggregate":
+        pass
+
+    return refpos_results
+
+
+# learning from pacbio aligned_bam_to_cpg_scores.py
+def _readmods_to_bed_of_one_region(bam_reader, regioninfo, args):
+    modbase = "-"
+    modification = "-"
+    if args.modtype == "5mC":
+        modbase = "C"
+        modification = "m"
+
+    ref_name, ref_start, ref_end = regioninfo
+    refposinfo = {}  # {loc: [(prob, hap), ]), }
+    refposes = set()
+    refposinfo_rev = {}
+    refposes_rev = set()
+    cnt_all, cnt_used = 0, 0
+    for readitem in bam_reader.fetch(contig=ref_name, start=ref_start, stop=ref_end):
+        cnt_all += 1
+        if readitem.is_unmapped or readitem.is_secondary or readitem.is_duplicate:
+            continue
+        if args.no_supplementary and readitem.is_supplementary:
+            continue
+        if readitem.mapping_quality < args.mapq:
+            continue
+        identity = compute_pct_identity(np.array(readitem.get_cigar_stats()[0]))
+        if identity < args.identity:
+            continue
+
+        try:
+            hap_val = readitem.get_tag(args.hap_tag)
+            hap = int(hap_val)
+        except ValueError:
+            hap = 0
+        except KeyError:
+            hap = 0
+        is_reverse = 1 if readitem.is_reverse else 0
+        moddict = _get_moddict(readitem, modbase, modification)
+        modlocs = set(moddict.keys())
+        if is_reverse:
+            for q_pos, r_pos in readitem.get_aligned_pairs(matches_only=True):
+                if ref_start <= r_pos < ref_end:
+                    if q_pos in modlocs:
+                        if r_pos not in refposes_rev:
+                            refposes_rev.add(r_pos)
+                            refposinfo_rev[r_pos] = []
+                        refposinfo_rev[r_pos].append((moddict[q_pos], hap))
         else:
-            sites_stats = calculate_mods_frequency(input_file, prob_cf, rm_1strand, contig_name)
-            print("process-{} for contig-{} -- writing the result..".format(os.getpid(), contig_name))
-            fname, fext = os.path.splitext(result_file)
-            c_result_file = fname + "." + contig_name + "." + str(uuid.uuid1()) + fext
-            write_sitekey2stats(sites_stats, c_result_file, issort, isbed, isgzip)
-            resfiles_q.put(c_result_file)
-        os.remove(input_file)
-    print("process-{} -- ends".format(os.getpid()))
+            for q_pos, r_pos in readitem.get_aligned_pairs(matches_only=True):
+                if ref_start <= r_pos < ref_end:
+                    if q_pos in modlocs:
+                        if r_pos not in refposes:
+                            refposes.add(r_pos)
+                            refposinfo[r_pos] = []
+                        refposinfo[r_pos].append((moddict[q_pos], hap))
+        cnt_used += 1
+    if args.motifs == "CG" and not args.no_comb:
+        for rev_pos in refposes_rev:
+            fwd_pos = rev_pos - 1
+            if fwd_pos not in refposes:
+                refposes.add(fwd_pos)
+                refposinfo[fwd_pos] = []
+            refposinfo[fwd_pos] += refposinfo_rev[rev_pos]
+        del refposinfo_rev
+        del refposes_rev
+    bed_all, bed_hp1, bed_hp2 = [], [], []
+    refpos_res = _call_modfreq_of_one_region(refposinfo, args)
+    for refpositem in refpos_res:
+        refpos, total_info, hp1_info, hp2_info = refpositem
+        # total_info in (cov, mod_cnt, mod_freq) format, as hp1_info, hp2_info
+        if total_info is not None:
+            bed_all.append((ref_name, refpos, "+", total_info[0], total_info[1], total_info[2]))
+        if hp1_info is not None:
+            bed_hp1.append((ref_name, refpos, "+", hp1_info[0], hp1_info[1], hp1_info[2]))
+        if hp2_info is not None:
+            bed_hp2.append((ref_name, refpos, "+", hp2_info[0], hp2_info[1], hp2_info[2]))
+    if not (args.motifs == "CG" and not args.no_comb):
+        refposrev_res = _call_modfreq_of_one_region(refposinfo_rev, args)
+        for refpositem in refposrev_res:
+            refpos, total_info, hp1_info, hp2_info = refpositem
+            # total_info in (cov, mod_cnt, mod_freq) format, as hp1_info, hp2_info
+            if total_info is not None:
+                bed_all.append((ref_name, refpos, "-", total_info[0], total_info[1], total_info[2]))
+            if hp1_info is not None:
+                bed_hp1.append((ref_name, refpos, "-", hp1_info[0], hp1_info[1], hp1_info[2]))
+            if hp2_info is not None:
+                bed_hp2.append((ref_name, refpos, "-", hp2_info[0], hp2_info[1], hp2_info[2]))
+    return bed_all, bed_hp1, bed_hp2
 
 
-def _concat_contig_results(contig_files, result_file):
-    wf = open(result_file, "w")
-    for cfile in sorted(contig_files):
-        with open(cfile, 'r') as rf:
-            for line in rf:
-                wf.write(line)
-        os.remove(cfile)
-    wf.flush()
-    wf.close()
+def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, args):
+    sys.stderr.write("worker_gen_bed process-{} starts\n".format(os.getpid()))
+    bam_reader = pysam.AlignmentFile(inputbam, 'rb')
+    cnt_regions = 0
+    while True:
+        if region_q.empty():
+            time.sleep(time_wait)
+            continue
+        region = region_q.get()
+        if region == "kill":
+            region_q.put("kill")
+            break
+        cnt_regions += 1
+        bed_all, bed_hp1, bed_hp2 = _readmods_to_bed_of_one_region(bam_reader, region, args)
+        if len(bed_all) > 0:
+            bed_q.put((bed_all, bed_hp1, bed_hp2))
+            while bed_q.qsize() > args.threads * 3:
+                time.sleep(time_wait)
+
+    bam_reader.close()
+    sys.stderr.write("worker_gen_bed process-{} ending, proceed {} regions\n".format(os.getpid(),
+                                                                                     cnt_regions))
 
 
-def call_mods_frequency_to_file(args):
-    print("[main]call_freq starts..")
+def _write_one_line(beditem, wf, is_bed):
+    ref_name, refpos, strand, cov, met, metprob = beditem
+    if is_bed:
+        wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), ".", str(cov),
+                            strand, str(refpos), str(refpos + 1),
+                            "0,0,0", str(cov), str(int(round(metprob * 100 + 0.001, 0)))]) + "\n")
+    else:
+        wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), strand, "-", "-", str(met),
+                            str(cov-met), str(cov), str(round(metprob + 0.000001, 4))]) + "\n")
+
+
+def _worker_write_bed_result(output_prefix, bed_q, args):
+    sys.stderr.write('write_process-{} starts\n'.format(os.getpid()))
+    fext = "bed" if args.bed else "freq.txt"
+    op_all = output_prefix + ".{}.all.{}".format(args.call_mode, fext)
+    op_hp1 = output_prefix + ".{}.hp1.{}".format(args.call_mode, fext)
+    op_hp2 = output_prefix + ".{}.hp2.{}".format(args.call_mode, fext)
+    wf_all = open(op_all, "w")
+    wf_hp1 = open(op_hp1, "w")
+    wf_hp2 = open(op_hp2, "w")
+    while True:
+        if bed_q.empty():
+            time.sleep(time_wait)
+            continue
+        bed_res = bed_q.get()
+        if bed_res == "kill":
+            break
+        bed_all, bed_hp1, bed_hp2 = bed_res
+        for beditem in bed_all:
+            _write_one_line(beditem, wf_all, args.bed)
+        for beditem in bed_hp1:
+            _write_one_line(beditem, wf_hp1, args.bed)
+        for beditem in bed_hp2:
+            _write_one_line(beditem, wf_hp2, args.bed)
+    wf_all.close()
+    wf_hp1.close()
+    wf_hp2.close()
+    for bedfile in (op_all, op_hp1, op_hp2):
+        if is_file_empty(bedfile):
+            os.remove(bedfile)
+            continue
+        if args.sort or args.gzip:
+            sys.stderr.write('write_process-{} sorting results\n'.format(os.getpid()))
+            ori_bed = pybedtools.BedTool(bedfile)
+            ori_bed.sort().moveto(bedfile)
+        if args.gzip:
+            sys.stderr.write('write_process-{} gzipping results\n'.format(os.getpid()))
+            pysam.tabix_index(bedfile, force=True,
+                              preset="bed",
+                              keep_original=False)
+    sys.stderr.write('write_process-{} finished\n'.format(os.getpid()))
+
+
+def call_mods_frequency_from_bamfile(args):
+    print("[main]call_freq_bam starts..")
     start = time.time()
 
-    input_paths = args.input_path
-    result_file = args.result_file
-    prob_cf = args.prob_cf
-    file_uid = args.file_uid
-    issort = args.sort
-    isbed = args.bed
-    rm_1strand = args.rm_1strand
-    is_gzip = args.gzip
+    inputpath = _check_input_file(args.input_bam)
+    index_bam_if_needed2(inputpath, args.threads)
+    if not os.path.exists(args.ref):
+        raise ValueError("--ref does not exist!")
 
-    mods_files = []
-    for ipath in input_paths:
-        input_path = os.path.abspath(ipath)
-        if os.path.isdir(input_path):
-            for ifile in os.listdir(input_path):
-                if file_uid is None:
-                    mods_files.append('/'.join([input_path, ifile]))
-                elif ifile.find(file_uid) != -1:
-                    mods_files.append('/'.join([input_path, ifile]))
-        elif os.path.isfile(input_path):
-            mods_files.append(input_path)
-        else:
-            raise ValueError("--input_path is not a file or a directory!")
-    print("get {} input file(s)..".format(len(mods_files)))
+    nproc = args.threads
+    if nproc < 3:
+        nproc = 3
+    region_q = Queue()
+    bed_q = Queue()
 
-    contigs = None
-    if args.contigs is not None:
-        if os.path.isfile(args.contigs):
-            if args.contigs.endswith(".fa") or args.contigs.endswith(".fasta") or args.contigs.endswith(".fna"):
-                contigs = _get_contignams_from_genome_fasta(args.contigs)
-            elif _is_file_a_genome_fasta(args.contigs):
-                contigs = _get_contignams_from_genome_fasta(args.contigs)
-            else:
-                contigs = sorted(list(set(_read_file_lines(args.contigs))))
-        else:
-            contigs = sorted(list(set(args.contigs.strip().split(","))))
+    p_read = mp.Process(target=_worker_split_ref_regions,
+                        args=(args.ref, region_q, args))
+    p_read.daemon = True
+    p_read.start()
 
-    if contigs is None:
-        print("read the input files..")
-        sites_stats = calculate_mods_frequency(mods_files, prob_cf, rm_1strand)
-        print("write the result..")
-        write_sitekey2stats(sites_stats, result_file, issort, isbed, is_gzip)
-    else:
-        print("start processing {} contigs..".format(len(contigs)))
-        wprefix = os.path.dirname(os.path.abspath(result_file)) + "/tmp." + str(uuid.uuid1())
-        print("generate input files for each contig..")
-        _split_file_by_contignames(mods_files, wprefix, contigs)
-        print("read the input files of each contig..")
-        contigs_q = Queue()
-        for contig in contigs:
-            contigs_q.put(contig)
-        contigs_q.put("kill")
-        resfiles_q = Queue()
-        procs_contig = []
-        for _ in range(args.nproc):
-            p_contig = mp.Process(target=_call_and_write_modsfreq_process,
-                                  args=(wprefix, prob_cf, result_file, issort, isbed, rm_1strand, is_gzip,
-                                        contigs_q, resfiles_q))
-            p_contig.daemon = True
-            p_contig.start()
-            procs_contig.append(p_contig)
-        resfiles_cs = []
-        while True:
-            running = any(p.is_alive() for p in procs_contig)
-            while not resfiles_q.empty():
-                resfiles_cs.append(resfiles_q.get())
-            if not running:
-                break
-        for p in procs_contig:
-            p.join()
-        try:
-            assert len(contigs) == len(resfiles_cs)
-        except AssertionError:
-            print("!!!Please check the result files -- seems not all inputed contigs have result!!!")
-        print("combine results of {} contigs..".format(len(resfiles_cs)))
-        _concat_contig_results(resfiles_cs, result_file)
-    print("[main]call_freq costs %.1f seconds.." % (time.time() - start))
+    ps_gen = []
+    for _ in range(nproc - 2):
+        p = mp.Process(target=_worker_generate_bed_of_regions,
+                       args=(inputpath, region_q, bed_q, args))
+        p.daemon = True
+        p.start()
+        ps_gen.append(p)
+
+    p_w = mp.Process(target=_worker_write_bed_result,
+                     args=(args.output, bed_q, args))
+    p_w.daemon = True
+    p_w.start()
+
+    for p in ps_gen:
+        p.join()
+    p_read.join()
+    bed_q.put("kill")
+    p_w.join()
+
+    print("[main]call_freq_bam costs %.1f seconds.." % (time.time() - start))
 
 
 def main():
@@ -341,29 +379,57 @@ def main():
     scfb_input = parser.add_argument_group("INPUT")
     scfb_input.add_argument('--input_bam', action="store", type=str, required=True,
                             help='input bam, should be aligned and sorted')
-    scfb_input.add_argument("--ref", type=str, required=False,
+    scfb_input.add_argument("--ref", type=str, required=True,
                             help="path to genome reference, in fasta/fa format.")
     scfb_input.add_argument('--contigs', action="store", type=str, required=False, default=None,
                             help="path of a file containing chromosome/contig names, one name each line; "
                                  "or a string contains multiple chromosome names splited by comma."
                                  "default None, which means all chromosomes will be processed.")
+    scfb_input.add_argument('--chunk_len', type=int, required=False, default=500000,
+                            help="chunk length, default 500000")
 
     scfb_output = parser.add_argument_group("OUTPUT")
     scfb_output.add_argument('--output', '-o', action="store", type=str, required=True,
-                             help='the prefix of file path to save the results')
+                             help='prefix of output file to save the results')
+    scfb_output.add_argument('--bed', action='store_true', default=False,
+                             help="save the result in bedMethyl format")
     scfb_output.add_argument('--sort', action='store_true', default=False, help="sort items in the result")
     scfb_output.add_argument("--gzip", action="store_true", default=False, required=False,
                              help="if compressing the output using gzip")
 
     scfb_callfreq = parser.add_argument_group("CALL_FREQ")
+    scfb_callfreq.add_argument('--modtype', type=str, action="store", required=False, default="5mC",
+                               choices=["5mC", ],
+                               help='modification type, default 5mC.')
+    scfb_callfreq.add_argument('--call_mode', type=str, action="store", required=False, default="count",
+                               choices=["count", "aggregate"],
+                               help='call mode: count, aggregate. default count.')
     scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
                                help='this is to remove ambiguous calls. '
                                'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
                                'means use all calls. range [0, 1], default 0.0.')
+    scfb_callfreq.add_argument("--hap_tag", type=str, action="store", required=False, default="HP",
+                               help="haplotype tag, default HP")
+    scfb_callfreq.add_argument("--mapq", type=int, default=10, required=False,
+                               help="MAPping Quality cutoff for selecting alignment items, default 10")
+    scfb_callfreq.add_argument("--identity", type=float, default=0.8, required=False,
+                               help="identity cutoff for selecting alignment items, default 0.8")
+    scfb_callfreq.add_argument("--no_supplementary", action="store_true", default=False, required=False,
+                               help="not use supplementary alignment")
+    scfb_callfreq.add_argument("--motifs", action="store", type=str,
+                               required=False, default='CG',
+                               help='motif seq to be extracted, default: CG. '
+                                    'can be multi motifs splited by comma '
+                                    '(no space allowed in the input str), '
+                                    'or use IUPAC alphabet, '
+                                    'the mod_loc of all motifs must be '
+                                    'the same')
+    scfb_callfreq.add_argument("--no_comb", action="store_true", default=False, required=False,
+                               help="dont combine fwd/rev reads of one CG. only works when motifs is CG.")
 
     args = parser.parse_args()
 
-    call_mods_frequency_to_file(args)
+    call_mods_frequency_from_bamfile(args)
 
 
 if __name__ == '__main__':

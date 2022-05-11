@@ -12,13 +12,13 @@ import gzip
 import time
 
 import multiprocessing as mp
-from torch.multiprocessing import Queue
+from multiprocessing import Queue
 from .utils.process_utils import is_file_empty
 import uuid
 
 from .utils.process_utils import default_ref_loc
 
-time_wait = 3
+time_wait = 1
 key_sep = "||"
 
 
@@ -29,14 +29,15 @@ class ModRecord:
         self._site_key = key_sep.join([self._chromosome, str(self._pos)])
 
         self._strand = fields[2]
-        self.holeid = fields[3]
+        self._holeid = fields[3]
 
-        self._depthstr = fields[4]
-        self._depth = sum(list(map(int, self._depthstr.split(",")))) if "," in self._depthstr else int(self._depthstr)
-        self._prob_0 = float(fields[5])
-        self._prob_1 = float(fields[6])
-        self._called_label = int(fields[7])
-        self._kmer = fields[8]
+        self._loc = fields[4]
+        self._depthstr = fields[5]
+        self._depth = max(list(map(int, self._depthstr.split(",")))) if "," in self._depthstr else int(self._depthstr)
+        self._prob_0 = float(fields[6])
+        self._prob_1 = float(fields[7])
+        self._called_label = int(fields[8])
+        self._kmer = fields[9]
 
     def is_record_callable(self, prob_threshold):
         if abs(self._prob_0 - self._prob_1) < prob_threshold:
@@ -149,14 +150,17 @@ def write_sitekey2stats(sitekey2stats, result_file, is_sort, is_bed, is_gzip):
                 wf.write("\t".join([chrom, str(pos), str(pos + 1), ".", str(sitestats._coverage),
                                     sitestats._strand,
                                     str(pos), str(pos + 1), "0,0,0", str(sitestats._coverage),
-                                    str(int(round(rmet * 100, 0)))]) + "\n")
+                                    str(int(round(rmet * 100 + 0.001, 0)))]) + "\n")
             else:
-                wf.write("%s\t%d\t%s\t%.3f\t%.3f\t%d\t%d\t%d\t%.4f\t%s\n" % (chrom, pos, sitestats._strand,
-                                                                             sitestats._prob_0,
-                                                                             sitestats._prob_1,
-                                                                             sitestats._met, sitestats._unmet,
-                                                                             sitestats._coverage, rmet,
-                                                                             sitestats._kmer))
+                wf.write("%s\t%d\t%d\t%s\t%.3f\t%.3f\t%d\t%d\t%d\t%.4f\t%s\n" % (chrom, pos, pos+1,
+                                                                                 sitestats._strand,
+                                                                                 sitestats._prob_0,
+                                                                                 sitestats._prob_1,
+                                                                                 sitestats._met,
+                                                                                 sitestats._unmet,
+                                                                                 sitestats._coverage,
+                                                                                 rmet + 0.000001,
+                                                                                 sitestats._kmer))
         else:
             print("{} {} has no coverage..".format(chrom, pos))
     wf.flush()

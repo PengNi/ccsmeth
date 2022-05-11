@@ -30,11 +30,18 @@ def main_call_mods(args):
     call_mods(args)
 
 
-def main_call_freq(args):
-    from .call_mods_freq import call_mods_frequency_to_file
+def main_call_freqt(args):
+    from .call_mods_freq_txt import call_mods_frequency_to_file
 
     display_args(args)
     call_mods_frequency_to_file(args)
+
+
+def main_call_freqb(args):
+    from .call_mods_freq_bam import call_mods_frequency_from_bamfile
+
+    display_args(args)
+    call_mods_frequency_from_bamfile(args)
 
 
 def main_extract(args):
@@ -59,7 +66,10 @@ def main():
                                                  "using CCS (PBCCS)\n"
                                                  "\t%(prog)s align_hifi: align hifi reads to reference\n"
                                                  "\t%(prog)s call_mods: call modifications\n"
-                                                 "\t%(prog)s call_freq: call modification frequencies\n"
+                                                 "\t%(prog)s call_freqt: call modification frequencies from "
+                                                 "per_readsite text files\n"
+                                                 "\t%(prog)s call_freqb: call modification frequencies from "
+                                                 "modbam.bam file\n"
                                                  "\t%(prog)s extract: extract features from hifi reads "
                                                  "for training or testing\n"
                                                  "\t%(prog)s train: train a model, need two independent "
@@ -77,7 +87,12 @@ def main():
     sub_align_hifi = subparsers.add_parser("align_hifi", description="align hifi reads using pbmm2/minimap2/bwa, "
                                                                      "default pbmm2")
     sub_call_mods = subparsers.add_parser("call_mods", description="call modifications")
-    sub_call_freq = subparsers.add_parser("call_freq", description="call frequency of modifications at genome level")
+    sub_call_freqt = subparsers.add_parser("call_freqt",
+                                           description="call frequency of modifications at genome level from "
+                                                       "per_readsite text files")
+    sub_call_freqb = subparsers.add_parser("call_freqb",
+                                           description="call frequency of modifications at genome level from "
+                                                       "modbam.bam file")
     sub_extract = subparsers.add_parser("extract", description="extract features from hifi reads.")
     sub_train = subparsers.add_parser("train", description="train a model, need two independent datasets for training "
                                                            "and validating")
@@ -259,8 +274,8 @@ def main():
     scm_extract_ref = sub_call_mods.add_argument_group("EXTRACTION REFERENCE_MODE")
     scm_extract_ref.add_argument("--ref", type=str, required=False,
                                  help="path to genome reference to be aligned, in fasta/fa format.")
-    scm_extract_ref.add_argument("--mapq", type=int, default=15, required=False,
-                                 help="MAPping Quality cutoff for selecting alignment items, default 15")
+    scm_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
+                                 help="MAPping Quality cutoff for selecting alignment items, default 10")
     scm_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                  help="identity cutoff for selecting alignment items, default 0.8")
     scm_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
@@ -340,8 +355,8 @@ def main():
     se_extract_ref = sub_extract.add_argument_group("EXTRACTION REFERENCE_MODE")
     se_extract_ref.add_argument("--ref", type=str, required=False,
                                 help="path to genome reference to be aligned, in fasta/fa format.")
-    se_extract_ref.add_argument("--mapq", type=int, default=15, required=False,
-                                help="MAPping Quality cutoff for selecting alignment items, default 15")
+    se_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
+                                help="MAPping Quality cutoff for selecting alignment items, default 10")
     se_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
                                 help="identity cutoff for selecting alignment items, default 0.8")
     se_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
@@ -353,8 +368,8 @@ def main():
 
     sub_extract.set_defaults(func=main_extract)
 
-    # sub_call_freq =====================================================================================
-    scf_input = sub_call_freq.add_argument_group("INPUT")
+    # sub_call_freq_txt =====================================================================================
+    scf_input = sub_call_freqt.add_argument_group("INPUT")
     scf_input.add_argument('--input_path', '-i', action="append", type=str, required=True,
                            help='an output file from call_mods/call_modifications.py, or a directory contains '
                                 'a bunch of output files. this arg is in "append" mode, can be used multiple times')
@@ -363,7 +378,7 @@ def main():
                                 'and ignoring the not-input-files in a input directory. if input_path is a file, '
                                 'ignore this arg.')
 
-    scf_output = sub_call_freq.add_argument_group("OUTPUT")
+    scf_output = sub_call_freqt.add_argument_group("OUTPUT")
     scf_output.add_argument('--result_file', '-o', action="store", type=str, required=True,
                             help='the file path to save the result')
     scf_output.add_argument('--bed', action='store_true', default=False, help="save the result in bedMethyl format")
@@ -371,7 +386,7 @@ def main():
     scf_output.add_argument("--gzip", action="store_true", default=False, required=False,
                             help="if compressing the output using gzip")
 
-    scf_cal = sub_call_freq.add_argument_group("CALL_FREQ")
+    scf_cal = sub_call_freqt.add_argument_group("CALL_FREQ")
     scf_cal.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
                          help='this is to remove ambiguous calls. '
                               'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
@@ -379,7 +394,7 @@ def main():
     scf_cal.add_argument('--rm_1strand', action='store_true', default=False,
                          help="abandon ccs reads with only 1 strand subreads [DEPRECATED]")
 
-    scf_para = sub_call_freq.add_argument_group("PARALLEL")
+    scf_para = sub_call_freqt.add_argument_group("PARALLEL")
     scf_para.add_argument('--contigs', action="store", type=str, required=False, default=None,
                           help="a reference genome file (.fa/.fasta/.fna), used for extracting all "
                                "contig names for parallel; "
@@ -387,11 +402,68 @@ def main():
                                "or a string contains multiple chromosome names splited by comma."
                                "default None, which means all chromosomes will be processed at one time. "
                                "If not None, one chromosome will be processed by one subprocess.")
-    scf_para.add_argument('--nproc', action="store", type=int, required=False, default=1,
+    scf_para.add_argument('--threads', action="store", type=int, required=False, default=1,
                           help="number of subprocesses used when --contigs is set. i.e., number of contigs processed "
                                "in parallel. default 1")
 
-    sub_call_freq.set_defaults(func=main_call_freq)
+    sub_call_freqt.set_defaults(func=main_call_freqt)
+
+    # sub_call_freq_bam =====================================================================================
+    sub_call_freqb.add_argument('--threads', action="store", type=int, required=False, default=5,
+                                help="number of subprocesses used. default 5")
+
+    scfb_input = sub_call_freqb.add_argument_group("INPUT")
+    scfb_input.add_argument('--input_bam', action="store", type=str, required=True,
+                            help='input bam, should be aligned and sorted')
+    scfb_input.add_argument("--ref", type=str, required=True,
+                            help="path to genome reference, in fasta/fa format.")
+    scfb_input.add_argument('--contigs', action="store", type=str, required=False, default=None,
+                            help="path of a file containing chromosome/contig names, one name each line; "
+                                 "or a string contains multiple chromosome names splited by comma."
+                                 "default None, which means all chromosomes will be processed.")
+    scfb_input.add_argument('--chunk_len', type=int, required=False, default=500000,
+                            help="chunk length, default 500000")
+
+    scfb_output = sub_call_freqb.add_argument_group("OUTPUT")
+    scfb_output.add_argument('--output', '-o', action="store", type=str, required=True,
+                             help='prefix of output file to save the results')
+    scfb_output.add_argument('--bed', action='store_true', default=False,
+                             help="save the result in bedMethyl format")
+    scfb_output.add_argument('--sort', action='store_true', default=False, help="sort items in the result")
+    scfb_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                             help="if compressing the output using gzip")
+
+    scfb_callfreq = sub_call_freqb.add_argument_group("CALL_FREQ")
+    scfb_callfreq.add_argument('--modtype', type=str, action="store", required=False, default="5mC",
+                               choices=["5mC", ],
+                               help='modification type, default 5mC.')
+    scfb_callfreq.add_argument('--call_mode', type=str, action="store", required=False, default="count",
+                               choices=["count", "aggregate"],
+                               help='call mode: count, aggregate. default count.')
+    scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
+                               help='this is to remove ambiguous calls. '
+                                    'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
+                                    'means use all calls. range [0, 1], default 0.0.')
+    scfb_callfreq.add_argument("--hap_tag", type=str, action="store", required=False, default="HP",
+                               help="haplotype tag, default HP")
+    scfb_callfreq.add_argument("--mapq", type=int, default=10, required=False,
+                               help="MAPping Quality cutoff for selecting alignment items, default 10")
+    scfb_callfreq.add_argument("--identity", type=float, default=0.8, required=False,
+                               help="identity cutoff for selecting alignment items, default 0.8")
+    scfb_callfreq.add_argument("--no_supplementary", action="store_true", default=False, required=False,
+                               help="not use supplementary alignment")
+    scfb_callfreq.add_argument("--motifs", action="store", type=str,
+                               required=False, default='CG',
+                               help='motif seq to be extracted, default: CG. '
+                                    'can be multi motifs splited by comma '
+                                    '(no space allowed in the input str), '
+                                    'or use IUPAC alphabet, '
+                                    'the mod_loc of all motifs must be '
+                                    'the same')
+    scfb_callfreq.add_argument("--no_comb", action="store_true", default=False, required=False,
+                               help="dont combine fwd/rev reads of one CG. only works when motifs is CG.")
+
+    sub_call_freqb.set_defaults(func=main_call_freqb)
 
     # sub_train =====================================================================================
     st_input = sub_train.add_argument_group("INPUT")

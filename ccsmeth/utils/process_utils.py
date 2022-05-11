@@ -4,6 +4,7 @@ from subprocess import Popen, PIPE
 import os
 import sys
 import re
+import pysam
 
 
 basepairs = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N',
@@ -247,6 +248,24 @@ def generate_samtools_index_cmd(path_to_samtools, threads=10):
     if path_to_samtools is not None:
         samtools = os.path.abspath(path_to_samtools)
     return samtools + " index -@ {}".format(threads if threads is not None else 3)
+
+
+# def index_bam_if_needed(inputfile, args):
+#     if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
+#         samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)
+#         index_cmd = " ".join([samtools_index, inputfile])
+#         sys.stderr.write("indexing bam file: {}\n".format(index_cmd))
+#         stdinfo, returncode = run_cmd(index_cmd)
+#         if returncode:
+#             raise ValueError("indexing bam file failed, please try indexing it mannually using samtools")
+#         else:
+#             sys.stderr.write("indexing bam file succeeded..\n")
+
+
+def index_bam_if_needed2(inputfile, threads):
+    if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
+        sys.stderr.write("indexing bam file-{}\n".format(inputfile))
+        pysam.index("-@", str(threads), inputfile)
 
 
 # =================================================================

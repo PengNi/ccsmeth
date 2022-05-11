@@ -17,14 +17,15 @@ class ModRecord:
         self._site_key = key_sep.join([self._chromosome, str(self._pos)])
 
         self._strand = fields[2]
-        self.holeid = fields[3]
+        self._holeid = fields[3]
 
-        self._depthstr = fields[4]
-        self._depth = sum(list(map(int, self._depthstr.split(",")))) if "," in self._depthstr else int(self._depthstr)
-        self._prob_0 = float(fields[5])
-        self._prob_1 = float(fields[6])
-        self._called_label = int(fields[7])
-        self._kmer = fields[8]
+        self._loc = fields[4]
+        self._depthstr = fields[5]
+        self._depth = max(list(map(int, self._depthstr.split(",")))) if "," in self._depthstr else int(self._depthstr)
+        self._prob_0 = float(fields[6])
+        self._prob_1 = float(fields[7])
+        self._called_label = int(fields[8])
+        self._kmer = fields[9]
 
     def is_record_callable(self, prob_threshold):
         if abs(self._prob_0 - self._prob_1) < prob_threshold:
@@ -62,6 +63,8 @@ def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False):
                 count += 1
                 words = line.strip().split("\t")
                 mod_record = ModRecord(words)
+                if mod_record._pos == -1:
+                    continue
                 if rm_1strand and "," not in mod_record._depthstr:
                     continue
                 if not mod_record.is_record_callable(prob_cf):

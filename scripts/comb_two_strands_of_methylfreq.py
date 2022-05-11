@@ -89,7 +89,7 @@ def combine_fb_of_bedmethyl(report_fp):
         if pos2info[cgpos][0] == 0:
             del pos2info[cgpos]
         else:
-            pos2info[cgpos][1] = round((pos2info[cgpos][1] / pos2info[cgpos][0]) * 100)
+            pos2info[cgpos][1] = round((pos2info[cgpos][1] / pos2info[cgpos][0]) * 100 + 0.001)
     mposinfo = []
     for cgpos in pos2info.keys():
         chrom, pos = cgpos
@@ -109,7 +109,7 @@ def write_mpos2covinfo(mclist, mcfile):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--report_fp", help="the pred_in_ref report file path",
+    parser.add_argument("--freq_file", help="the methyl freq file path",
                         type=str, required=True)
     parser.add_argument('-t', "--rtype", help="bismark, bedmethyl, or ccsmeth",
                         type=str, default='bedmethyl')
