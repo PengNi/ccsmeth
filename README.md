@@ -24,20 +24,26 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [pybedtools](https://daler.github.io/pybedtools/) \
        [pytabix](https://github.com/slowkow/pytabix)
 
-#### install ccsmeth from github (latest version):
+#### 1. install ccsmeth
 ```bash
-# it is highly recommended to install ccsmeth in an virtual environment
+# 1. it is highly recommended to install ccsmeth in an virtual environment
 conda create -n ccsmethenv python=3.7
 # activate
 conda activate ccsmethenv
-# download and install ccsmethy from github
+# deactivate this environment
+conda deactivate
+
+# 2.  install ccsmeth from github (latest version)
 git clone https://github.com/PengNi/ccsmeth.git
 cd ccsmeth
 python setup.py install
-
-# deactivate this environment
-conda deactivate
+# or install ccsmeth using pip
+pip install ccsmeth
 ```
+
+#### 2. install necessary packages
+Install necessary packages([pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended.
+
 
 ## Trained models
 See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
