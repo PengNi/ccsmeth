@@ -61,6 +61,6 @@ setup(
         'Natural Language :: English',
         'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Operating System :: MacOS :: MacOS X',
-        'Operating System :: Linux',
+        'Operating System :: POSIX :: Linux',
         ],
 )

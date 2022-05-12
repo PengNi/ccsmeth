@@ -452,7 +452,7 @@ PARALLEL:
                         i.e., number of contigs processed in parallel. default
                         1
 ```
-The format of the output file is the same as `ccsmeth call_freqb`.
+The format of the output file is the same as of `ccsmeth call_freqb`.
 
 #### 6. extract features
 
@@ -530,7 +530,7 @@ EXTRACTION REFERENCE_MODE:
                         default yes
 ```
 
-#### 7. train models
+#### 7. train a new model
 
 ```shell
 ccsmeth train -h
