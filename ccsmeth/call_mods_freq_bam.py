@@ -94,7 +94,7 @@ def _worker_split_ref_regions(ref_fa, region_q, args):
 
 
 def _cal_mod_prob(ml_value):
-    return round(ml_value / float(256), 6)
+    return round(ml_value / float(256) + 0.000001, 6)
 
 
 def _get_moddict(readitem, modbase="C", modification="m"):

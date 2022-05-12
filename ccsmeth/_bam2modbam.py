@@ -24,7 +24,7 @@ time_wait = 1
 
 
 # generate per_read bed file ==============================
-def _generate_per_read_calls(per_readsite, output, skip_unmapped=False):
+def _generate_per_read_calls(per_readsite, output):
     # chromosome, pos, strand, read_name, read_loc, depth, prob_0, prob_1, called_label, seq
     wf = open(output, "w")
     if per_readsite.endswith(".gz"):
@@ -33,16 +33,13 @@ def _generate_per_read_calls(per_readsite, output, skip_unmapped=False):
         rf = open(per_readsite, "r")
     holeid_curr = ""
     holeid_info = []
+    cur_locs = set()
     for line in rf:
         words = line.strip().split("\t")
         ref_loc = int(words[1])
-        if skip_unmapped and ref_loc == default_ref_loc:
-            continue
         holeid, loc, prob_1 = words[3], int(words[4]), float(words[7])
         if holeid != holeid_curr:
             if len(holeid_info) > 0:
-                # TODO: if skip_unmapped is False, there are chances that locs has replicated values because of
-                # TODO: supplementary alignment following the primary alignment immediately
                 holeid_info = sorted(holeid_info, key=lambda x: x[0])
                 holeid_info = list(zip(*holeid_info))
                 locs = holeid_info[0]
@@ -53,8 +50,11 @@ def _generate_per_read_calls(per_readsite, output, skip_unmapped=False):
                                     ",".join(list(map(str, locs))),
                                     ",".join(list(map(str, prob_1s)))]) + "\n")
             holeid_info = []
+            cur_locs = set()
             holeid_curr = holeid
-        holeid_info.append((loc, prob_1))
+        if loc not in cur_locs:
+            cur_locs.add(loc)
+            holeid_info.append((loc, prob_1))
     if len(holeid_info) > 0:
         holeid_info = sorted(holeid_info, key=lambda x: x[0])
         holeid_info = list(zip(*holeid_info))
@@ -75,9 +75,10 @@ def _sort_and_index_bedfile(bedfile):
     pysam.tabix_index(bedfile, force=True,
                       preset="bed",
                       keep_original=False)
+    return bedfile if bedfile.endswith(".gz") else bedfile + ".gz"
 
 
-def _generate_sorted_per_read_calls(per_readsite, output, is_gzip, skip_unmapped):
+def _generate_sorted_per_read_calls(per_readsite, output):
     fname, fext = os.path.splitext(per_readsite)
     if output is None:
         wfile = fname + ".per_read.bed"
@@ -85,12 +86,10 @@ def _generate_sorted_per_read_calls(per_readsite, output, is_gzip, skip_unmapped
         wfile = output
         if wfile.endswith(".gz"):
             wfile = wfile[:-3]
-    _generate_per_read_calls(per_readsite, wfile, skip_unmapped)
-    if (output is not None and output.endswith(".gz")) or is_gzip:
-        _sort_and_index_bedfile(wfile)
-        return wfile + ".gz"
-    else:
-        return wfile
+    _generate_per_read_calls(per_readsite, wfile)
+    # sort+index
+    bedfile = _sort_and_index_bedfile(wfile)
+    return bedfile
 
 
 # generate modbam files ============
@@ -143,34 +142,6 @@ def _worker_reader(bamfile, batch_size, rreads_q):
     sys.stderr.write("read {} reads from input file\n".format(cnt_all))
 
 
-# def _fetch_a_read_from_tabixobj(readname, tabixobj):
-#     # pysam
-#     try:
-#         rows = tabixobj.fetch(readname, parser=pysam.asTuple())
-#         for row in rows:
-#             return row
-#     except ValueError:
-#         return None
-
-
-def _fetch_a_read_from_tabixobj2(readname, tabixobj):
-    # pytabix is faster
-    try:
-        rows = tabixobj.query(readname, 0, 5000000)
-        row_list = []
-        row_lens = []
-        for row in rows:
-            row_list.append(row)
-            row_lens.append(int(row[3]))
-        if len(row_list) == 1:
-            return row_list[0]
-        else:
-            max_idx = np.argmax(np.array(row_lens))
-            return row_list[max_idx]
-    except tabix.TabixError:
-        return None
-
-
 def _convert_locstr(locstr):
     return [int(x) for x in locstr.split(",")]
 
@@ -179,11 +150,36 @@ def _convert_probstr(probstr):
     return [float(x) for x in probstr.split(",")]
 
 
+def _fetch_locprobs_of_a_read_from_tabixobj2(readname, tabixobj):
+    # pytabix is faster
+    try:
+        rows = tabixobj.query(readname, 0, 5000000)
+        row_list = []
+        for row in rows:
+            row_list.append(row)
+        if len(row_list) == 1:
+            return _convert_locstr(row_list[0][4]), _convert_probstr(row_list[0][5])
+        else:
+            locs_0, probs_0 = _convert_locstr(row_list[0][4]), _convert_probstr(row_list[0][5])
+            loc_probs = list(zip(locs_0, probs_0))
+            locs_set = set(locs_0)
+            for ridx in range(1, len(row_list)):
+                locs_tmp, probs_tmp = _convert_locstr(row_list[ridx][4]), _convert_probstr(row_list[ridx][5])
+                for lidx in range(len(locs_tmp)):
+                    if locs_tmp[lidx] not in locs_set:
+                        locs_set.add(locs_tmp[lidx])
+                        loc_probs.append((locs_tmp[lidx], probs_tmp[lidx]))
+            loc_probs = sorted(loc_probs, key=lambda x: x[0])
+            loc_probs = list(zip(*loc_probs))
+            return loc_probs[0], loc_probs[1]
+    except tabix.TabixError:
+        return None
+
+
 def query_locs_probs_of_a_read(readname, tabixobj):
-    # row = _fetch_a_read_from_tabixobj(readname, tabixobj)
-    row = _fetch_a_read_from_tabixobj2(readname, tabixobj)
-    if row is not None:
-        return _convert_locstr(row[4]), _convert_probstr(row[5])
+    loc_prob = _fetch_locprobs_of_a_read_from_tabixobj2(readname, tabixobj)
+    if loc_prob is not None:
+        return loc_prob[0], loc_prob[1]
     return None, None
 
 
@@ -319,14 +315,13 @@ def _worker_write_modbam(wreads_q, modbamfile, inputbamfile):
 
 
 def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
-                          rm_pulse=True, skip_unmapped=False, threads=3,
+                          rm_pulse=True, threads=3,
                           reads_batch=100):
     sys.stderr.write("[generate_modbam_file]starts\n")
     start = time.time()
 
     sys.stderr.write("generating per_read mod_calls..\n")
-    per_read_file = _generate_sorted_per_read_calls(per_readsite, None, is_gzip=True,
-                                                    skip_unmapped=skip_unmapped)
+    per_read_file = _generate_sorted_per_read_calls(per_readsite, None)
 
     sys.stderr.write("add per_read mod_calls to bam file..\n")
     rreads_q = Queue()

@@ -6,7 +6,6 @@ import math
 import sys
 import time
 import tabix
-import numpy as np
 
 import multiprocessing as mp
 from multiprocessing import Queue
@@ -99,34 +98,6 @@ def _worker_reader(bamfile, batch_size, rreads_q):
     sys.stderr.write("read {} reads from input file\n".format(cnt_all))
 
 
-# def _fetch_a_read_from_tabixobj(readname, tabixobj):
-#     # pysam
-#     try:
-#         rows = tabixobj.fetch(readname, parser=pysam.asTuple())
-#         for row in rows:
-#             return row
-#     except ValueError:
-#         return None
-
-
-def _fetch_a_read_from_tabixobj2(readname, tabixobj):
-    # pytabix is faster
-    try:
-        rows = tabixobj.query(readname, 0, 5000000)
-        row_list = []
-        row_lens = []
-        for row in rows:
-            row_list.append(row)
-            row_lens.append(int(row[3]))
-        if len(row_list) == 1:
-            return row_list[0]
-        else:
-            max_idx = np.argmax(np.array(row_lens))
-            return row_list[max_idx]
-    except tabix.TabixError:
-        return None
-
-
 def _convert_locstr(locstr):
     return [int(x) for x in locstr.split(",")]
 
@@ -135,11 +106,36 @@ def _convert_probstr(probstr):
     return [float(x) for x in probstr.split(",")]
 
 
+def _fetch_locprobs_of_a_read_from_tabixobj2(readname, tabixobj):
+    # pytabix is faster
+    try:
+        rows = tabixobj.query(readname, 0, 5000000)
+        row_list = []
+        for row in rows:
+            row_list.append(row)
+        if len(row_list) == 1:
+            return _convert_locstr(row_list[0][4]), _convert_probstr(row_list[0][5])
+        else:
+            locs_0, probs_0 = _convert_locstr(row_list[0][4]), _convert_probstr(row_list[0][5])
+            loc_probs = list(zip(locs_0, probs_0))
+            locs_set = set(locs_0)
+            for ridx in range(1, len(row_list)):
+                locs_tmp, probs_tmp = _convert_locstr(row_list[ridx][4]), _convert_probstr(row_list[ridx][5])
+                for lidx in range(len(locs_tmp)):
+                    if locs_tmp[lidx] not in locs_set:
+                        locs_set.add(locs_tmp[lidx])
+                        loc_probs.append((locs_tmp[lidx], probs_tmp[lidx]))
+            loc_probs = sorted(loc_probs, key=lambda x: x[0])
+            loc_probs = list(zip(*loc_probs))
+            return loc_probs[0], loc_probs[1]
+    except tabix.TabixError:
+        return None
+
+
 def query_locs_probs_of_a_read(readname, tabixobj):
-    # row = _fetch_a_read_from_tabixobj(readname, tabixobj)
-    row = _fetch_a_read_from_tabixobj2(readname, tabixobj)
-    if row is not None:
-        return _convert_locstr(row[4]), _convert_probstr(row[5])
+    loc_prob = _fetch_locprobs_of_a_read_from_tabixobj2(readname, tabixobj)
+    if loc_prob is not None:
+        return loc_prob[0], loc_prob[1]
     return None, None
 
 
@@ -275,14 +271,13 @@ def _worker_write_modbam(wreads_q, modbamfile, inputbamfile):
 
 
 def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
-                          rm_pulse=True, skip_unmapped=False, threads=3,
+                          rm_pulse=True, threads=3,
                           reads_batch=100):
     sys.stderr.write("[generate_modbam_file]starts\n")
     start = time.time()
 
     sys.stderr.write("generating per_read mod_calls..\n")
-    per_read_file = _generate_sorted_per_read_calls(per_readsite, None, is_gzip=True,
-                                                    skip_unmapped=skip_unmapped)
+    per_read_file = _generate_sorted_per_read_calls(per_readsite, None)
 
     sys.stderr.write("add per_read mod_calls to bam file..\n")
     rreads_q = Queue()
@@ -342,8 +337,6 @@ def main():
     parser.add_argument("--modbam", type=str, required=False, help="output modbam file")
     parser.add_argument("--rm_pulse", action="store_true", default=False, required=False,
                         help="if remove ipd/pw tags in the bam file")
-    parser.add_argument("--skip_unmapped", action="store_true", default=False, required=False,
-                        help="skip unmapped sites")
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")
@@ -353,8 +346,7 @@ def main():
     args = parser.parse_args()
 
     add_mm_ml_tags_to_bam(args.bam, args.per_readsite, args.modbam,
-                          args.rm_pulse, args.skip_unmapped, args.threads,
-                          args.batch_size)
+                          args.rm_pulse, args.threads, args.batch_size)
 
 
 if __name__ == '__main__':
