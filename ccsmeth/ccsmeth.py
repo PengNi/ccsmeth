@@ -393,6 +393,22 @@ def main():
                               'means use all calls. range [0, 1], default 0.0.')
     scf_cal.add_argument('--rm_1strand', action='store_true', default=False,
                          help="abandon ccs reads with only 1 strand subreads [DEPRECATED]")
+    scf_cal.add_argument('--refsites_only', action='store_true', default=False,
+                         help="only keep sites which is a target motif in reference")
+    scf_cal.add_argument("--motifs", action="store", type=str,
+                         required=False, default='CG',
+                         help='motif seq to be extracted, default: CG. '
+                              'can be multi motifs splited by comma '
+                              '(no space allowed in the input str), '
+                              'or use IUPAC alphabet, '
+                              'the mod_loc of all motifs must be '
+                              'the same. [Only useful when --refsites_only is True]')
+    scf_cal.add_argument("--mod_loc", action="store", type=int, required=False, default=0,
+                         help='0-based location of the targeted base in the motif, default 0. '
+                              '[Only useful when --refsites_only is True]')
+    scf_cal.add_argument("--ref", type=str, required=False,
+                         help="path to genome reference, in fasta/fa format. "
+                              "[Only useful when --refsites_only is True]")
 
     scf_para = sub_call_freqt.add_argument_group("PARALLEL")
     scf_para.add_argument('--contigs', action="store", type=str, required=False, default=None,
@@ -460,8 +476,12 @@ def main():
                                     'or use IUPAC alphabet, '
                                     'the mod_loc of all motifs must be '
                                     'the same')
+    scfb_callfreq.add_argument("--mod_loc", action="store", type=int, required=False, default=0,
+                               help='0-based location of the targeted base in the motif, default 0')
     scfb_callfreq.add_argument("--no_comb", action="store_true", default=False, required=False,
-                               help="dont combine fwd/rev reads of one CG. only works when motifs is CG.")
+                               help="dont combine fwd/rev reads of one CG. [Only works when motifs is CG]")
+    scfb_callfreq.add_argument('--refsites_only', action='store_true', default=False,
+                               help="only keep sites which is a target motif in reference")
 
     sub_call_freqb.set_defaults(func=main_call_freqb)
 

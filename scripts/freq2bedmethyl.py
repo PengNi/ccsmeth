@@ -10,14 +10,14 @@ def convert_ccsmeth_rmet_file2bedmethyl(args):
             words = line.strip().split("\t")
             chrom = words[0]
             pos = int(words[1])
-            strand = words[2]
-            methy_prob = float(words[3])
-            unmethy_prob = float(words[4])
-            methy_cov = int(words[5])
-            unmethy_cov = int(words[6])
-            cov = int(words[7])
-            rmet = float(words[8])
-            kmer = words[9]
+            strand = words[3]
+            methy_prob = float(words[4])
+            unmethy_prob = float(words[5])
+            methy_cov = int(words[6])
+            unmethy_cov = int(words[7])
+            cov = int(words[8])
+            rmet = float(words[9])
+            kmer = words[10]
 
             mkey = (chrom, pos, strand)
             if cov >= args.covcf:

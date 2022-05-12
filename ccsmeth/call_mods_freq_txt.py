@@ -17,6 +17,7 @@ from .utils.process_utils import is_file_empty
 import uuid
 
 from .utils.process_utils import default_ref_loc
+from .utils.process_utils import complement_seq
 
 time_wait = 1
 key_sep = "||"
@@ -115,16 +116,29 @@ def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False, contig_name=
     return sitekey2stats
 
 
-def write_sitekey2stats(sitekey2stats, result_file, is_sort, is_bed, is_gzip):
+def write_sitekey2stats(sitekey2stats, result_file, is_sort, is_bed, is_gzip,
+                        motifs=None, mod_loc=None, dnacontigs=None):
     """
     write methylfreq of sites into files
     :param sitekey2stats:
     :param result_file:
     :param is_sort: sorted by poses
     :param is_bed: in bed format or not
-    :prarm is_gzip:
+    :param is_gzip:
+    :param motifs:
+    :param mod_loc:
+    :param dnacontigs:
     :return:
     """
+    fwd_s, fwd_e, rev_s, rev_e = None, None, None, None
+    if motifs is not None:
+        len_motif = len(motifs[0])
+        fwd_s = -mod_loc
+        fwd_e = len_motif - mod_loc
+        rev_s = -(len_motif - 1 - mod_loc)
+        rev_e = mod_loc + 1
+        motifs = set(motifs)
+
     if is_sort:
         keys = sorted(list(sitekey2stats.keys()), key=lambda x: split_key(x))
     else:
@@ -136,10 +150,15 @@ def write_sitekey2stats(sitekey2stats, result_file, is_sort, is_bed, is_gzip):
         wf = gzip.open(result_file, "wt")
     else:
         wf = open(result_file, 'w')
-    # wf.write('\t'.join(['chromosome', 'pos', 'strand', 'prob0', 'prob1',
+    # wf.write('\t'.join(['chromosome', 'pos', 'pos+1', 'strand', 'prob0', 'prob1',
     #                     'met', 'unmet', 'coverage', 'rmet', 'kmer']) + '\n')
     for key in keys:
         chrom, pos, strand = split_key(key)
+        if motifs is not None:
+            motif_seq = dnacontigs[chrom][(pos+fwd_s):(pos+fwd_e)] if strand == "+" else \
+                complement_seq(dnacontigs[chrom][(pos+rev_s):(pos+rev_e)])
+            if motif_seq not in motifs:
+                continue
         sitestats = sitekey2stats[key]
         assert(sitestats._coverage == (sitestats._met + sitestats._unmet))
         if sitestats._coverage > 0:
@@ -216,6 +235,7 @@ def _split_file_by_contignames(mods_files, wprefix, contigs):
 
 
 def _call_and_write_modsfreq_process(wprefix, prob_cf, result_file, issort, isbed, rm_1strand, isgzip,
+                                     motifs, modloc, dnacontigs,
                                      contigs_q, resfiles_q):
     print("process-{} -- starts".format(os.getpid()))
     while True:
@@ -237,20 +257,25 @@ def _call_and_write_modsfreq_process(wprefix, prob_cf, result_file, issort, isbe
             print("process-{} for contig-{} -- writing the result..".format(os.getpid(), contig_name))
             fname, fext = os.path.splitext(result_file)
             c_result_file = fname + "." + contig_name + "." + str(uuid.uuid1()) + fext
-            write_sitekey2stats(sites_stats, c_result_file, issort, isbed, isgzip)
+            write_sitekey2stats(sites_stats, c_result_file, issort, isbed, isgzip,
+                                motifs, modloc, dnacontigs)
             resfiles_q.put(c_result_file)
         os.remove(input_file)
     print("process-{} -- ends".format(os.getpid()))
 
 
-def _concat_contig_results(contig_files, result_file):
-    wf = open(result_file, "w")
+def _concat_contig_results(contig_files, result_file, is_gzip=False):
+    if is_gzip:
+        if not result_file.endswith(".gz"):
+            result_file += ".gz"
+        wf = gzip.open(result_file, "wt")
+    else:
+        wf = open(result_file, 'w')
     for cfile in sorted(contig_files):
         with open(cfile, 'r') as rf:
             for line in rf:
                 wf.write(line)
         os.remove(cfile)
-    wf.flush()
     wf.close()
 
 
@@ -266,6 +291,23 @@ def call_mods_frequency_to_file(args):
     isbed = args.bed
     rm_1strand = args.rm_1strand
     is_gzip = args.gzip
+
+    # check if need to read genome reference
+    dnacontigs = None
+    motifs = None
+    modloc = None
+    if args.refsites_only:
+        from .utils.ref_reader import DNAReference
+        from .utils.process_utils import get_motif_seqs
+        if args.ref is None:
+            raise ValueError("--ref must be set when --refsites_only is True!")
+        if not os.path.exists(args.ref):
+            raise ValueError("--ref doesn't exist!")
+        dnacontigs = DNAReference(args.ref).getcontigs()
+        motifs = get_motif_seqs(args.motifs)
+        modloc = args.mod_loc
+        print("[###] --refsites_only is set as True, gonna keep only motifs({}) sites of genome reference "
+              "in the results".format(motifs))
 
     mods_files = []
     for ipath in input_paths:
@@ -298,7 +340,8 @@ def call_mods_frequency_to_file(args):
         print("read the input files..")
         sites_stats = calculate_mods_frequency(mods_files, prob_cf, rm_1strand)
         print("write the result..")
-        write_sitekey2stats(sites_stats, result_file, issort, isbed, is_gzip)
+        write_sitekey2stats(sites_stats, result_file, issort, isbed, is_gzip,
+                            motifs, modloc, dnacontigs)
     else:
         print("start processing {} contigs..".format(len(contigs)))
         wprefix = os.path.dirname(os.path.abspath(result_file)) + "/tmp." + str(uuid.uuid1())
@@ -313,7 +356,8 @@ def call_mods_frequency_to_file(args):
         procs_contig = []
         for _ in range(args.threads):
             p_contig = mp.Process(target=_call_and_write_modsfreq_process,
-                                  args=(wprefix, prob_cf, result_file, issort, isbed, rm_1strand, is_gzip,
+                                  args=(wprefix, prob_cf, result_file, issort, isbed, rm_1strand, False,
+                                        motifs, modloc, dnacontigs,
                                         contigs_q, resfiles_q))
             p_contig.daemon = True
             p_contig.start()
@@ -332,7 +376,7 @@ def call_mods_frequency_to_file(args):
         except AssertionError:
             print("!!!Please check the result files -- seems not all inputed contigs have result!!!")
         print("combine results of {} contigs..".format(len(resfiles_cs)))
-        _concat_contig_results(resfiles_cs, result_file)
+        _concat_contig_results(resfiles_cs, result_file, is_gzip)
     print("[main]call_freq costs %.1f seconds.." % (time.time() - start))
 
 
@@ -370,6 +414,23 @@ def main():
                         help="abandon ccs reads with only 1 strand subreads [DEPRECATED]")
     parser.add_argument("--gzip", action="store_true", default=False, required=False,
                         help="if compressing the output using gzip")
+
+    parser.add_argument('--refsites_only', action='store_true', default=False,
+                        help="only keep sites which is a target motif in reference")
+    parser.add_argument("--motifs", action="store", type=str,
+                        required=False, default='CG',
+                        help='motif seq to be extracted, default: CG. '
+                             'can be multi motifs splited by comma '
+                             '(no space allowed in the input str), '
+                             'or use IUPAC alphabet, '
+                             'the mod_loc of all motifs must be '
+                             'the same. [Only useful when --refsites_only is True]')
+    parser.add_argument("--mod_loc", action="store", type=int, required=False, default=0,
+                        help='0-based location of the targeted base in the motif, default 0. '
+                             '[Only useful when --refsites_only is True]')
+    parser.add_argument("--ref", type=str, required=False,
+                        help="path to genome reference, in fasta/fa format. "
+                             "[Only useful when --refsites_only is True]")
 
     args = parser.parse_args()
 

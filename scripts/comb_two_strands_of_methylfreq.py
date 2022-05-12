@@ -30,7 +30,7 @@ def combine_fb_of_ccsmeth(report_fp):
         else:
             pos2info[cgpos][5] = round(float(pos2info[cgpos][2]) / pos2info[cgpos][4], 4)
     mposinfo = []
-    for cgpos in pos2info.keys():
+    for cgpos in sorted(list(pos2info.keys())):
         mposinfo.append("\t".join(list(map(str, list(cgpos) + [cgpos[1]+1, '+', ] + pos2info[cgpos]))))
     return mposinfo
 
@@ -51,7 +51,7 @@ def combine_fb_of_bs_bismark_CpG_report(report_fp):  # bismark CpG_report.txt
                 pos2info[keytmp] = []
             pos2info[keytmp].append((strand, cnt_m, cnt_um, motif, context))
     mposinfo = []
-    for cgpos in pos2info.keys():
+    for cgpos in sorted(list(pos2info.keys())):
         if len(pos2info[cgpos]) == 1:
             strand, cnt_m, cnt_um, motif, context = pos2info[cgpos]
         elif len(pos2info[cgpos]) == 2:
@@ -91,7 +91,7 @@ def combine_fb_of_bedmethyl(report_fp):
         else:
             pos2info[cgpos][1] = round((pos2info[cgpos][1] / pos2info[cgpos][0]) * 100 + 0.001)
     mposinfo = []
-    for cgpos in pos2info.keys():
+    for cgpos in sorted(list(pos2info.keys())):
         chrom, pos = cgpos
         coverage, rmet = pos2info[cgpos][0], pos2info[cgpos][1]
         mposinfo.append("\t".join([chrom, str(pos), str(pos+1), ".", str(coverage), "+",

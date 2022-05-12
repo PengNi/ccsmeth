@@ -8,7 +8,6 @@ from __future__ import absolute_import
 import argparse
 import os
 import sys
-import gzip
 import time
 import numpy as np
 
@@ -22,6 +21,8 @@ from .utils.ref_reader import DNAReference
 from .utils.process_utils import compute_pct_identity
 from .utils.process_utils import is_file_empty
 from .utils.process_utils import index_bam_if_needed2
+from .utils.process_utils import get_motif_seqs
+from .utils.process_utils import complement_seq
 
 time_wait = 1
 key_sep = "||"
@@ -76,11 +77,9 @@ def _get_reference_chunks(dnacontigs, contig_str, chunk_len=300000, motifs="CG")
     return ref_chunks
 
 
-def _worker_split_ref_regions(ref_fa, region_q, args):
+def _worker_split_ref_regions(dnacontigs, region_q, args):
     sys.stderr.write("worker_split_regions process-{} starts\n".format(os.getpid()))
-    dnacontigs = DNAReference(ref_fa).getcontigs()
     ref_chunks = _get_reference_chunks(dnacontigs, args.contigs, args.chunk_len, args.motifs)
-    del dnacontigs
     sys.stderr.write("worker_split_regions process-{} generates {} regions\n".format(os.getpid(),
                                                                                      len(ref_chunks)))
     with tqdm(total=len(ref_chunks),
@@ -94,6 +93,10 @@ def _worker_split_ref_regions(ref_fa, region_q, args):
 
 
 def _cal_mod_prob(ml_value):
+    # WARN: if ori_prob exactly = 0.5, ml_value = floor(0.5*256) = 128
+    # WARN: then if we use the following to convert ml_value to prob, the the new_prob = 0.5000001.
+    # WARN: if we use the rule: label = 1 if prob>0.5 else 0, then the label of new_prob will be
+    # WARN: different with the label of ori_prob
     return round(ml_value / float(256) + 0.000001, 6)
 
 
@@ -274,8 +277,13 @@ def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, args):
                                                                                      cnt_regions))
 
 
-def _write_one_line(beditem, wf, is_bed):
+def _write_one_line(beditem, wf, is_bed, fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs):
     ref_name, refpos, strand, cov, met, metprob = beditem
+    if motifs_filter is not None:
+        motif_seq = dnacontigs[ref_name][(refpos + fwd_s):(refpos + fwd_e)] if strand == "+" else \
+            complement_seq(dnacontigs[ref_name][(refpos + rev_s):(refpos + rev_e)])
+        if motif_seq not in motifs_filter:
+            return
     if is_bed:
         wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), ".", str(cov),
                             strand, str(refpos), str(refpos + 1),
@@ -285,8 +293,17 @@ def _write_one_line(beditem, wf, is_bed):
                             str(cov-met), str(cov), str(round(metprob + 0.000001, 4))]) + "\n")
 
 
-def _worker_write_bed_result(output_prefix, bed_q, args):
+def _worker_write_bed_result(output_prefix, bed_q, motifs_filter, mod_loc, dnacontigs, args):
     sys.stderr.write('write_process-{} starts\n'.format(os.getpid()))
+    fwd_s, fwd_e, rev_s, rev_e = None, None, None, None
+    if motifs_filter is not None:
+        len_motif = len(motifs_filter[0])
+        fwd_s = -mod_loc
+        fwd_e = len_motif - mod_loc
+        rev_s = -(len_motif - 1 - mod_loc)
+        rev_e = mod_loc + 1
+        motifs_filter = set(motifs_filter)
+
     fext = "bed" if args.bed else "freq.txt"
     op_all = output_prefix + ".{}.all.{}".format(args.call_mode, fext)
     op_hp1 = output_prefix + ".{}.hp1.{}".format(args.call_mode, fext)
@@ -303,11 +320,14 @@ def _worker_write_bed_result(output_prefix, bed_q, args):
             break
         bed_all, bed_hp1, bed_hp2 = bed_res
         for beditem in bed_all:
-            _write_one_line(beditem, wf_all, args.bed)
+            _write_one_line(beditem, wf_all, args.bed,
+                            fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs)
         for beditem in bed_hp1:
-            _write_one_line(beditem, wf_hp1, args.bed)
+            _write_one_line(beditem, wf_hp1, args.bed,
+                            fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs)
         for beditem in bed_hp2:
-            _write_one_line(beditem, wf_hp2, args.bed)
+            _write_one_line(beditem, wf_hp2, args.bed,
+                            fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs)
     wf_all.close()
     wf_hp1.close()
     wf_hp2.close()
@@ -335,6 +355,15 @@ def call_mods_frequency_from_bamfile(args):
     index_bam_if_needed2(inputpath, args.threads)
     if not os.path.exists(args.ref):
         raise ValueError("--ref does not exist!")
+    dnacontigs = DNAReference(args.ref).getcontigs()
+    motifs = get_motif_seqs(args.motifs)
+
+    motifs_filter, modloc = None, None
+    if args.refsites_only:
+        motifs_filter = motifs
+        modloc = args.mod_loc
+        print("[###] --refsites_only is set as True, gonna keep only motifs({}) sites of genome reference "
+              "in the results".format(motifs_filter))
 
     nproc = args.threads
     if nproc < 3:
@@ -343,7 +372,7 @@ def call_mods_frequency_from_bamfile(args):
     bed_q = Queue()
 
     p_read = mp.Process(target=_worker_split_ref_regions,
-                        args=(args.ref, region_q, args))
+                        args=(dnacontigs, region_q, args))
     p_read.daemon = True
     p_read.start()
 
@@ -356,7 +385,7 @@ def call_mods_frequency_from_bamfile(args):
         ps_gen.append(p)
 
     p_w = mp.Process(target=_worker_write_bed_result,
-                     args=(args.output, bed_q, args))
+                     args=(args.output, bed_q, motifs_filter, modloc, dnacontigs, args))
     p_w.daemon = True
     p_w.start()
 
@@ -424,8 +453,12 @@ def main():
                                     'or use IUPAC alphabet, '
                                     'the mod_loc of all motifs must be '
                                     'the same')
+    scfb_callfreq.add_argument("--mod_loc", action="store", type=int, required=False, default=0,
+                               help='0-based location of the targeted base in the motif, default 0')
     scfb_callfreq.add_argument("--no_comb", action="store_true", default=False, required=False,
-                               help="dont combine fwd/rev reads of one CG. only works when motifs is CG.")
+                               help="dont combine fwd/rev reads of one CG. [Only works when motifs is CG]")
+    scfb_callfreq.add_argument('--refsites_only', action='store_true', default=False,
+                               help="only keep sites which is a target motif in reference")
 
     args = parser.parse_args()
 
