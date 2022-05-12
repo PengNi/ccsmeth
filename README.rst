@@ -12,7 +12,7 @@ use hifi reads instead of subreads as input
 
 modbam support
 
-use (chrom, pos, strand) as key instead of (chrom, pos) to handle CG mismatch in CCS read
+use (chrom, pos, strand) as key instead of (chrom, pos) to handle CG mismatch in CCS read when call_freq
 
 
 v0.1.2
