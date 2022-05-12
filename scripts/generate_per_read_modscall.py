@@ -17,7 +17,6 @@ def _generate_per_read_calls(per_readsite, output):
     cur_locs = set()
     for line in rf:
         words = line.strip().split("\t")
-        ref_loc = int(words[1])
         holeid, loc, prob_1 = words[3], int(words[4]), float(words[7])
         if holeid != holeid_curr:
             if len(holeid_info) > 0:

@@ -464,10 +464,8 @@ def call_mods(args):
         if str2bool(args.modbam):
             from ._bam2modbam import add_mm_ml_tags_to_bam
             out_modbam = args.output + ".modbam.bam"
-            skip_unmapped = True if args.mode == "reference" else False
             add_mm_ml_tags_to_bam(input_path, out_per_readsite, out_modbam,
-                                  rm_pulse=True, skip_unmapped=skip_unmapped,
-                                  threads=args.threads)
+                                  rm_pulse=True, threads=args.threads)
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()

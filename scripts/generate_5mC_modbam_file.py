@@ -141,14 +141,14 @@ def query_locs_probs_of_a_read(readname, tabixobj):
 
 def _convert_locs_to_mmtag(locs, seq_fwseq):
     assert len(locs) > 0
-    base_locs = [i.start() for i in re.finditer(base, seq_fwseq)]
+    base_alllocs = [i.start() for i in re.finditer(base, seq_fwseq)]
     base_orders = [-1] * len(locs)
-    locs_idx = 0
-    for base_idx in range(0, len(base_locs)):
+    order_idx = 0
+    for base_idx in range(0, len(base_alllocs)):
         try:
-            if base_locs[base_idx] == locs[locs_idx]:
-                base_orders[locs_idx] = base_idx
-                locs_idx += 1
+            if base_alllocs[base_idx] == locs[order_idx]:
+                base_orders[order_idx] = base_idx
+                order_idx += 1
         except IndexError:
             break
     assert base_orders[-1] != -1

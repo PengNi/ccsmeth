@@ -8,12 +8,10 @@ import time
 import tabix
 import pybedtools
 import gzip
-import numpy as np
 
 import multiprocessing as mp
 from multiprocessing import Queue
 
-from .utils.process_utils import default_ref_loc
 from .utils.process_utils import complement_seq
 
 base = "C"
@@ -36,7 +34,6 @@ def _generate_per_read_calls(per_readsite, output):
     cur_locs = set()
     for line in rf:
         words = line.strip().split("\t")
-        ref_loc = int(words[1])
         holeid, loc, prob_1 = words[3], int(words[4]), float(words[7])
         if holeid != holeid_curr:
             if len(holeid_info) > 0:
@@ -185,14 +182,14 @@ def query_locs_probs_of_a_read(readname, tabixobj):
 
 def _convert_locs_to_mmtag(locs, seq_fwseq):
     assert len(locs) > 0
-    base_locs = [i.start() for i in re.finditer(base, seq_fwseq)]
+    base_alllocs = [i.start() for i in re.finditer(base, seq_fwseq)]
     base_orders = [-1] * len(locs)
-    locs_idx = 0
-    for base_idx in range(0, len(base_locs)):
+    order_idx = 0
+    for base_idx in range(0, len(base_alllocs)):
         try:
-            if base_locs[base_idx] == locs[locs_idx]:
-                base_orders[locs_idx] = base_idx
-                locs_idx += 1
+            if base_alllocs[base_idx] == locs[order_idx]:
+                base_orders[order_idx] = base_idx
+                order_idx += 1
         except IndexError:
             break
     assert base_orders[-1] != -1
@@ -244,7 +241,6 @@ def _worker_process_reads_batch(rreads_q, wreads_q, tabix_file, rm_pulse=True):
             # MM: Base modifications / methylation, ML:Base modification probabilities tags
             mm_values = ml_values = None
             mm_flag = 0
-            # TODO: there are chances that supplementary alignments cannot get corresponding mm/ml values
             locs, probs = query_locs_probs_of_a_read(seq_name, perread_tbx)
             if locs is not None:
                 try:
