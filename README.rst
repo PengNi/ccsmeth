@@ -12,6 +12,8 @@ use hifi reads instead of subreads as input
 
 modbam support
 
+use (chrom, pos, strand) as key instead of (chrom, pos) to handle CG mismatch in CCS read
+
 
 v0.1.2
 ----------

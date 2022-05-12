@@ -363,11 +363,11 @@ def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeid
                         fkmer_map, rkmer_map = _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases,
                                                                     q_to_r_mapinfo)
                 else:
+                    if str2bool(args.skip_unmapped):  # skip soft clip region
+                        continue
                     if str2bool(args.is_mapfea):
                         fkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
                         rkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
-                    if str2bool(args.skip_unmapped):
-                        continue
             else:
                 chrom = "."
                 chrom_pos = default_ref_loc

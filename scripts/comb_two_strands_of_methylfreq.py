@@ -10,10 +10,10 @@ def combine_fb_of_ccsmeth(report_fp):
         for line in rf:
             words = line.strip().split('\t')
             keytmp = (words[0], int(words[1]))
-            if words[2] == '-':
+            if words[3] == '-':
                 keytmp = (words[0], int(words[1]) - 1)
-            prob0, prob1, met, unmet, coverage, rmet, kmer = float(words[3]), \
-                int(words[4]), int(words[5]), int(words[6]), int(words[7]), float(words[8]), words[9]
+            prob0, prob1, met, unmet, coverage, rmet, kmer = float(words[4]), \
+                float(words[5]), int(words[6]), int(words[7]), int(words[8]), float(words[9]), words[10]
             if keytmp not in poses:
                 poses.add(keytmp)
                 pos2info[keytmp] = [0., 0., 0, 0, 0, 0., ""]
@@ -31,7 +31,7 @@ def combine_fb_of_ccsmeth(report_fp):
             pos2info[cgpos][5] = round(float(pos2info[cgpos][2]) / pos2info[cgpos][4], 4)
     mposinfo = []
     for cgpos in pos2info.keys():
-        mposinfo.append("\t".join(list(map(str, list(cgpos) + ['+', ] + pos2info[cgpos]))))
+        mposinfo.append("\t".join(list(map(str, list(cgpos) + [cgpos[1]+1, '+', ] + pos2info[cgpos]))))
     return mposinfo
 
 
@@ -117,7 +117,7 @@ def main():
                         type=str, default=None)
     argv = parser.parse_args()
 
-    report_fp = argv.report_fp
+    report_fp = argv.freq_file
     rtype = argv.rtype
 
     print('start to combine forward backward strands..')

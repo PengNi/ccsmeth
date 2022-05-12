@@ -26,9 +26,9 @@ class ModRecord:
     def __init__(self, fields):
         self._chromosome = fields[0]
         self._pos = int(fields[1])
-        self._site_key = key_sep.join([self._chromosome, str(self._pos)])
-
         self._strand = fields[2]
+        self._site_key = key_sep.join([self._chromosome, str(self._pos), self._strand])
+
         self._holeid = fields[3]
 
         self._loc = fields[4]
@@ -47,13 +47,12 @@ class ModRecord:
 
 def split_key(key):
     words = key.split(key_sep)
-    return words[0], int(words[1])
+    return words[0], int(words[1]), words[2]
 
 
 class SiteStats:
-    def __init__(self, strand, kmer):
+    def __init__(self, kmer):
 
-        self._strand = strand
         self._kmer = kmer
 
         self._prob_0 = 0.0
@@ -99,8 +98,7 @@ def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False, contig_name=
                 continue
             if mod_record._site_key not in sitekeys:
                 sitekeys.add(mod_record._site_key)
-                sitekey2stats[mod_record._site_key] = SiteStats(mod_record._strand,
-                                                                mod_record._kmer)
+                sitekey2stats[mod_record._site_key] = SiteStats(mod_record._kmer)
             sitekey2stats[mod_record._site_key]._prob_0 += mod_record._prob_0
             sitekey2stats[mod_record._site_key]._prob_1 += mod_record._prob_1
             sitekey2stats[mod_record._site_key]._coverage += 1
@@ -141,19 +139,19 @@ def write_sitekey2stats(sitekey2stats, result_file, is_sort, is_bed, is_gzip):
     # wf.write('\t'.join(['chromosome', 'pos', 'strand', 'prob0', 'prob1',
     #                     'met', 'unmet', 'coverage', 'rmet', 'kmer']) + '\n')
     for key in keys:
-        chrom, pos = split_key(key)
+        chrom, pos, strand = split_key(key)
         sitestats = sitekey2stats[key]
         assert(sitestats._coverage == (sitestats._met + sitestats._unmet))
         if sitestats._coverage > 0:
             rmet = float(sitestats._met) / sitestats._coverage
             if is_bed:
                 wf.write("\t".join([chrom, str(pos), str(pos + 1), ".", str(sitestats._coverage),
-                                    sitestats._strand,
+                                    strand,
                                     str(pos), str(pos + 1), "0,0,0", str(sitestats._coverage),
                                     str(int(round(rmet * 100 + 0.001, 0)))]) + "\n")
             else:
                 wf.write("%s\t%d\t%d\t%s\t%.3f\t%.3f\t%d\t%d\t%d\t%.4f\t%s\n" % (chrom, pos, pos+1,
-                                                                                 sitestats._strand,
+                                                                                 strand,
                                                                                  sitestats._prob_0,
                                                                                  sitestats._prob_1,
                                                                                  sitestats._met,
