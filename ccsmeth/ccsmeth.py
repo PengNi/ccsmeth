@@ -64,8 +64,8 @@ def main():
                                                  "ccsmeth contains four modules:\n"
                                                  "\t%(prog)s call_hifi: call hifi reads from subreads "
                                                  "using CCS (PBCCS)\n"
-                                                 "\t%(prog)s align_hifi: align hifi reads to reference\n"
                                                  "\t%(prog)s call_mods: call modifications\n"
+                                                 "\t%(prog)s align_hifi: align hifi reads to reference\n"
                                                  "\t%(prog)s call_freqt: call modification frequencies from "
                                                  "per_readsite text files\n"
                                                  "\t%(prog)s call_freqb: call modification frequencies from "
@@ -81,12 +81,12 @@ def main():
         help='show ccsmeth version and exit.')
 
     subparsers = parser.add_subparsers(title="modules", help='ccsmeth modules, use -h/--help for help')
-    sub_call_hifi = subparsers.add_parser("call_hifi", description="call hifi reads from subreads.bam using CCS, "
-                                                                   "save in bam/sam format\n"
+    sub_call_hifi = subparsers.add_parser("call_hifi", description="call hifi reads with kinetics from subreads.bam "
+                                                                   "using CCS, save in bam/sam format\n"
                                                                    "  cmd: ccsmeth call_hifi -i input.subreads.bam")
+    sub_call_mods = subparsers.add_parser("call_mods", description="call modifications")
     sub_align_hifi = subparsers.add_parser("align_hifi", description="align hifi reads using pbmm2/minimap2/bwa, "
                                                                      "default pbmm2")
-    sub_call_mods = subparsers.add_parser("call_mods", description="call modifications")
     sub_call_freqt = subparsers.add_parser("call_freqt",
                                            description="call frequency of modifications at genome level from "
                                                        "per_readsite text files")

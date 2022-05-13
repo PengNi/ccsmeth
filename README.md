@@ -63,7 +63,7 @@ See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
 ## Quick start
 
 ```shell
-# 1. call hifi reads if needed
+# 1. call hifi reads with kinetics if needed
 # should have added pbccs to $PATH or the used environment
 ccsmeth call_hifi --subreads /path/to/subreads.bam \
   --threads 10 \
@@ -111,7 +111,7 @@ usage: ccsmeth call_hifi [-h] --subreads SUBREADS [--output OUTPUT]
                          [--min-passes MIN_PASSES] [--by-strand] [--hd-finder]
                          [--path_to_samtools PATH_TO_SAMTOOLS]
 
-call hifi reads from subreads.bam using CCS, save in bam/sam format cmd:
+call hifi reads with kinetics from subreads.bam using CCS, save in bam/sam format cmd:
 ccsmeth call_hifi -i input.subreads.bam
 
 optional arguments:
@@ -331,82 +331,7 @@ ALIGN:
                         number of threads, default 5
 ```
 
-#### 4. call modification frequency from modbam file
-
-```shell
-ccsmeth call_freqb -h
-usage: ccsmeth call_freqb [-h] [--threads THREADS] --input_bam INPUT_BAM --ref
-                          REF [--contigs CONTIGS] [--chunk_len CHUNK_LEN]
-                          --output OUTPUT [--bed] [--sort] [--gzip]
-                          [--modtype {5mC}] [--call_mode {count,aggregate}]
-                          [--prob_cf PROB_CF] [--hap_tag HAP_TAG]
-                          [--mapq MAPQ] [--identity IDENTITY]
-                          [--no_supplementary] [--motifs MOTIFS]
-                          [--mod_loc MOD_LOC] [--no_comb] [--refsites_only]
-
-call frequency of modifications at genome level from modbam.bam file
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --threads THREADS     number of subprocesses used. default 5
-
-INPUT:
-  --input_bam INPUT_BAM
-                        input bam, should be aligned and sorted
-  --ref REF             path to genome reference, in fasta/fa format.
-  --contigs CONTIGS     path of a file containing chromosome/contig names, one
-                        name each line; or a string contains multiple
-                        chromosome names splited by comma.default None, which
-                        means all chromosomes will be processed.
-  --chunk_len CHUNK_LEN
-                        chunk length, default 500000
-
-OUTPUT:
-  --output OUTPUT, -o OUTPUT
-                        prefix of output file to save the results
-  --bed                 save the result in bedMethyl format
-  --sort                sort items in the result
-  --gzip                if compressing the output using gzip
-
-CALL_FREQ:
-  --modtype {5mC}       modification type, default 5mC.
-  --call_mode {count,aggregate}
-                        call mode: count, aggregate. default count.
-  --prob_cf PROB_CF     this is to remove ambiguous calls. if
-                        abs(prob1-prob0)>=prob_cf, then we use the call. e.g.,
-                        proc_cf=0 means use all calls. range [0, 1], default
-                        0.0.
-  --hap_tag HAP_TAG     haplotype tag, default HP
-  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
-                        default 10
-  --identity IDENTITY   identity cutoff for selecting alignment items, default
-                        0.8
-  --no_supplementary    not use supplementary alignment
-  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
-                        motifs splited by comma (no space allowed in the input
-                        str), or use IUPAC alphabet, the mod_loc of all motifs
-                        must be the same
-  --mod_loc MOD_LOC     0-based location of the targeted base in the motif,
-                        default 0
-  --no_comb             dont combine fwd/rev reads of one CG. [Only works when
-                        motifs is CG]
-  --refsites_only       only keep sites which is a target motif in reference
-```
-
-The modification_frequency file can be either saved in [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) format (by setting `--bed`), or saved as a tab-delimited text file in the following format by default:
-   - **chrom**: the chromosome name
-   - **pos**:   0-based position of the targeted base in the chromosome
-   - **pos_end**:   pos + 1
-   - **strand**:    +/-, the aligned strand of the read to the reference
-   - **prob_0_sum**:    sum of the probabilities of the targeted base predicted as 0 (unmethylated)
-   - **prob_1_sum**:    sum of the probabilities of the targeted base predicted as 1 (methylated)
-   - **count_modified**:    number of reads in which the targeted base counted as modified
-   - **count_unmodified**:  number of reads in which the targeted base counted as unmodified
-   - **coverage**:  number of reads aligned to the targeted base
-   - **modification_frequency**:    modification frequency
-   - **k_mer**:   the kmer around the targeted base
-
-#### 5. call modification frequency from per_readsite file
+#### 4. call modification frequency from per_readsite file
 
 ```shell
 ccsmeth call_freqt -h
@@ -469,7 +394,83 @@ PARALLEL:
                         i.e., number of contigs processed in parallel. default
                         1
 ```
-The format of the output file is the same as of `ccsmeth call_freqb`.
+
+The modification_frequency file can be either saved in [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) format (by setting `--bed`), or saved as a tab-delimited text file in the following format by default:
+   - **chrom**: the chromosome name
+   - **pos**:   0-based position of the targeted base in the chromosome
+   - **pos_end**:   pos + 1
+   - **strand**:    +/-, the aligned strand of the read to the reference
+   - **prob_0_sum**:    sum of the probabilities of the targeted base predicted as 0 (unmethylated)
+   - **prob_1_sum**:    sum of the probabilities of the targeted base predicted as 1 (methylated)
+   - **count_modified**:    number of reads in which the targeted base counted as modified
+   - **count_unmodified**:  number of reads in which the targeted base counted as unmodified
+   - **coverage**:  number of reads aligned to the targeted base
+   - **modification_frequency**:    modification frequency
+   - **k_mer**:   the kmer around the targeted base
+
+#### 5. call modification frequency from modbam file
+
+```shell
+ccsmeth call_freqb -h
+usage: ccsmeth call_freqb [-h] [--threads THREADS] --input_bam INPUT_BAM --ref
+                          REF [--contigs CONTIGS] [--chunk_len CHUNK_LEN]
+                          --output OUTPUT [--bed] [--sort] [--gzip]
+                          [--modtype {5mC}] [--call_mode {count,aggregate}]
+                          [--prob_cf PROB_CF] [--hap_tag HAP_TAG]
+                          [--mapq MAPQ] [--identity IDENTITY]
+                          [--no_supplementary] [--motifs MOTIFS]
+                          [--mod_loc MOD_LOC] [--no_comb] [--refsites_only]
+
+call frequency of modifications at genome level from modbam.bam file
+
+optional arguments:
+  -h, --help            show this help message and exit
+  --threads THREADS     number of subprocesses used. default 5
+
+INPUT:
+  --input_bam INPUT_BAM
+                        input bam, should be aligned and sorted
+  --ref REF             path to genome reference, in fasta/fa format.
+  --contigs CONTIGS     path of a file containing chromosome/contig names, one
+                        name each line; or a string contains multiple
+                        chromosome names splited by comma.default None, which
+                        means all chromosomes will be processed.
+  --chunk_len CHUNK_LEN
+                        chunk length, default 500000
+
+OUTPUT:
+  --output OUTPUT, -o OUTPUT
+                        prefix of output file to save the results
+  --bed                 save the result in bedMethyl format
+  --sort                sort items in the result
+  --gzip                if compressing the output using gzip
+
+CALL_FREQ:
+  --modtype {5mC}       modification type, default 5mC.
+  --call_mode {count,aggregate}
+                        call mode: count, aggregate. default count.
+  --prob_cf PROB_CF     this is to remove ambiguous calls. if
+                        abs(prob1-prob0)>=prob_cf, then we use the call. e.g.,
+                        proc_cf=0 means use all calls. range [0, 1], default
+                        0.0.
+  --hap_tag HAP_TAG     haplotype tag, default HP
+  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
+                        default 10
+  --identity IDENTITY   identity cutoff for selecting alignment items, default
+                        0.8
+  --no_supplementary    not use supplementary alignment
+  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
+                        motifs splited by comma (no space allowed in the input
+                        str), or use IUPAC alphabet, the mod_loc of all motifs
+                        must be the same
+  --mod_loc MOD_LOC     0-based location of the targeted base in the motif,
+                        default 0
+  --no_comb             dont combine fwd/rev reads of one CG. [Only works when
+                        motifs is CG]
+  --refsites_only       only keep sites which is a target motif in reference
+```
+
+The format of the output file is the same as of `ccsmeth call_freqt`.
 
 #### 6. extract features
 
