@@ -34,6 +34,7 @@ def generate_ccscmd_with_options(args):
     if args.path_to_ccs is not None:
         ccs_path = os.path.abspath(args.path_to_ccs)
     ccs_cmd = ccs_path + " --hifi-kinetics"
+    ccs_cmd += " --log-level {}".format(args.log_level)
     if args.min_passes is not None:
         ccs_cmd += " --min-passes {}".format(args.min_passes)
     if args.threads is not None:
@@ -113,6 +114,9 @@ def main():
                        help="CCS: Generate a consensus for each strand.")
     p_ccs.add_argument("--hd-finder", action="store_true", default=False, required=False,
                        help="CCS: Enable heteroduplex finder and splitting.")
+    p_ccs.add_argument("--log-level", action="store", default="WARN", required=False,
+                       help="CCS: Set log level. "
+                            "Valid choices: (TRACE, DEBUG, INFO, WARN, FATAL). [WARN]")
 
     parser.add_argument("--path_to_samtools", type=str, default=None, required=False,
                         help="full path to the executable binary samtools file. "

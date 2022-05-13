@@ -123,6 +123,9 @@ def main():
                          help="CCS: Generate a consensus for each strand.")
     sch_ccs.add_argument("--hd-finder", action="store_true", default=False, required=False,
                          help="CCS: Enable heteroduplex finder and splitting.")
+    sch_ccs.add_argument("--log-level", action="store", default="WARN", required=False,
+                         help="CCS: Set log level. "
+                              "Valid choices: (TRACE, DEBUG, INFO, WARN, FATAL). [WARN]")
 
     sub_call_hifi.add_argument("--path_to_samtools", type=str, default=None, required=False,
                                help="full path to the executable binary samtools file. "
