@@ -166,7 +166,6 @@ def _call_modfreq_of_one_region(refpos2modinfo, args):
     return refpos_results
 
 
-# learning from pacbio aligned_bam_to_cpg_scores.py
 def _readmods_to_bed_of_one_region(bam_reader, regioninfo, args):
     modbase = "-"
     modification = "-"
