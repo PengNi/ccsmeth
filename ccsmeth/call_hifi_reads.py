@@ -88,7 +88,7 @@ def ccs_call_hifi_reads(args):
 
 def main():
     parser = argparse.ArgumentParser("call hifi reads with kinetics from subreads.bam using CCS, "
-                                     "save in bam/sam format\n"
+                                     "save in bam/sam format.\n"
                                      "  cmd: ccsmeth call_hifi -i input.subreads.bam")
     p_input = parser.add_argument_group("INPUT")
     p_input.add_argument("--subreads", "-i", type=str, required=True,

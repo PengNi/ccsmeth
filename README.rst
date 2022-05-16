@@ -6,6 +6,9 @@ Documentation
 -------------
 v0.2.1
 ----------
+change default mode in extract module
+
+minor fixes
 
 
 v0.2.0

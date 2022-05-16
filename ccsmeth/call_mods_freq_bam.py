@@ -166,12 +166,21 @@ def _call_modfreq_of_one_region(refpos2modinfo, args):
     return refpos_results
 
 
-def _readmods_to_bed_of_one_region(bam_reader, regioninfo, args):
+def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_filter, args):
     modbase = "-"
     modification = "-"
     if args.modtype == "5mC":
         modbase = "C"
         modification = "m"
+
+    fwd_s, fwd_e, rev_s, rev_e = None, None, None, None
+    if motifs_filter is not None:
+        len_motif = len(motifs_filter[0])
+        fwd_s = -args.mod_loc
+        fwd_e = len_motif - args.mod_loc
+        rev_s = -(len_motif - 1 - args.mod_loc)
+        rev_e = args.mod_loc + 1
+        motifs_filter = set(motifs_filter)
 
     ref_name, ref_start, ref_end = regioninfo
     refposinfo = {}  # {loc: [(prob, hap), ]), }
@@ -231,6 +240,12 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, args):
     refpos_res = _call_modfreq_of_one_region(refposinfo, args)
     for refpositem in refpos_res:
         refpos, total_info, hp1_info, hp2_info = refpositem
+
+        if motifs_filter is not None:
+            motif_seq = dnacontigs[ref_name][(refpos + fwd_s):(refpos + fwd_e)]
+            if motif_seq not in motifs_filter:
+                continue
+
         # total_info in (cov, mod_cnt, mod_freq) format, as hp1_info, hp2_info
         if total_info is not None:
             bed_all.append((ref_name, refpos, "+", total_info[0], total_info[1], total_info[2]))
@@ -242,6 +257,12 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, args):
         refposrev_res = _call_modfreq_of_one_region(refposinfo_rev, args)
         for refpositem in refposrev_res:
             refpos, total_info, hp1_info, hp2_info = refpositem
+
+            if motifs_filter is not None:
+                motif_seq = complement_seq(dnacontigs[ref_name][(refpos + rev_s):(refpos + rev_e)])
+                if motif_seq not in motifs_filter:
+                    continue
+
             # total_info in (cov, mod_cnt, mod_freq) format, as hp1_info, hp2_info
             if total_info is not None:
                 bed_all.append((ref_name, refpos, "-", total_info[0], total_info[1], total_info[2]))
@@ -252,9 +273,13 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, args):
     return bed_all, bed_hp1, bed_hp2
 
 
-def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, args):
+def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, dnacontigs, motifs_filter, args):
     sys.stderr.write("worker_gen_bed process-{} starts\n".format(os.getpid()))
-    bam_reader = pysam.AlignmentFile(inputbam, 'rb')
+    try:
+        bam_reader = pysam.AlignmentFile(inputbam, 'rb')
+    except ValueError:
+        raise ValueError("file has no sequences defined (mode='rb') - pysam - "
+                         "Please check and make sure that the reads are aligned to genome referece!")
     cnt_regions = 0
     while True:
         if region_q.empty():
@@ -265,7 +290,8 @@ def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, args):
             region_q.put("kill")
             break
         cnt_regions += 1
-        bed_all, bed_hp1, bed_hp2 = _readmods_to_bed_of_one_region(bam_reader, region, args)
+        bed_all, bed_hp1, bed_hp2 = _readmods_to_bed_of_one_region(bam_reader, region,
+                                                                   dnacontigs, motifs_filter, args)
         if len(bed_all) > 0:
             bed_q.put((bed_all, bed_hp1, bed_hp2))
             while bed_q.qsize() > args.threads * 3:
@@ -276,13 +302,8 @@ def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, args):
                                                                                      cnt_regions))
 
 
-def _write_one_line(beditem, wf, is_bed, fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs):
+def _write_one_line(beditem, wf, is_bed):
     ref_name, refpos, strand, cov, met, metprob = beditem
-    if motifs_filter is not None:
-        motif_seq = dnacontigs[ref_name][(refpos + fwd_s):(refpos + fwd_e)] if strand == "+" else \
-            complement_seq(dnacontigs[ref_name][(refpos + rev_s):(refpos + rev_e)])
-        if motif_seq not in motifs_filter:
-            return
     if is_bed:
         wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), ".", str(cov),
                             strand, str(refpos), str(refpos + 1),
@@ -292,16 +313,8 @@ def _write_one_line(beditem, wf, is_bed, fwd_s, fwd_e, rev_s, rev_e, motifs_filt
                             str(cov-met), str(cov), str(round(metprob + 0.000001, 4))]) + "\n")
 
 
-def _worker_write_bed_result(output_prefix, bed_q, motifs_filter, mod_loc, dnacontigs, args):
+def _worker_write_bed_result(output_prefix, bed_q, args):
     sys.stderr.write('write_process-{} starts\n'.format(os.getpid()))
-    fwd_s, fwd_e, rev_s, rev_e = None, None, None, None
-    if motifs_filter is not None:
-        len_motif = len(motifs_filter[0])
-        fwd_s = -mod_loc
-        fwd_e = len_motif - mod_loc
-        rev_s = -(len_motif - 1 - mod_loc)
-        rev_e = mod_loc + 1
-        motifs_filter = set(motifs_filter)
 
     fext = "bed" if args.bed else "freq.txt"
     op_all = output_prefix + ".{}.all.{}".format(args.call_mode, fext)
@@ -319,14 +332,11 @@ def _worker_write_bed_result(output_prefix, bed_q, motifs_filter, mod_loc, dnaco
             break
         bed_all, bed_hp1, bed_hp2 = bed_res
         for beditem in bed_all:
-            _write_one_line(beditem, wf_all, args.bed,
-                            fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs)
+            _write_one_line(beditem, wf_all, args.bed)
         for beditem in bed_hp1:
-            _write_one_line(beditem, wf_hp1, args.bed,
-                            fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs)
+            _write_one_line(beditem, wf_hp1, args.bed)
         for beditem in bed_hp2:
-            _write_one_line(beditem, wf_hp2, args.bed,
-                            fwd_s, fwd_e, rev_s, rev_e, motifs_filter, dnacontigs)
+            _write_one_line(beditem, wf_hp2, args.bed)
     wf_all.close()
     wf_hp1.close()
     wf_hp2.close()
@@ -357,10 +367,9 @@ def call_mods_frequency_from_bamfile(args):
     dnacontigs = DNAReference(args.ref).getcontigs()
     motifs = get_motif_seqs(args.motifs)
 
-    motifs_filter, modloc = None, None
+    motifs_filter = None
     if args.refsites_only:
         motifs_filter = motifs
-        modloc = args.mod_loc
         print("[###] --refsites_only is set as True, gonna keep only motifs({}) sites of genome reference "
               "in the results".format(motifs_filter))
 
@@ -378,13 +387,13 @@ def call_mods_frequency_from_bamfile(args):
     ps_gen = []
     for _ in range(nproc - 2):
         p = mp.Process(target=_worker_generate_bed_of_regions,
-                       args=(inputpath, region_q, bed_q, args))
+                       args=(inputpath, region_q, bed_q, dnacontigs, motifs_filter, args))
         p.daemon = True
         p.start()
         ps_gen.append(p)
 
     p_w = mp.Process(target=_worker_write_bed_result,
-                     args=(args.output, bed_q, motifs_filter, modloc, dnacontigs, args))
+                     args=(args.output, bed_q, args))
     p_w.daemon = True
     p_w.start()
 

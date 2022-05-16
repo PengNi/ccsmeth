@@ -61,7 +61,7 @@ def main_train(args):
 def main():
     parser = argparse.ArgumentParser(prog='ccsmeth',
                                      description="detecting methylation from PacBio CCS reads, "
-                                                 "ccsmeth contains four modules:\n"
+                                                 "ccsmeth contains 7 modules:\n"
                                                  "\t%(prog)s call_hifi: call hifi reads from subreads "
                                                  "using CCS (PBCCS)\n"
                                                  "\t%(prog)s call_mods: call modifications\n"
@@ -82,7 +82,7 @@ def main():
 
     subparsers = parser.add_subparsers(title="modules", help='ccsmeth modules, use -h/--help for help')
     sub_call_hifi = subparsers.add_parser("call_hifi", description="call hifi reads with kinetics from subreads.bam "
-                                                                   "using CCS, save in bam/sam format\n"
+                                                                   "using CCS, save in bam/sam format.\n"
                                                                    "  cmd: ccsmeth call_hifi -i input.subreads.bam")
     sub_call_mods = subparsers.add_parser("call_mods", description="call modifications")
     sub_align_hifi = subparsers.add_parser("align_hifi", description="align hifi reads using pbmm2/minimap2/bwa, "
@@ -238,10 +238,10 @@ def main():
                                  "yes or no, default yes")
 
     scm_extract = sub_call_mods.add_argument_group("EXTRACTION")
-    scm_extract.add_argument("--mode", type=str, default="denovo", required=False,
-                             choices=["denovo", "reference"],
+    scm_extract.add_argument("--mode", type=str, default="align", required=False,
+                             choices=["denovo", "align"],
                              help="denovo mode: extract features from unaligned hifi.bam;\n"
-                                  "reference mode: extract features from aligned hifi.bam. default: denovo")
+                                  "align mode: extract features from aligned hifi.bam. default: align")
     scm_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                              help="file contains holeids to be extracted, default None")
     scm_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
@@ -274,7 +274,7 @@ def main():
                              help="if printing more info of feature extraction on reads. "
                                   "yes or no, default no")
 
-    scm_extract_ref = sub_call_mods.add_argument_group("EXTRACTION REFERENCE_MODE")
+    scm_extract_ref = sub_call_mods.add_argument_group("EXTRACTION ALIGN_MODE")
     scm_extract_ref.add_argument("--ref", type=str, required=False,
                                  help="path to genome reference to be aligned, in fasta/fa format.")
     scm_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
@@ -322,10 +322,10 @@ def main():
                            help="if compressing the output using gzip")
 
     se_extract = sub_extract.add_argument_group("EXTRACTION")
-    se_extract.add_argument("--mode", type=str, default="denovo", required=False,
-                            choices=["denovo", "reference"],
+    se_extract.add_argument("--mode", type=str, default="align", required=False,
+                            choices=["denovo", "align"],
                             help="denovo mode: extract features from unaligned hifi.bam;\n"
-                                 "reference mode: extract features from aligned hifi.bam. default: denovo")
+                                 "align mode: extract features from aligned hifi.bam. default: align")
     se_extract.add_argument("--seq_len", type=int, default=21, required=False,
                             help="len of kmer. default 21")
     se_extract.add_argument("--motifs", action="store", type=str,
@@ -355,7 +355,7 @@ def main():
     se_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                             help="number of holes/hifi-reads in an batch to get/put in queues, default 50")
 
-    se_extract_ref = sub_extract.add_argument_group("EXTRACTION REFERENCE_MODE")
+    se_extract_ref = sub_extract.add_argument_group("EXTRACTION ALIGN_MODE")
     se_extract_ref.add_argument("--ref", type=str, required=False,
                                 help="path to genome reference to be aligned, in fasta/fa format.")
     se_extract_ref.add_argument("--mapq", type=int, default=10, required=False,

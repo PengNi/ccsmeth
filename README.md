@@ -62,6 +62,44 @@ See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
 
 ## Quick start
 
+Use `align` mode (`align_hifi`, then `call_mods`):
+```shell
+# 1. call hifi reads with kinetics if needed
+# should have added pbccs to $PATH or the used environment
+ccsmeth call_hifi --subreads /path/to/subreads.bam \
+  --threads 10 \
+  --output /path/to/output.hifi.bam
+
+# 2. align hifi reads
+# should have added pbmm2 to $PATH or the used environment
+ccsmeth align_hifi \
+  --hifireads /path/to/output.hifi.bam \
+  --ref /path/to/genome.fa \
+  --output /path/to/output.hifi.pbmm2.bam \
+  --threads 10
+
+# 3. call modifications
+# outputs: [--output].per_readsite.tsv, 
+#          [--output].modbam.bam
+CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
+  --input /path/to/output.hifi.pbmm2.bam \
+  --ref /path/to/genome.fa \
+  --model_file /path/to/ccsmeth/models/model.ckpt \
+  --output /path/to/output.hifi.pbmm2.call_mods \
+  --threads 10 --threads_call 2 --model_type attbigru2s
+
+# 4. call modification frequency
+# outputs: [--output].count.all.bed
+# if the input bam file contains haplotags, 
+# there will be [--output].count.hp1/hp2.bed in outputs
+ccsmeth call_freqb \
+  --input_bam /path/to/output.hifi.pbmm2.call_mods.modbam.bam \
+  --ref /path/to/genome.fa \
+  --output /path/to/output.hifi.pbmm2.call_mods.modbam.freq \
+  --threads 10 --sort --bed
+```
+
+**OR**, use `denovo` mode (`call_mods`, then `align_hifi`):
 ```shell
 # 1. call hifi reads with kinetics if needed
 # should have added pbccs to $PATH or the used environment
@@ -76,7 +114,8 @@ CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --input /path/to/output.hifi.bam \
   --model_file /path/to/ccsmeth/models/model.ckpt \
   --output /path/to/output.hifi.call_mods \
-  --threads 10 --threads_call 2 --model_type attbigru2s
+  --threads 10 --threads_call 2 --model_type attbigru2s \
+  --mode denovo
 
 # 3. align hifi reads
 # should have added pbmm2 to $PATH or the used environment
@@ -109,10 +148,11 @@ ccsmeth call_hifi -h
 usage: ccsmeth call_hifi [-h] --subreads SUBREADS [--output OUTPUT]
                          [--path_to_ccs PATH_TO_CCS] [--threads THREADS]
                          [--min-passes MIN_PASSES] [--by-strand] [--hd-finder]
+                         [--log-level LOG_LEVEL]
                          [--path_to_samtools PATH_TO_SAMTOOLS]
 
-call hifi reads with kinetics from subreads.bam using CCS, save in bam/sam format cmd:
-ccsmeth call_hifi -i input.subreads.bam
+call hifi reads with kinetics from subreads.bam using CCS, save in bam/sam
+format. cmd: ccsmeth call_hifi -i input.subreads.bam
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -144,9 +184,72 @@ CCS ARG:
                         a default value set by CCS
   --by-strand           CCS: Generate a consensus for each strand.
   --hd-finder           CCS: Enable heteroduplex finder and splitting.
+  --log-level LOG_LEVEL
+                        CCS: Set log level. Valid choices: (TRACE, DEBUG,
+                        INFO, WARN, FATAL). [WARN]
 ```
 
-#### 2. call modifications
+#### 2. align hifi reads
+
+```shell
+ccsmeth align_hifi -h
+usage: ccsmeth align_hifi [-h] --hifireads HIFIREADS --ref REF
+                          [--output OUTPUT] [--header]
+                          [--path_to_pbmm2 PATH_TO_PBMM2] [--minimap2]
+                          [--path_to_minimap2 PATH_TO_MINIMAP2]
+                          [--bestn BESTN] [--bwa] [--path_to_bwa PATH_TO_BWA]
+                          [--path_to_samtools PATH_TO_SAMTOOLS]
+                          [--threads THREADS]
+
+align hifi reads using pbmm2/minimap2/bwa, default pbmm2
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+INPUT:
+  --hifireads HIFIREADS, -i HIFIREADS
+                        path to hifireads.bam/sam/fastq_with_pulseinfo file as
+                        input
+  --ref REF             path to genome reference to be aligned, in fasta/fa
+                        format. If using bwa, the reference must have already
+                        been indexed.
+
+OUTPUT:
+  --output OUTPUT, -o OUTPUT
+                        output file path for alignment results, bam/sam
+                        supported. If not specified, the results will be saved
+                        in input_file_prefix.bam by default.
+  --header              save header annotations from bam/sam. DEPRECATED
+
+ALIGN:
+  --path_to_pbmm2 PATH_TO_PBMM2
+                        full path to the executable binary pbmm2 file. If not
+                        specified, it is assumed that pbmm2 is in the PATH.
+  --minimap2            use minimap2 instead of pbmm2 for alignment
+  --path_to_minimap2 PATH_TO_MINIMAP2
+                        full path to the executable binary minimap2 file. If
+                        not specified, it is assumed that minimap2 is in the
+                        PATH.
+  --bestn BESTN, -n BESTN
+                        retain at most n alignments in minimap2. default 3,
+                        which means 2 secondary alignments are retained. Do
+                        not use 2, cause -N1 is not suggested for high
+                        accuracy of alignment. [This arg is for further
+                        extension, for now it is no use cause we use only
+                        primary alignment.]
+  --bwa                 use bwa instead of pbmm2 for alignment
+  --path_to_bwa PATH_TO_BWA
+                        full path to the executable binary bwa file. If not
+                        specified, it is assumed that bwa is in the PATH.
+  --path_to_samtools PATH_TO_SAMTOOLS
+                        full path to the executable binary samtools file. If
+                        not specified, it is assumed that samtools is in the
+                        PATH.
+  --threads THREADS, -t THREADS
+                        number of threads, default 5
+```
+
+#### 3. call modifications
 
 ```shell
 ccsmeth call_mods -h
@@ -160,7 +263,7 @@ usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH]
                          [--batch_size BATCH_SIZE] [--n_vocab N_VOCAB]
                          [--n_embed N_EMBED] [--layer_rnn LAYER_RNN]
                          [--hid_rnn HID_RNN] --output OUTPUT [--gzip]
-                         [--modbam MODBAM] [--mode {denovo,reference}]
+                         [--modbam MODBAM] [--mode {denovo,align}]
                          [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE]
                          [--motifs MOTIFS] [--mod_loc MOD_LOC]
                          [--methy_label {1,0}]
@@ -221,10 +324,10 @@ OUTPUT:
                         format. yes or no, default yes
 
 EXTRACTION:
-  --mode {denovo,reference}
+  --mode {denovo,align}
                         denovo mode: extract features from unaligned hifi.bam;
-                        reference mode: extract features from aligned
-                        hifi.bam. default: denovo
+                        align mode: extract features from aligned
+                        hifi.bam. default: align
   --holeids_e HOLEIDS_E
                         file contains holeids to be extracted, default None
   --holeids_ne HOLEIDS_NE
@@ -245,7 +348,7 @@ EXTRACTION:
   --loginfo LOGINFO     if printing more info of feature extraction on reads.
                         yes or no, default no
 
-EXTRACTION REFERENCE_MODE:
+EXTRACTION ALIGN_MODE:
   --ref REF             path to genome reference to be aligned, in fasta/fa
                         format.
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
@@ -264,72 +367,13 @@ The call_mods file is a tab-delimited text file in the following format:
    - **chrom**: the chromosome name
    - **pos**:   0-based position of the targeted base in the chromosome
    - **strand**:    +/-, the aligned strand of the read to the reference
-   - **readname**:  read name of the ccs read
-   - **read_depth**:   subreads depth of the ccs read
+   - **read_name**:  read name of the ccs read
+   - **read_loc**:  0-based position of the targeted base in the read
+   - **read_depth**:   subreads depth of the ccs read, format: fwd_depth,rev_depth
    - **prob_0**:    [0, 1], the probability of the targeted base predicted as 0 (unmethylated)
    - **prob_1**:    [0, 1], the probability of the targeted base predicted as 1 (methylated)
    - **called_label**:  0/1, unmethylated/methylated
    - **k_mer**:   the kmer around the targeted base
-
-#### 3. align hifi reads
-
-```shell
-ccsmeth align_hifi -h
-usage: ccsmeth align_hifi [-h] --hifireads HIFIREADS --ref REF
-                          [--output OUTPUT] [--header]
-                          [--path_to_pbmm2 PATH_TO_PBMM2] [--minimap2]
-                          [--path_to_minimap2 PATH_TO_MINIMAP2]
-                          [--bestn BESTN] [--bwa] [--path_to_bwa PATH_TO_BWA]
-                          [--path_to_samtools PATH_TO_SAMTOOLS]
-                          [--threads THREADS]
-
-align hifi reads using pbmm2/minimap2/bwa, default pbmm2
-
-optional arguments:
-  -h, --help            show this help message and exit
-
-INPUT:
-  --hifireads HIFIREADS, -i HIFIREADS
-                        path to hifireads.bam/sam/fastq_with_pulseinfo file as
-                        input
-  --ref REF             path to genome reference to be aligned, in fasta/fa
-                        format. If using bwa, the reference must have already
-                        been indexed.
-
-OUTPUT:
-  --output OUTPUT, -o OUTPUT
-                        output file path for alignment results, bam/sam
-                        supported. If not specified, the results will be saved
-                        in input_file_prefix.bam by default.
-  --header              save header annotations from bam/sam. DEPRECATED
-
-ALIGN:
-  --path_to_pbmm2 PATH_TO_PBMM2
-                        full path to the executable binary pbmm2 file. If not
-                        specified, it is assumed that pbmm2 is in the PATH.
-  --minimap2            use minimap2 instead of pbmm2 for alignment
-  --path_to_minimap2 PATH_TO_MINIMAP2
-                        full path to the executable binary minimap2 file. If
-                        not specified, it is assumed that minimap2 is in the
-                        PATH.
-  --bestn BESTN, -n BESTN
-                        retain at most n alignments in minimap2. default 3,
-                        which means 2 secondary alignments are retained. Do
-                        not use 2, cause -N1 is not suggested for high
-                        accuracy of alignment. [This arg is for further
-                        extension, for now it is no use cause we use only
-                        primary alignment.]
-  --bwa                 use bwa instead of pbmm2 for alignment
-  --path_to_bwa PATH_TO_BWA
-                        full path to the executable binary bwa file. If not
-                        specified, it is assumed that bwa is in the PATH.
-  --path_to_samtools PATH_TO_SAMTOOLS
-                        full path to the executable binary samtools file. If
-                        not specified, it is assumed that samtools is in the
-                        PATH.
-  --threads THREADS, -t THREADS
-                        number of threads, default 5
-```
 
 #### 4. call modification frequency from per_readsite file
 
@@ -478,7 +522,7 @@ The format of the output file is the same as of `ccsmeth call_freqt`.
 ccsmeth extract -h
 usage: ccsmeth extract [-h] [--threads THREADS] [--loginfo LOGINFO] --input
                        INPUT [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE]
-                       [--output OUTPUT] [--gzip] [--mode {denovo,reference}]
+                       [--output OUTPUT] [--gzip] [--mode {denovo,align}]
                        [--seq_len SEQ_LEN] [--motifs MOTIFS]
                        [--mod_loc MOD_LOC] [--methy_label {1,0}]
                        [--norm {zscore,min-mean,min-max,mad}] [--no_decode]
@@ -512,10 +556,10 @@ OUTPUT:
   --gzip                if compressing the output using gzip
 
 EXTRACTION:
-  --mode {denovo,reference}
+  --mode {denovo,align}
                         denovo mode: extract features from unaligned hifi.bam;
-                        reference mode: extract features from aligned
-                        hifi.bam. default: denovo
+                        align mode: extract features from aligned
+                        hifi.bam. default: align
   --seq_len SEQ_LEN     len of kmer. default 21
   --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
                         motifs splited by comma (no space allowed in the input
@@ -533,7 +577,7 @@ EXTRACTION:
                         number of holes/hifi-reads in an batch to get/put in
                         queues, default 50
 
-EXTRACTION REFERENCE_MODE:
+EXTRACTION ALIGN_MODE:
   --ref REF             path to genome reference to be aligned, in fasta/fa
                         format.
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,

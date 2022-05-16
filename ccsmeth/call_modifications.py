@@ -28,7 +28,6 @@ import time
 # import random
 
 from tqdm import tqdm
-import pysam
 
 from .models import ModelAttRNN
 
@@ -590,10 +589,10 @@ def main():
                                "yes or no, default yes")
 
     p_extract = parser.add_argument_group("EXTRACTION")
-    p_extract.add_argument("--mode", type=str, default="denovo", required=False,
-                           choices=["denovo", "reference"],
+    p_extract.add_argument("--mode", type=str, default="align", required=False,
+                           choices=["denovo", "align"],
                            help="denovo mode: extract features from unaligned hifi.bam;\n"
-                                "reference mode: extract features from aligned hifi.bam. default: denovo")
+                                "align mode: extract features from aligned hifi.bam. default: align")
     p_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                            help="file contains holeids to be extracted, default None")
     p_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
@@ -626,7 +625,7 @@ def main():
                            help="if printing more info of feature extraction on reads. "
                                 "yes or no, default no")
 
-    p_extract_ref = parser.add_argument_group("EXTRACTION REFERENCE_MODE")
+    p_extract_ref = parser.add_argument_group("EXTRACTION ALIGN_MODE")
     p_extract_ref.add_argument("--ref", type=str, required=False,
                                help="path to genome reference to be aligned, in fasta/fa format.")
     p_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
