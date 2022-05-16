@@ -6,9 +6,11 @@ Documentation
 -------------
 v0.2.1
 ----------
+minor fixes
+
 change default mode in extract module
 
-minor fixes
+improvements in call_freqb module
 
 
 v0.2.0

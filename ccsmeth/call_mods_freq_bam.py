@@ -23,6 +23,7 @@ from .utils.process_utils import is_file_empty
 from .utils.process_utils import index_bam_if_needed2
 from .utils.process_utils import get_motif_seqs
 from .utils.process_utils import complement_seq
+from .utils.process_utils import get_refloc_of_methysite_in_motif
 
 time_wait = 1
 key_sep = "||"
@@ -183,6 +184,13 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
         motifs_filter = set(motifs_filter)
 
     ref_name, ref_start, ref_end = regioninfo
+    if args.refsites_all:
+        refmotifsites = get_refloc_of_methysite_in_motif(dnacontigs[ref_name][ref_start:ref_end],
+                                                         motifs_filter, args.mod_loc)
+        refmotifsites = set([x + ref_start for x in refmotifsites])
+        refmotifsites_rev = get_refloc_of_methysite_in_motif(complement_seq(dnacontigs[ref_name][ref_start:ref_end]),
+                                                             motifs_filter, args.mod_loc)
+        refmotifsites_rev = set([ref_end - 1 - x for x in refmotifsites_rev])
     refposinfo = {}  # {loc: [(prob, hap), ]), }
     refposes = set()
     refposinfo_rev = {}
@@ -210,22 +218,34 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
         is_reverse = 1 if readitem.is_reverse else 0
         moddict = _get_moddict(readitem, modbase, modification)
         modlocs = set(moddict.keys())
+        matches_only = False if args.refsites_all else True
+        aligned_pairs = readitem.get_aligned_pairs(matches_only=matches_only)
         if is_reverse:
-            for q_pos, r_pos in readitem.get_aligned_pairs(matches_only=True):
-                if ref_start <= r_pos < ref_end:
-                    if q_pos in modlocs:
+            for q_pos, r_pos in aligned_pairs:
+                if r_pos is not None and ref_start <= r_pos < ref_end:
+                    if q_pos is not None and q_pos in modlocs:
                         if r_pos not in refposes_rev:
                             refposes_rev.add(r_pos)
                             refposinfo_rev[r_pos] = []
                         refposinfo_rev[r_pos].append((moddict[q_pos], hap))
+                    elif args.refsites_all and (r_pos in refmotifsites_rev):
+                        if r_pos not in refposes_rev:
+                            refposes_rev.add(r_pos)
+                            refposinfo_rev[r_pos] = []
+                        refposinfo_rev[r_pos].append((0.0, hap))
         else:
-            for q_pos, r_pos in readitem.get_aligned_pairs(matches_only=True):
-                if ref_start <= r_pos < ref_end:
-                    if q_pos in modlocs:
+            for q_pos, r_pos in aligned_pairs:
+                if r_pos is not None and ref_start <= r_pos < ref_end:
+                    if q_pos is not None and q_pos in modlocs:
                         if r_pos not in refposes:
                             refposes.add(r_pos)
                             refposinfo[r_pos] = []
                         refposinfo[r_pos].append((moddict[q_pos], hap))
+                    elif args.refsites_all and (r_pos in refmotifsites):
+                        if r_pos not in refposes:
+                            refposes.add(r_pos)
+                            refposinfo[r_pos] = []
+                        refposinfo[r_pos].append((0.0, hap))
         cnt_used += 1
     if args.motifs == "CG" and not args.no_comb:
         for rev_pos in refposes_rev:
@@ -368,10 +388,10 @@ def call_mods_frequency_from_bamfile(args):
     motifs = get_motif_seqs(args.motifs)
 
     motifs_filter = None
-    if args.refsites_only:
+    if args.refsites_only or args.refsites_all:
         motifs_filter = motifs
-        print("[###] --refsites_only is set as True, gonna keep only motifs({}) sites of genome reference "
-              "in the results".format(motifs_filter))
+        print("[###] --refsites_only (or/and --refsites_all) is set as True, gonna keep only motifs({}) sites "
+              "of genome reference in the results".format(motifs_filter))
 
     nproc = args.threads
     if nproc < 3:
@@ -466,7 +486,11 @@ def main():
     scfb_callfreq.add_argument("--no_comb", action="store_true", default=False, required=False,
                                help="dont combine fwd/rev reads of one CG. [Only works when motifs is CG]")
     scfb_callfreq.add_argument('--refsites_only', action='store_true', default=False,
-                               help="only keep sites which is a target motif in reference")
+                               help="only keep sites which are target motifs in both reference and reads")
+    scfb_callfreq.add_argument('--refsites_all', action='store_true', default=False,
+                               help="output all covered sites which are target motifs in reference. "
+                                    "--refsites_all is True, also means we do not output sites which "
+                                    "are target motifs only in reads.")
 
     args = parser.parse_args()
 

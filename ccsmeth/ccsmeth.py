@@ -397,7 +397,7 @@ def main():
     scf_cal.add_argument('--rm_1strand', action='store_true', default=False,
                          help="abandon ccs reads with only 1 strand subreads [DEPRECATED]")
     scf_cal.add_argument('--refsites_only', action='store_true', default=False,
-                         help="only keep sites which is a target motif in reference")
+                         help="only keep sites which are target motifs in both reference and reads")
     scf_cal.add_argument("--motifs", action="store", type=str,
                          required=False, default='CG',
                          help='motif seq to be extracted, default: CG. '
@@ -484,7 +484,11 @@ def main():
     scfb_callfreq.add_argument("--no_comb", action="store_true", default=False, required=False,
                                help="dont combine fwd/rev reads of one CG. [Only works when motifs is CG]")
     scfb_callfreq.add_argument('--refsites_only', action='store_true', default=False,
-                               help="only keep sites which is a target motif in reference")
+                               help="only keep sites which are target motifs in both reference and reads")
+    scfb_callfreq.add_argument('--refsites_all', action='store_true', default=False,
+                               help="output all covered sites which are target motifs in reference. "
+                                    "--refsites_all is True, also means we do not output sites which "
+                                    "are target motifs only in reads.")
 
     sub_call_freqb.set_defaults(func=main_call_freqb)
 

@@ -511,7 +511,12 @@ CALL_FREQ:
                         default 0
   --no_comb             dont combine fwd/rev reads of one CG. [Only works when
                         motifs is CG]
-  --refsites_only       only keep sites which is a target motif in reference
+  --refsites_only       only keep sites which are target motifs in both
+                        reference and reads
+  --refsites_all        output all covered sites which are target motifs in
+                        reference. --refsites_all is True, also means we do
+                        not output sites which are target motifs only in
+                        reads.
 ```
 
 The format of the output file is the same as of `ccsmeth call_freqt`.

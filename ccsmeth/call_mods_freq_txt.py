@@ -416,7 +416,7 @@ def main():
                         help="if compressing the output using gzip")
 
     parser.add_argument('--refsites_only', action='store_true', default=False,
-                        help="only keep sites which is a target motif in reference")
+                        help="only keep sites which are target motifs in both reference and reads")
     parser.add_argument("--motifs", action="store", type=str,
                         required=False, default='CG',
                         help='motif seq to be extracted, default: CG. '
