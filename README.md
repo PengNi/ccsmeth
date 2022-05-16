@@ -354,7 +354,7 @@ EXTRACTION ALIGN_MODE:
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
                         default 10
   --identity IDENTITY   identity cutoff for selecting alignment items, default
-                        0.8
+                        0.75
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no
@@ -501,7 +501,7 @@ CALL_FREQ:
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
                         default 10
   --identity IDENTITY   identity cutoff for selecting alignment items, default
-                        0.8
+                        0.75
   --no_supplementary    not use supplementary alignment
   --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
                         motifs splited by comma (no space allowed in the input
@@ -588,7 +588,7 @@ EXTRACTION ALIGN_MODE:
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
                         default 10
   --identity IDENTITY   identity cutoff for selecting alignment items, default
-                        0.8
+                        0.75
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no
