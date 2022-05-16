@@ -334,7 +334,8 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
         for refpositem in refposinfo[refpos]:
             mprob, hap, read_name = refpositem
             label = 1 if mprob > 0.5 else 0
-            perreadsite_res.append((ref_name, refpos, "+", read_name, "-1", "1,1", 1-mprob, mprob, label))
+            perreadsite_res.append((ref_name, refpos, "+", read_name, "-1", "1,1",
+                                    1 - mprob, mprob, label, "-"))
     if not (args.motifs == "CG" and not args.no_comb):
         for refpos in refposinfo_rev:
             if motifs_filter is not None:
@@ -344,7 +345,8 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
             for refpositem in refposinfo_rev[refpos]:
                 mprob, hap, read_name = refpositem
                 label = 1 if mprob > 0.5 else 0
-                perreadsite_res.append((ref_name, refpos, "-", read_name, "-1", "1,1", 1-mprob, mprob, label))
+                perreadsite_res.append((ref_name, refpos, "-", read_name, "-1", "1,1",
+                                        1 - mprob, mprob, label, "-"))
     return perreadsite_res
 
 
@@ -482,8 +484,8 @@ def main():
                                help="haplotype tag, default HP")
     scfb_callfreq.add_argument("--mapq", type=int, default=10, required=False,
                                help="MAPping Quality cutoff for selecting alignment items, default 10")
-    scfb_callfreq.add_argument("--identity", type=float, default=0.8, required=False,
-                               help="identity cutoff for selecting alignment items, default 0.8")
+    scfb_callfreq.add_argument("--identity", type=float, default=0.75, required=False,
+                               help="identity cutoff for selecting alignment items, default 0.75")
     scfb_callfreq.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                help="not use supplementary alignment")
     scfb_callfreq.add_argument("--motifs", action="store", type=str,

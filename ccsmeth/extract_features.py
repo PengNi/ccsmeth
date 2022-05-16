@@ -701,8 +701,8 @@ def main():
                                help="path to genome reference to be aligned, in fasta/fa format.")
     p_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
                                help="MAPping Quality cutoff for selecting alignment items, default 10")
-    p_extract_ref.add_argument("--identity", type=float, default=0.8, required=False,
-                               help="identity cutoff for selecting alignment items, default 0.8")
+    p_extract_ref.add_argument("--identity", type=float, default=0.75, required=False,
+                               help="identity cutoff for selecting alignment items, default 0.75")
     p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                help="not use supplementary alignment")
     p_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,

@@ -38,7 +38,7 @@ class ModRecord:
         self._prob_0 = float(fields[6])
         self._prob_1 = float(fields[7])
         self._called_label = int(fields[8])
-        self._kmer = fields[9]
+        self._kmer = fields[9] if len(fields) > 9 else "-"
 
     def is_record_callable(self, prob_threshold):
         if abs(self._prob_0 - self._prob_1) < prob_threshold:
