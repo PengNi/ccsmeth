@@ -36,7 +36,7 @@ setup(
     version=__version__,
     url='https://github.com/PengNi/ccsmeth',
     download_url='https://github.com/PengNi/ccsmeth/archive/refs/tags/{}.tar.gz'.format(__version__),
-    license='GNU General Public License v3 (GPLv3)',
+    license='BSD-3-Clause-Clear license',
     author='Peng Ni',
     # install_requires=['numpy>=1.15.3',
     #                   'statsmodels>=0.9.0',
@@ -45,7 +45,7 @@ setup(
     #                   ],
     install_requires=required,
     author_email='543943952@qq.com',
-    description='',
+    description='Detecting DNA methylation from PacBio CCS reads',
     long_description=long_description,
     entry_points={
         'console_scripts': [

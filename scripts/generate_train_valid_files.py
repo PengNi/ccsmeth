@@ -113,7 +113,7 @@ def main():
     wprefix = args.wprefix.rstrip("/")
 
     combined_file = wprefix + ".comb.txt"
-    concat_two_files(posfile, negfile, combined_file, 3000000, isheader=False)
+    concat_two_files(posfile, negfile, combined_file, 5000000, isheader=False)
 
     line_cnt = count_line_num(combined_file, False)
     line_cnt_t = int(round(line_cnt * tratio))

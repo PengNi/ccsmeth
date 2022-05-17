@@ -388,7 +388,7 @@ def main():
     args = parser.parse_args()
 
     add_mm_ml_tags_to_bam(args.bam, args.per_readsite, args.modbam,
-                          args.rm_pulse, args.skip_unmapped, args.threads,
+                          args.rm_pulse, args.threads,
                           args.batch_size)
 
 

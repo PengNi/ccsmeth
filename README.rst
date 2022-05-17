@@ -4,6 +4,10 @@ ccsmeth
 
 Documentation
 -------------
+v0.2.2
+----------
+
+
 v0.2.1
 ----------
 minor fixes
