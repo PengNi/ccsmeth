@@ -610,12 +610,15 @@ usage: ccsmeth train [-h] --train_file TRAIN_FILE --valid_file VALID_FILE
                      [--n_vocab N_VOCAB] [--n_embed N_EMBED]
                      [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN]
                      [--optim_type {Adam,RMSprop,SGD,Ranger}]
-                     [--batch_size BATCH_SIZE] [--lr LR] [--lr_decay LR_DECAY]
-                     [--lr_decay_step LR_DECAY_STEP]
+                     [--batch_size BATCH_SIZE]
+                     [--lr_scheduler {StepLR,ReduceLROnPlateau}] [--lr LR]
+                     [--lr_decay LR_DECAY] [--lr_decay_step LR_DECAY_STEP]
+                     [--lr_patience LR_PATIENCE]
+                     [--lr_mode_strategy {last,mean,max}]
                      [--max_epoch_num MAX_EPOCH_NUM]
                      [--min_epoch_num MIN_EPOCH_NUM] [--pos_weight POS_WEIGHT]
-                     [--tseed TSEED] [--step_interval STEP_INTERVAL]
-                     [--init_model INIT_MODEL]
+                     [--step_interval STEP_INTERVAL] [--init_model INIT_MODEL]
+                     [--tseed TSEED]
 
 train a model, need two independent datasets for training and validating
 
@@ -629,7 +632,7 @@ INPUT:
 OUTPUT:
   --model_dir MODEL_DIR
 
-TRAIN:
+TRAIN MODEL_HYPER:
   --model_type {attbilstm2s,attbigru2s}
                         type of model to use, 'attbilstm2s', 'attbigru2s',
                         default: attbigru2s
@@ -645,23 +648,33 @@ TRAIN:
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 3
   --hid_rnn HID_RNN     BiRNN hidden_size for combined feature
+
+TRAINING:
   --optim_type {Adam,RMSprop,SGD,Ranger}
                         type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop'
                         or 'Ranger', default Adam
   --batch_size BATCH_SIZE
-  --lr LR
-  --lr_decay LR_DECAY
+  --lr_scheduler {StepLR,ReduceLROnPlateau}
+                        StepLR or ReduceLROnPlateau, default StepLR
+  --lr LR               default 0.001
+  --lr_decay LR_DECAY   default 0.1
   --lr_decay_step LR_DECAY_STEP
+                        effective in StepLR. default 1
+  --lr_patience LR_PATIENCE
+                        effective in ReduceLROnPlateau. default 0
+  --lr_mode_strategy {last,mean,max}
+                        effective in ReduceLROnPlateau. last, mean, or max,
+                        default last
   --max_epoch_num MAX_EPOCH_NUM
                         max epoch num, default 50
   --min_epoch_num MIN_EPOCH_NUM
                         min epoch num, default 10
   --pos_weight POS_WEIGHT
-  --tseed TSEED         random seed for pytorch
   --step_interval STEP_INTERVAL
   --init_model INIT_MODEL
                         file path of pre-trained model parameters to load
                         before training
+  --tseed TSEED         random seed for pytorch
 ```
 
 

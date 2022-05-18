@@ -6,6 +6,7 @@ Documentation
 -------------
 v0.2.2
 ----------
+more options in train module
 
 
 v0.2.1

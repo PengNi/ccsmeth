@@ -500,7 +500,7 @@ def main():
     st_output = sub_train.add_argument_group("OUTPUT")
     st_output.add_argument('--model_dir', type=str, required=True)
 
-    st_train = sub_train.add_argument_group("TRAIN")
+    st_train = sub_train.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s"],
@@ -530,26 +530,38 @@ def main():
     st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
                           help="BiRNN hidden_size for combined feature")
 
+    st_training = sub_train.add_argument_group("TRAINING")
     # model training
-    st_train.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
-                                                                             "Ranger"],
-                          required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' or 'Ranger', "
-                                               "default Adam")
-    st_train.add_argument('--batch_size', type=int, default=512, required=False)
-    st_train.add_argument('--lr', type=float, default=0.001, required=False)
-    st_train.add_argument('--lr_decay', type=float, default=0.1, required=False)
-    st_train.add_argument('--lr_decay_step', type=int, default=1, required=False)
-    st_train.add_argument("--max_epoch_num", action="store", default=50, type=int,
-                          required=False, help="max epoch num, default 50")
-    st_train.add_argument("--min_epoch_num", action="store", default=10, type=int,
-                          required=False, help="min epoch num, default 10")
-    st_train.add_argument('--pos_weight', type=float, default=1.0, required=False)
-    st_train.add_argument('--tseed', type=int, default=1234,
-                          help='random seed for pytorch')
-    st_train.add_argument('--step_interval', type=int, default=500, required=False)
+    st_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
+                                                                                "Ranger"],
+                             required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
+                                                  "or 'Ranger', default Adam")
+    st_training.add_argument('--batch_size', type=int, default=512, required=False)
+    st_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,
+                             choices=["StepLR", "ReduceLROnPlateau"],
+                             help="StepLR or ReduceLROnPlateau, default StepLR")
+    st_training.add_argument('--lr', type=float, default=0.001, required=False,
+                             help="default 0.001")
+    st_training.add_argument('--lr_decay', type=float, default=0.1, required=False,
+                             help="default 0.1")
+    st_training.add_argument('--lr_decay_step', type=int, default=1, required=False,
+                             help="effective in StepLR. default 1")
+    st_training.add_argument('--lr_patience', type=int, default=0, required=False,
+                             help="effective in ReduceLROnPlateau. default 0")
+    st_training.add_argument('--lr_mode_strategy', type=str, default="last", required=False,
+                             choices=["last", "mean", "max"],
+                             help="effective in ReduceLROnPlateau. last, mean, or max, default last")
+    st_training.add_argument("--max_epoch_num", action="store", default=50, type=int,
+                             required=False, help="max epoch num, default 50")
+    st_training.add_argument("--min_epoch_num", action="store", default=10, type=int,
+                             required=False, help="min epoch num, default 10")
+    st_training.add_argument('--pos_weight', type=float, default=1.0, required=False)
+    st_training.add_argument('--step_interval', type=int, default=500, required=False)
 
-    st_train.add_argument('--init_model', type=str, default=None, required=False,
-                          help="file path of pre-trained model parameters to load before training")
+    st_training.add_argument('--init_model', type=str, default=None, required=False,
+                             help="file path of pre-trained model parameters to load before training")
+    st_training.add_argument('--tseed', type=int, default=1234,
+                             help='random seed for pytorch')
 
     sub_train.set_defaults(func=main_train)
 

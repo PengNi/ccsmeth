@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 from sklearn import metrics
 from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .dataloader import FeaData
 from .dataloader import clear_linecache
@@ -102,17 +103,26 @@ def train(args):
             raise ImportError("please check if ranger2020.py is in utils/ dir!")
         optimizer = Ranger(model.parameters(), lr=args.lr, betas=(0.95, 0.999), eps=1e-5)
     else:
-        raise ValueError("optim_type is not right!")
-    scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
+        raise ValueError("--optim_type is not right!")
+
+    if args.lr_scheduler == "StepLR":
+        scheduler = StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_decay)
+    elif args.lr_scheduler == "ReduceLROnPlateau":
+        scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=args.lr_decay,
+                                      patience=args.lr_patience, verbose=True)
+    else:
+        raise ValueError("--lr_scheduler is not right!")
 
     # Train the model
     total_step = len(train_loader)
     print("total_step: {}".format(total_step))
     curr_best_accuracy = 0
     curr_best_accuracy_loc = 0
+    curr_best_accuracy_epoches = []
     model.train()
     for epoch in range(args.max_epoch_num):
         curr_best_accuracy_epoch = 0
+        accuracies_per_epoch = []
         no_best_model = True
         tlosses = []
         start = time.time()
@@ -120,7 +130,7 @@ def train(args):
             if args.model_type in {"attbigru2s", "attbilstm2s"}:
                 _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap, \
                     rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap, \
-                    label = sfeatures
+                    labels = sfeatures
                 if use_cuda:
                     fkmer = fkmer.cuda()
                     fpass = fpass.cuda()
@@ -140,14 +150,14 @@ def train(args):
                     rqual = rqual.cuda()
                     rmap = rmap.cuda()
 
-                    label = label.cuda()
+                    labels = labels.cuda()
                 # Forward pass
                 outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap,
                                         rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap)
-                loss = criterion(outputs, label)
+                loss = criterion(outputs, labels)
                 tlosses.append(loss.detach().item())
             else:
-                raise ValueError("--model_type not right!")
+                raise ValueError("--model_type is not right!")
 
             # Backward and optimize
             optimizer.zero_grad()
@@ -185,11 +195,13 @@ def train(args):
 
                                 vlabels = vlabels.cuda()
                             # Forward pass
-                            voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap,
-                                                      vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap)
+                            voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm,
+                                                      vfpwsd, vfqual, vfmap,
+                                                      vrkmer, vrpass, vripdm, vripdsd, vrpwm,
+                                                      vrpwsd, vrqual, vrmap)
                             vloss = criterion(voutputs, vlabels)
                         else:
-                            raise ValueError("--model_type not right!")
+                            raise ValueError("--model_type is not right!")
 
                         _, vpredicted = torch.max(vlogits.data, 1)
 
@@ -204,31 +216,63 @@ def train(args):
                     v_precision = metrics.precision_score(vlabels_total, vpredicted_total)
                     v_recall = metrics.recall_score(vlabels_total, vpredicted_total)
                     v_meanloss = np.mean(vlosses)
+                    accuracies_per_epoch.append(v_accuracy)
                     if v_accuracy > curr_best_accuracy_epoch:
                         curr_best_accuracy_epoch = v_accuracy
                         if curr_best_accuracy_epoch > curr_best_accuracy - 0.0002:
                             torch.save(model.state_dict(),
-                                       model_dir + args.model_type + '.b{}_epoch{}.ckpt'.format(args.seq_len,
-                                                                                                epoch + 1))
+                                       model_dir + args.model_type +
+                                       '.b{}_epoch{}.ckpt'.format(args.seq_len, epoch + 1))
                             if curr_best_accuracy_epoch > curr_best_accuracy:
                                 curr_best_accuracy = curr_best_accuracy_epoch
                                 curr_best_accuracy_loc = epoch + 1
                                 no_best_model = False
 
+                        if len(curr_best_accuracy_epoches) > 0 and curr_best_accuracy_epoch > \
+                                curr_best_accuracy_epoches[-1]:
+                            torch.save(model.state_dict(),
+                                       model_dir + args.model_type +
+                                       '.betterthanlast.b{}_epoch{}.ckpt'.format(args.seq_len,
+                                                                                 epoch + 1))
+
                     time_cost = time.time() - start
-                    print('Epoch [{}/{}], Step [{}/{}], TrainLoss: {:.4f}; '
-                          'ValidLoss: {:.4f}, '
-                          'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
-                          'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
-                          .format(epoch + 1, args.max_epoch_num, i + 1, total_step, np.mean(tlosses),
-                                  v_meanloss, v_accuracy, v_precision, v_recall,
-                                  curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
+                    try:
+                        last_lr = scheduler.get_last_lr()
+                        print('Epoch [{}/{}], Step [{}/{}]; LR: {:.4e}; TrainLoss: {:.4f}; '
+                              'ValidLoss: {:.4f}, '
+                              'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                              'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
+                              .format(epoch + 1, args.max_epoch_num, i + 1, total_step, last_lr,
+                                      np.mean(tlosses), v_meanloss, v_accuracy, v_precision, v_recall,
+                                      curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
+                    except Exception:
+                        print('Epoch [{}/{}], Step [{}/{}]; TrainLoss: {:.4f}; '
+                              'ValidLoss: {:.4f}, '
+                              'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                              'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
+                              .format(epoch + 1, args.max_epoch_num, i + 1, total_step,
+                                      np.mean(tlosses), v_meanloss, v_accuracy, v_precision, v_recall,
+                                      curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
+
                     tlosses = []
                     start = time.time()
                     sys.stdout.flush()
                 model.train()
-        scheduler.step()
 
+        if args.lr_scheduler == "ReduceLROnPlateau":
+            if args.lr_mode_strategy == "mean":
+                reduce_metric = np.mean(accuracies_per_epoch)
+            elif args.lr_mode_strategy == "last":
+                reduce_metric = accuracies_per_epoch[-1]
+            elif args.lr_mode_strategy == "max":
+                reduce_metric = np.max(accuracies_per_epoch)
+            else:
+                raise ValueError("--lr_mode_strategy is not right!")
+            scheduler.step(reduce_metric)
+        else:
+            scheduler.step()
+
+        curr_best_accuracy_epoches.append(curr_best_accuracy_epoch)
         if no_best_model and epoch >= args.min_epoch_num - 1:
             print("early stop!")
             break
@@ -249,7 +293,7 @@ def main():
     st_output = parser.add_argument_group("OUTPUT")
     st_output.add_argument('--model_dir', type=str, required=True)
 
-    st_train = parser.add_argument_group("TRAIN")
+    st_train = parser.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s"],
@@ -279,26 +323,38 @@ def main():
     st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
                           help="BiRNN hidden_size for combined feature")
 
+    st_training = parser.add_argument_group("TRAINING")
     # model training
-    st_train.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
-                                                                             "Ranger"],
-                          required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' or 'Ranger', "
-                                               "default Adam")
-    st_train.add_argument('--batch_size', type=int, default=512, required=False)
-    st_train.add_argument('--lr', type=float, default=0.001, required=False)
-    st_train.add_argument('--lr_decay', type=float, default=0.1, required=False)
-    st_train.add_argument('--lr_decay_step', type=int, default=1, required=False)
-    st_train.add_argument("--max_epoch_num", action="store", default=50, type=int,
-                          required=False, help="max epoch num, default 50")
-    st_train.add_argument("--min_epoch_num", action="store", default=10, type=int,
-                          required=False, help="min epoch num, default 10")
-    st_train.add_argument('--pos_weight', type=float, default=1.0, required=False)
-    st_train.add_argument('--tseed', type=int, default=1234,
-                          help='random seed for pytorch')
-    st_train.add_argument('--step_interval', type=int, default=500, required=False)
+    st_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
+                                                                                "Ranger"],
+                             required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
+                                                  "or 'Ranger', default Adam")
+    st_training.add_argument('--batch_size', type=int, default=512, required=False)
+    st_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,
+                             choices=["StepLR", "ReduceLROnPlateau"],
+                             help="StepLR or ReduceLROnPlateau, default StepLR")
+    st_training.add_argument('--lr', type=float, default=0.001, required=False,
+                             help="default 0.001")
+    st_training.add_argument('--lr_decay', type=float, default=0.1, required=False,
+                             help="default 0.1")
+    st_training.add_argument('--lr_decay_step', type=int, default=1, required=False,
+                             help="effective in StepLR. default 1")
+    st_training.add_argument('--lr_patience', type=int, default=0, required=False,
+                             help="effective in ReduceLROnPlateau. default 0")
+    st_training.add_argument('--lr_mode_strategy', type=str, default="last", required=False,
+                             choices=["last", "mean", "max"],
+                             help="effective in ReduceLROnPlateau. last, mean, or max, default last")
+    st_training.add_argument("--max_epoch_num", action="store", default=50, type=int,
+                             required=False, help="max epoch num, default 50")
+    st_training.add_argument("--min_epoch_num", action="store", default=10, type=int,
+                             required=False, help="min epoch num, default 10")
+    st_training.add_argument('--pos_weight', type=float, default=1.0, required=False)
+    st_training.add_argument('--step_interval', type=int, default=500, required=False)
 
-    st_train.add_argument('--init_model', type=str, default=None, required=False,
-                          help="file path of pre-trained model parameters to load before training")
+    st_training.add_argument('--init_model', type=str, default=None, required=False,
+                             help="file path of pre-trained model parameters to load before training")
+    st_training.add_argument('--tseed', type=int, default=1234,
+                             help='random seed for pytorch')
 
     args = parser.parse_args()
 
