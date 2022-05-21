@@ -313,7 +313,7 @@ def _worker_write_modbam(wreads_q, modbamfile, inputbamfile):
 
 def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
                           rm_pulse=True, threads=3,
-                          reads_batch=100):
+                          reads_batch=100, mode="align"):
     sys.stderr.write("[generate_modbam_file]starts\n")
     start = time.time()
 
@@ -355,7 +355,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     wreads_q.put("kill")
     p_w.join()
 
-    if modbamfile.endswith(".bam"):
+    if modbamfile.endswith(".bam") and mode == "align":
         sys.stderr.write("sorting and indexing new bam file..\n")
         modbam_sorted = modbamfile + ".sorted.bam"
         pysam.sort("-o", modbam_sorted, "-@", str(threads), modbamfile)

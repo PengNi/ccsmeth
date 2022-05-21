@@ -404,9 +404,9 @@ def call_mods(args):
         index_bam_if_needed2(input_path, args.threads)
 
         dnacontigs = None
-        if args.mode == "reference":
+        if args.mode == "align":
             if args.ref is None:
-                raise ValueError("--ref must be provided when using reference mode!")
+                raise ValueError("--ref must be provided when using align mode!")
             reference = os.path.abspath(args.ref)
             if not os.path.exists(reference):
                 raise IOError("refernce(--ref) file does not exist!")
@@ -478,7 +478,8 @@ def call_mods(args):
             from ._bam2modbam import add_mm_ml_tags_to_bam
             out_modbam = args.output + ".modbam.bam"
             add_mm_ml_tags_to_bam(input_path, out_per_readsite, out_modbam,
-                                  rm_pulse=True, threads=args.threads)
+                                  rm_pulse=True, threads=args.threads,
+                                  mode=args.mode)
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()
