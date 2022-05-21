@@ -617,8 +617,9 @@ usage: ccsmeth train [-h] --train_file TRAIN_FILE --valid_file VALID_FILE
                      [--lr_mode_strategy {last,mean,max}]
                      [--max_epoch_num MAX_EPOCH_NUM]
                      [--min_epoch_num MIN_EPOCH_NUM] [--pos_weight POS_WEIGHT]
-                     [--step_interval STEP_INTERVAL] [--init_model INIT_MODEL]
-                     [--tseed TSEED]
+                     [--step_interval STEP_INTERVAL]
+                     [--dl_num_workers DL_NUM_WORKERS] [--dl_offsets]
+                     [--init_model INIT_MODEL] [--tseed TSEED]
 
 train a model, need two independent datasets for training and validating
 
@@ -671,11 +672,16 @@ TRAINING:
                         min epoch num, default 10
   --pos_weight POS_WEIGHT
   --step_interval STEP_INTERVAL
+  --dl_num_workers DL_NUM_WORKERS
+                        default 0
+  --dl_offsets          use file offsets loader
   --init_model INIT_MODEL
                         file path of pre-trained model parameters to load
                         before training
   --tseed TSEED         random seed for pytorch
 ```
+
+See also `ccsmeth trainm -h` for multi-gpu distributed training.
 
 
 ## Acknowledgements

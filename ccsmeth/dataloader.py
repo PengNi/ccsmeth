@@ -2,7 +2,6 @@ from torch.utils.data import Dataset
 import linecache
 import os
 import numpy as np
-from torch.utils.data import IterableDataset
 
 from .utils.process_utils import base2code_dna
 
