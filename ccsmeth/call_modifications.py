@@ -213,7 +213,7 @@ def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q, seq_
 
 
 # call mods =============================================================
-def _call_mods2s(features_batch, model, batch_size):
+def _call_mods2s(features_batch, model, batch_size, device=0):
     sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fquals, fmaps, \
         rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rquals, rmaps, labels = features_batch
     labels = np.reshape(labels, (len(labels)))
@@ -245,12 +245,14 @@ def _call_mods2s(features_batch, model, batch_size):
 
         b_labels = labels[batch_s:batch_e]
         if len(b_sampleinfo) > 0:
-            voutputs, vlogits = model(FloatTensor(b_fkmers), FloatTensor(b_fpasss), FloatTensor(b_fipdms),
-                                      FloatTensor(b_fipdsds), FloatTensor(b_fpwms), FloatTensor(b_fpwsds),
-                                      FloatTensor(b_fquals), FloatTensor(b_fmaps),
-                                      FloatTensor(b_rkmers), FloatTensor(b_rpasss), FloatTensor(b_ripdms),
-                                      FloatTensor(b_ripdsds), FloatTensor(b_rpwms), FloatTensor(b_rpwsds),
-                                      FloatTensor(b_rquals), FloatTensor(b_rmaps))
+            voutputs, vlogits = model(FloatTensor(b_fkmers, device), FloatTensor(b_fpasss, device),
+                                      FloatTensor(b_fipdms, device), FloatTensor(b_fipdsds, device),
+                                      FloatTensor(b_fpwms, device), FloatTensor(b_fpwsds, device),
+                                      FloatTensor(b_fquals, device), FloatTensor(b_fmaps, device),
+                                      FloatTensor(b_rkmers, device), FloatTensor(b_rpasss, device),
+                                      FloatTensor(b_ripdms, device), FloatTensor(b_ripdsds, device),
+                                      FloatTensor(b_rpwms, device), FloatTensor(b_rpwsds, device),
+                                      FloatTensor(b_rquals, device), FloatTensor(b_rmaps, device))
             _, vpredicted = torch.max(vlogits.data, 1)
             if use_cuda:
                 vlogits = vlogits.cpu()
@@ -282,7 +284,7 @@ def _call_mods2s(features_batch, model, batch_size):
     return pred_str, accuracy, batch_num
 
 
-def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
+def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
     print('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
@@ -292,20 +294,19 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
                             is_npass=str2bool(args.is_npass),
-                            model_type=args.model_type)
+                            model_type=args.model_type,
+                            device=device)
     else:
         raise ValueError("--model_type not right!")
 
-    if use_cuda:
-        model = model.cuda()
-        para_dict = torch.load(model_path)
-    else:
-        para_dict = torch.load(model_path, map_location=torch.device('cpu'))
-
+    para_dict = torch.load(model_path, map_location=torch.device('cpu'))
+    # para_dict = torch.load(model_path, map_location=torch.device(device))
     model_dict = model.state_dict()
     model_dict.update(para_dict)
     model.load_state_dict(model_dict)
 
+    if use_cuda:
+        model = model.cuda(device)
     model.eval()
 
     accuracy_list = []
@@ -322,7 +323,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args):
             break
 
         if args.model_type in {"attbigru2s", "attbilstm2s"}:
-            pred_str, accuracy, batch_num = _call_mods2s(features_batch, model, args.batch_size)
+            pred_str, accuracy, batch_num = _call_mods2s(features_batch, model, args.batch_size, device)
         else:
             raise ValueError("--model_type not right!")
 
@@ -360,6 +361,15 @@ def _write_predstr_to_file(write_fp, predstr_q, is_gzip):
         for one_pred_str in pred_str:
             wf.write(one_pred_str + "\n")
         wf.flush()
+
+
+def _get_gpus():
+    num_gpus = torch.cuda.device_count()
+    if num_gpus > 0:
+        gpulist = list(range(num_gpus))
+    else:
+        gpulist = [0]
+    return gpulist * 1000
 
 
 def call_mods(args):
@@ -433,6 +443,8 @@ def call_mods(args):
         ps_extract = []
         ps_call = []
         nproc_ext = nproc - nproc_dp - 2
+        gpulist = _get_gpus()
+        gpuindex = 0
         for i in range(max(nproc_ext, nproc_dp)):
             if i < nproc_ext:
                 p = mp.Process(target=worker_extract_features_from_holebatches,
@@ -443,7 +455,9 @@ def call_mods(args):
                 p.start()
                 ps_extract.append(p)
             if i < nproc_dp:
-                p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q, args))
+                p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q,
+                                                          args, gpulist[gpuindex]))
+                gpuindex += 1
                 p.daemon = True
                 p.start()
                 ps_call.append(p)
@@ -504,8 +518,12 @@ def call_mods(args):
             raise ValueError("--model_type not right!")
 
         predstr_procs = []
+        gpulist = _get_gpus()
+        gpuindex = 0
         for _ in range(nproc_dp):
-            p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q, args))
+            p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, pred_str_q,
+                                                      args, gpulist[gpuindex]))
+            gpuindex += 1
             p.daemon = True
             p.start()
             predstr_procs.append(p)

@@ -17,9 +17,11 @@ class ModelAttRNN(nn.Module):
                  dropout_rate=0.5, hidden_size=256,
                  vocab_size=16, embedding_size=4,
                  is_qual=True, is_map=False, is_stds=False, is_npass=False,
-                 model_type="attbilstm2s"):
+                 model_type="attbilstm2s",
+                 device=0):
         super(ModelAttRNN, self).__init__()
         self.model_type = model_type
+        self.device = device
 
         self.seq_len = seq_len
         self.num_layers = num_layers
@@ -71,11 +73,11 @@ class ModelAttRNN(nn.Module):
         # Set initial states
         h0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
         if use_cuda:
-            h0 = h0.cuda()
+            h0 = h0.cuda(self.device)
         if self.rnn_cell == "lstm":
             c0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
             if use_cuda:
-                c0 = c0.cuda()
+                c0 = c0.cuda(self.device)
             return h0, c0
         return h0
 

@@ -8,6 +8,8 @@ v0.2.2
 ----------
 more options in train module
 
+multi-gpu support in call_mods and trainm modules
+
 
 v0.2.1
 ----------

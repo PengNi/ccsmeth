@@ -2,7 +2,7 @@ from torch.utils.data import Dataset
 import linecache
 import os
 import numpy as np
-# import random
+from torch.utils.data import IterableDataset
 
 from .utils.process_utils import base2code_dna
 
@@ -72,3 +72,76 @@ class FeaData(Dataset):
 
     def __len__(self):
         return self._total_data
+
+
+# FeaData2 ======================================================
+# ChunkDataset hasn't being accepted
+# https://github.com/pytorch/pytorch/pull/26547
+
+# https://github.com/pytorch/text/issues/130
+# https://github.com/pytorch/text/blob/0b4718d7827b7f278cd3169af7f2587c1f663a27/torchtext/datasets/unsupervised_learning.py
+def generate_offsets(filename):
+    offsets = []
+    with open(filename, "r") as rf:
+        offsets.append(rf.tell())
+        while rf.readline():
+            offsets.append(rf.tell())
+    return offsets
+
+
+class FeaData2(Dataset):
+    def __init__(self, filename, offsets, linenum, transform=None):
+        self._filename = os.path.abspath(filename)
+        self._total_data = linenum
+        self._transform = transform
+
+        self._offsets = offsets
+        self._data_stream = open(self._filename, 'r')
+        self._current_offset = 0
+
+    def __getitem__(self, idx):
+        offset = self._offsets[idx]
+        self._data_stream.seek(offset)
+        line = self._data_stream.readline()
+        # with open(self._filename, "r") as rf:
+        #     rf.seek(offset)
+        #     line = rf.readline()
+        output = parse_a_line(line)
+        if self._transform is not None:
+            output = self._transform(output)
+        return output
+
+    def __len__(self):
+        return self._total_data
+
+    def close(self):
+        self._data_stream.close()
+
+
+class FeaData3(Dataset):
+    def __init__(self, filename, offsets, linenum, transform=None):
+        self._filename = os.path.abspath(filename)
+        self._total_data = linenum
+        self._transform = transform
+
+        self._offsets = offsets
+        # self._data_stream = open(self._filename, 'r')
+        self._current_offset = 0
+
+    def __getitem__(self, idx):
+        offset = self._offsets[idx]
+        # self._data_stream.seek(offset)
+        # line = self._data_stream.readline()
+        with open(self._filename, "r") as rf:
+            rf.seek(offset)
+            line = rf.readline()
+        output = parse_a_line(line)
+        if self._transform is not None:
+            output = self._transform(output)
+        return output
+
+    def __len__(self):
+        return self._total_data
+
+    def close(self):
+        pass

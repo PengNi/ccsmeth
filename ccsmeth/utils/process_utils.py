@@ -276,7 +276,7 @@ def count_line_num(sl_filepath, fheader=False):
             next(rf)
         for _ in rf:
             count += 1
-    print('done count the lines of file {}'.format(sl_filepath))
+    # print('done count the lines of file {}'.format(sl_filepath))
     return count
 
 

@@ -13,6 +13,7 @@ from torch.optim.lr_scheduler import StepLR
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .dataloader import FeaData
+from .dataloader import FeaData2
 from .dataloader import clear_linecache
 
 from .models import ModelAttRNN
@@ -35,15 +36,28 @@ def train(args):
 
     print("reading data..")
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
-        train_dataset = FeaData(args.train_file)
+        if args.dl_offsets:
+            if args.dl_num_workers > 1:
+                raise ValueError("--dl_num_workers should not be >1 when --dl_offsets is True!")
+            from .utils.process_utils import count_line_num
+            from .dataloader import generate_offsets
+            train_linenum = count_line_num(args.train_file, False)
+            train_offsets = generate_offsets(args.train_file)
+            train_dataset = FeaData2(args.train_file, train_offsets, train_linenum)
+            valid_linenum = count_line_num(args.valid_file, False)
+            valid_offsets = generate_offsets(args.valid_file)
+            valid_dataset = FeaData2(args.valid_file, valid_offsets, valid_linenum)
+        else:
+            train_dataset = FeaData(args.train_file)
+            valid_dataset = FeaData(args.valid_file)
         train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
                                                    batch_size=args.batch_size,
-                                                   shuffle=True)
-
-        valid_dataset = FeaData(args.valid_file)
+                                                   shuffle=True,
+                                                   num_workers=args.dl_num_workers)
         valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
                                                    batch_size=args.batch_size,
-                                                   shuffle=False)
+                                                   shuffle=False,
+                                                   num_workers=args.dl_num_workers)
     else:
         raise ValueError("--model_type not right!")
 
@@ -72,6 +86,8 @@ def train(args):
         raise ValueError("--model_type not right!")
 
     if use_cuda:
+        # if torch.cuda.device_count() > 1:
+        #     model = nn.DataParallel(model)
         model = model.cuda()
 
     if args.init_model is not None:
@@ -98,7 +114,7 @@ def train(args):
         # refer to https://github.com/lessw2020/Ranger-Deep-Learning-Optimizer
         # needs python>=3.6
         try:
-            from utils.ranger2020 import Ranger
+            from .utils.ranger2020 import Ranger
         except ImportError:
             raise ImportError("please check if ranger2020.py is in utils/ dir!")
         optimizer = Ranger(model.parameters(), lr=args.lr, betas=(0.95, 0.999), eps=1e-5)
@@ -165,7 +181,7 @@ def train(args):
             torch.nn.utils.clip_grad_norm_(model.parameters(), 0.5)
             optimizer.step()
 
-            if (i + 1) % args.step_interval == 0 or i == total_step - 1:
+            if (i + 1) % args.step_interval == 0 or (i + 1) == total_step:
                 model.eval()
                 with torch.no_grad():
                     vlosses, vlabels_total, vpredicted_total = [], [], []
@@ -278,6 +294,9 @@ def train(args):
             break
     endtime = time.time()
     clear_linecache()
+    if args.dl_offsets:
+        train_dataset.close()
+        valid_dataset.close()
     print("[main]train costs {} seconds, "
           "best accuracy: {} (epoch {})".format(endtime - total_start,
                                                 curr_best_accuracy,
@@ -350,6 +369,10 @@ def main():
                              required=False, help="min epoch num, default 10")
     st_training.add_argument('--pos_weight', type=float, default=1.0, required=False)
     st_training.add_argument('--step_interval', type=int, default=500, required=False)
+    st_training.add_argument('--dl_num_workers', type=int, default=0, required=False,
+                             help="default 0")
+    st_training.add_argument('--dl_offsets', action="store_true", default=False, required=False,
+                             help="use file offsets loader")
 
     st_training.add_argument('--init_model', type=str, default=None, required=False,
                              help="file path of pre-trained model parameters to load before training")

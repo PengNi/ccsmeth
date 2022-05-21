@@ -58,10 +58,17 @@ def main_train(args):
     train(args)
 
 
+def main_trainm(args):
+    from .train_multigpu import train
+
+    display_args(args)
+    train(args)
+
+
 def main():
     parser = argparse.ArgumentParser(prog='ccsmeth',
                                      description="detecting methylation from PacBio CCS reads, "
-                                                 "ccsmeth contains 7 modules:\n"
+                                                 "ccsmeth contains 8 modules:\n"
                                                  "\t%(prog)s call_hifi: call hifi reads from subreads "
                                                  "using CCS (PBCCS)\n"
                                                  "\t%(prog)s call_mods: call modifications\n"
@@ -73,7 +80,8 @@ def main():
                                                  "\t%(prog)s extract: extract features from hifi reads "
                                                  "for training or testing\n"
                                                  "\t%(prog)s train: train a model, need two independent "
-                                                 "datasets for training and validating",
+                                                 "datasets for training and validating\n"
+                                                 "\t%(prog)s trainm: [EXPERIMENTAL]train a model using multi gpus",
                                      formatter_class=argparse.RawTextHelpFormatter)
     parser.add_argument(
         '-v', '--version', action='version',
@@ -96,6 +104,7 @@ def main():
     sub_extract = subparsers.add_parser("extract", description="extract features from hifi reads.")
     sub_train = subparsers.add_parser("train", description="train a model, need two independent datasets for training "
                                                            "and validating")
+    sub_trainm = subparsers.add_parser("trainm", description="[EXPERIMENTAL]train a model using multi gpus")
 
     # sub_call_hifi ============================================================================
     sch_input = sub_call_hifi.add_argument_group("INPUT")
@@ -557,6 +566,10 @@ def main():
                              required=False, help="min epoch num, default 10")
     st_training.add_argument('--pos_weight', type=float, default=1.0, required=False)
     st_training.add_argument('--step_interval', type=int, default=500, required=False)
+    st_training.add_argument('--dl_num_workers', type=int, default=0, required=False,
+                             help="default 0")
+    st_training.add_argument('--dl_offsets', action="store_true", default=False, required=False,
+                             help="use file offsets loader")
 
     st_training.add_argument('--init_model', type=str, default=None, required=False,
                              help="file path of pre-trained model parameters to load before training")
@@ -564,6 +577,92 @@ def main():
                              help='random seed for pytorch')
 
     sub_train.set_defaults(func=main_train)
+
+    # sub_train_multigpu =====================================================================================
+    stm_input = sub_trainm.add_argument_group("INPUT")
+    stm_input.add_argument('--train_file', type=str, required=True)
+    stm_input.add_argument('--valid_file', type=str, required=True)
+
+    stm_output = sub_trainm.add_argument_group("OUTPUT")
+    stm_output.add_argument('--model_dir', type=str, required=True)
+
+    stm_train = sub_trainm.add_argument_group("TRAIN MODEL_HYPER")
+    # model param
+    stm_train.add_argument('--model_type', type=str, default="attbigru2s",
+                           choices=["attbilstm2s", "attbigru2s"],
+                           required=False,
+                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
+                                "default: attbigru2s")
+    stm_train.add_argument('--seq_len', type=int, default=21, required=False,
+                           help="len of kmer. default 21")
+    stm_train.add_argument('--is_npass', type=str, default="yes", required=False,
+                           help="if using num_pass features, yes or no, default yes")
+    stm_train.add_argument('--is_qual', type=str, default="no", required=False,
+                           help="if using base_quality features, yes or no, default no")
+    stm_train.add_argument('--is_map', type=str, default="no", required=False,
+                           help="if using mapping features, yes or no, default no")
+    stm_train.add_argument('--is_stds', type=str, default="no", required=False,
+                           help="if using std features, yes or no, default no")
+    stm_train.add_argument('--class_num', type=int, default=2, required=False)
+    stm_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
+
+    # BiRNN model param
+    stm_train.add_argument('--n_vocab', type=int, default=16, required=False,
+                           help="base_seq vocab_size (15 base kinds from iupac)")
+    stm_train.add_argument('--n_embed', type=int, default=4, required=False,
+                           help="base_seq embedding_size")
+    stm_train.add_argument('--layer_rnn', type=int, default=3,
+                           required=False, help="BiRNN layer num, default 3")
+    stm_train.add_argument('--hid_rnn', type=int, default=256, required=False,
+                           help="BiRNN hidden_size for combined feature")
+
+    stm_training = sub_trainm.add_argument_group("TRAINING")
+    # model training
+    stm_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
+                                                                                 "Ranger"],
+                              required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
+                                                   "or 'Ranger', default Adam")
+    stm_training.add_argument('--batch_size', type=int, default=512, required=False)
+    stm_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,
+                              choices=["StepLR", "ReduceLROnPlateau"],
+                              help="StepLR or ReduceLROnPlateau, default StepLR")
+    stm_training.add_argument('--lr', type=float, default=0.001, required=False,
+                              help="default 0.001. [lr should be lr*world_size when using multi gpus? "
+                                   "or lower batch_size?]")
+    stm_training.add_argument('--lr_decay', type=float, default=0.1, required=False,
+                              help="default 0.1")
+    stm_training.add_argument('--lr_decay_step', type=int, default=1, required=False,
+                              help="effective in StepLR. default 1")
+    stm_training.add_argument('--lr_patience', type=int, default=0, required=False,
+                              help="effective in ReduceLROnPlateau. default 0")
+    # stm_training.add_argument('--lr_mode_strategy', type=str, default="last", required=False,
+    #                           choices=["last", "mean", "max"],
+    #                           help="effective in ReduceLROnPlateau. last, mean, or max, default last")
+    stm_training.add_argument("--max_epoch_num", action="store", default=50, type=int,
+                              required=False, help="max epoch num, default 50")
+    stm_training.add_argument("--min_epoch_num", action="store", default=10, type=int,
+                              required=False, help="min epoch num, default 10")
+    stm_training.add_argument('--pos_weight', type=float, default=1.0, required=False)
+    stm_training.add_argument('--step_interval', type=int, default=500, required=False)
+    stm_training.add_argument('--dl_num_workers', type=int, default=0, required=False,
+                              help="default 0")
+
+    stm_training.add_argument('--init_model', type=str, default=None, required=False,
+                              help="file path of pre-trained model parameters to load before training")
+    stm_training.add_argument('--tseed', type=int, default=1234,
+                              help='random seed for pytorch')
+
+    stm_trainingp = sub_trainm.add_argument_group("TRAINING PARALLEL")
+    stm_trainingp.add_argument("--nodes", default=1, type=int,
+                               help="number of nodes for distributed training, default 1")
+    stm_trainingp.add_argument("--ngpus_per_node", default=2, type=int,
+                               help="number of GPUs per node for distributed training, default 2")
+    stm_trainingp.add_argument("--dist-url", default="tcp://127.0.0.1:12315", type=str,
+                               help="url used to set up distributed training")
+    stm_trainingp.add_argument("--node_rank", default=0, type=int,
+                               help="node rank for distributed training, default 0")
+
+    sub_trainm.set_defaults(func=main_trainm)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):
