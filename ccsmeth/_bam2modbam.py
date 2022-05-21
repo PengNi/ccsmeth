@@ -32,6 +32,7 @@ def _generate_per_read_calls(per_readsite, output):
     holeid_curr = ""
     holeid_info = []
     cur_locs = set()
+    # TODO: multi-process? - read 1 -> queue -> merge multi -> queue -> write
     for line in rf:
         words = line.strip().split("\t")
         holeid, loc, prob_1 = words[3], int(words[4]), float(words[7])
@@ -342,6 +343,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     fname, fext = os.path.splitext(bamfile)
     if modbamfile is None:
         modbamfile = fname + ".modbam.bam"
+    # TODO: multi write_porcess then merge all writed files?
     p_w = mp.Process(target=_worker_write_modbam,
                      args=(wreads_q, modbamfile, bamfile))
     p_w.daemon = True

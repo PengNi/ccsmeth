@@ -67,8 +67,8 @@ def main_trainm(args):
 
 def main():
     parser = argparse.ArgumentParser(prog='ccsmeth',
-                                     description="detecting methylation from PacBio CCS reads, "
-                                                 "ccsmeth contains 8 modules:\n"
+                                     description="ccsmeth detects methylation from PacBio CCS reads, "
+                                                 "which contains 8 modules:\n"
                                                  "\t%(prog)s call_hifi: call hifi reads from subreads "
                                                  "using CCS (PBCCS)\n"
                                                  "\t%(prog)s call_mods: call modifications\n"
@@ -299,9 +299,9 @@ def main():
 
     sub_call_mods.add_argument("--threads", "-p", action="store", type=int, default=10,
                                required=False, help="number of threads to be used, default 10.")
-    sub_call_mods.add_argument("--threads_call", action="store", type=int, default=2,
+    sub_call_mods.add_argument("--threads_call", action="store", type=int, default=3,
                                required=False, help="number of threads used to call with trained models, "
-                                                    "no more than threads/4 is suggested. default 2.")
+                                                    "no more than threads/3 is suggested. default 3.")
     sub_call_mods.add_argument('--tseed', type=int, default=1234,
                                help='random seed for torch')
 
@@ -661,6 +661,8 @@ def main():
                                help="url used to set up distributed training")
     stm_trainingp.add_argument("--node_rank", default=0, type=int,
                                help="node rank for distributed training, default 0")
+    stm_trainingp.add_argument("--epoch_sync", action="store_true", default=False,
+                               help="if sync model params of gpu0 to other local gpus after per epoch")
 
     sub_trainm.set_defaults(func=main_trainm)
 

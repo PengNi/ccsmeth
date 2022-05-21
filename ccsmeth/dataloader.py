@@ -72,6 +72,9 @@ class FeaData(Dataset):
     def __len__(self):
         return self._total_data
 
+    def close(self):
+        pass
+
 
 # FeaData2 ======================================================
 # ChunkDataset hasn't being accepted

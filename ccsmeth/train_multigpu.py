@@ -43,31 +43,31 @@ def cleanup():
     dist.destroy_process_group()
 
 
-# # https://github.com/dpoulopoulos/examples/blob/feature-group-shuffle-split/distributed/ranzcr/utils.py
-# # TODO: only for single node, or multi nodes in shared file system?
-# def checkpoint(model, gpu, model_save_path):
-#     """Saves the model in master process and loads it everywhere else.
-#
-#     Args:
-#         model: the model to save
-#         gpu: the device identifier
-#         model_save_path:
-#     Returns:
-#         model: the loaded model
-#     """
-#     if gpu == 0:
-#         # All processes should see same parameters as they all start from same
-#         # random parameters and gradients are synchronized in backward passes.
-#         # Therefore, saving it in one process is sufficient.
-#         torch.save(model.module.state_dict(), model_save_path)
-#
-#     # use a barrier() to make sure that process 1 loads the model after process
-#     # 0 saves it.
-#     dist.barrier()
-#     # configure map_location properly
-#     map_location = {'cuda:%d' % 0: 'cuda:%d' % gpu}
-#     model.module.load_state_dict(
-#         torch.load(model_save_path, map_location=map_location))
+# https://github.com/dpoulopoulos/examples/blob/feature-group-shuffle-split/distributed/ranzcr/utils.py
+# TODO: only for single node, or multi nodes in shared file system?
+def checkpoint(model, gpu, model_save_path):
+    """Saves the model in master process and loads it everywhere else.
+
+    Args:
+        model: the model to save
+        gpu: the device identifier
+        model_save_path:
+    Returns:
+        model: the loaded model
+    """
+    if gpu == 0:
+        # All processes should see same parameters as they all start from same
+        # random parameters and gradients are synchronized in backward passes.
+        # Therefore, saving it in one process is sufficient.
+        torch.save(model.module.state_dict(), model_save_path)
+
+    # use a barrier() to make sure that process 1 loads the model after process
+    # 0 saves it.
+    dist.barrier()
+    # configure map_location properly
+    map_location = {'cuda:%d' % 0: 'cuda:%d' % gpu}
+    model.module.load_state_dict(
+        torch.load(model_save_path, map_location=map_location))
 
 
 # https://github.com/BIGBALLON/distribuuuu/blob/master/tutorial/mnmc_ddp_mp.py
@@ -90,16 +90,16 @@ def train_worker(local_rank, global_world_size, args):
                                                                                     global_rank))
 
     # 1. define network
-    if global_rank == 0:
+    if global_rank == 0 or (args.epoch_sync and local_rank == 0):
         model_dir = args.model_dir
-        model_regex = re.compile(r"" + args.model_type + "\.b\d+_epoch\d+\.ckpt*")
+        model_regex = re.compile(r"" + args.model_type + "\..*b\d+_epoch\d+\.ckpt*")
         if model_dir != "/":
             model_dir = os.path.abspath(model_dir).rstrip("/")
             if not os.path.exists(model_dir):
                 os.makedirs(model_dir)
             else:
                 for mfile in os.listdir(model_dir):
-                    if model_regex.match(mfile):
+                    if model_regex.match(mfile) is not None:
                         os.remove(model_dir + "/" + mfile)
             model_dir += "/"
 
@@ -318,7 +318,7 @@ def train_worker(local_rank, global_world_size, args):
                     torch.save(model.state_dict(),
                                model_dir + args.model_type +
                                '.b{}_epoch{}.ckpt'.format(args.seq_len, epoch + 1))
-                # TODO: dist.barrier()? and read model dict to sync?
+                # TODO: dist.barrier()? and read/sync model dict?
                 if v_accuracy > curr_best_accuracy:
                     curr_best_accuracy = v_accuracy
                     curr_best_accuracy_loc = epoch + 1
@@ -359,15 +359,21 @@ def train_worker(local_rank, global_world_size, args):
                 sys.stdout.flush()
         model.train()
 
+        if no_best_model and epoch >= args.min_epoch_num - 1:
+            print("training_process-{} early stop!".format(os.getpid()))
+            break
+
+        if args.epoch_sync:
+            sync_ckpt = model_dir + args.model_type + \
+                        '.epoch_sync_node{}.b{}_epoch{}.ckpt'.format(args.node_rank, args.seq_len, epoch + 1)
+            checkpoint(model, local_rank, sync_ckpt)
+
         if args.lr_scheduler == "ReduceLROnPlateau":
             lr_reduce_metric = v_meanloss
             scheduler.step(lr_reduce_metric)
         else:
             scheduler.step()
 
-        if no_best_model and epoch >= args.min_epoch_num - 1:
-            print("training_process-{} early stop!".format(os.getpid()))
-            break
     if global_rank == 0:
         print("best model is in epoch {} (Acc: {})".format(curr_best_accuracy_loc,
                                                            curr_best_accuracy))
@@ -486,6 +492,8 @@ def main():
                               help="url used to set up distributed training")
     st_trainingp.add_argument("--node_rank", default=0, type=int,
                               help="node rank for distributed training, default 0")
+    st_trainingp.add_argument("--epoch_sync", action="store_true", default=False,
+                              help="if sync model params of gpu0 to other local gpus after per epoch")
 
     args = parser.parse_args()
 

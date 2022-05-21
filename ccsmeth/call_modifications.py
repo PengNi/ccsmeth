@@ -659,9 +659,9 @@ def main():
 
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")
-    parser.add_argument("--threads_call", action="store", type=int, default=2,
+    parser.add_argument("--threads_call", action="store", type=int, default=3,
                         required=False, help="number of threads used to call with trained models, "
-                                             "no more than threads/4 is suggested. default 2.")
+                                             "no more than threads/3 is suggested. default 3.")
     parser.add_argument('--tseed', type=int, default=1234,
                         help='random seed for torch')
 
