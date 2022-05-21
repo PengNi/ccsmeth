@@ -583,11 +583,11 @@ def main():
     stm_input.add_argument('--train_file', type=str, required=True)
     stm_input.add_argument('--valid_file', type=str, required=True)
 
-    stm_output = sub_trainm.add_argument_group("OUTPUT")
-    stm_output.add_argument('--model_dir', type=str, required=True)
+    stm_input = sub_trainm.add_argument_group("OUTPUT")
+    stm_input.add_argument('--model_dir', type=str, required=True)
 
-    stm_train = sub_trainm.add_argument_group("TRAIN MODEL_HYPER")
     # model param
+    stm_train = sub_trainm.add_argument_group("TRAIN MODEL_HYPER")
     stm_train.add_argument('--model_type', type=str, default="attbigru2s",
                            choices=["attbilstm2s", "attbigru2s"],
                            required=False,
@@ -616,8 +616,8 @@ def main():
     stm_train.add_argument('--hid_rnn', type=int, default=256, required=False,
                            help="BiRNN hidden_size for combined feature")
 
-    stm_training = sub_trainm.add_argument_group("TRAINING")
     # model training
+    stm_training = sub_trainm.add_argument_group("TRAINING")
     stm_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
                                                                                  "Ranger"],
                               required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "

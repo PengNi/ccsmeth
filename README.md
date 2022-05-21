@@ -251,6 +251,8 @@ ALIGN:
 
 #### 3. call modifications
 
+Use `CUDA_VISIBLE_DEVICES=${cuda_number} ccsmeth call_mods [options]` to call modifications with specified GPUs (_e.g._, `CUDA_VISIBLE_DEVICES=0` or `CUDA_VISIBLE_DEVICES=0,1`).
+
 ```shell
 ccsmeth call_mods -h
 usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH]
