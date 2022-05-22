@@ -90,17 +90,18 @@ def train_worker(local_rank, global_world_size, args):
                                                                                     global_rank))
 
     # 1. define network
-    if global_rank == 0 or (args.epoch_sync and local_rank == 0):
+    if global_rank == 0 or args.epoch_sync:
         model_dir = args.model_dir
-        model_regex = re.compile(r"" + args.model_type + "\..*b\d+_epoch\d+\.ckpt*")
         if model_dir != "/":
             model_dir = os.path.abspath(model_dir).rstrip("/")
-            if not os.path.exists(model_dir):
-                os.makedirs(model_dir)
-            else:
-                for mfile in os.listdir(model_dir):
-                    if model_regex.match(mfile) is not None:
-                        os.remove(model_dir + "/" + mfile)
+            if local_rank == 0:
+                if not os.path.exists(model_dir):
+                    os.makedirs(model_dir)
+                else:
+                    model_regex = re.compile(r"" + args.model_type + "\..*b\d+_epoch\d+\.ckpt*")
+                    for mfile in os.listdir(model_dir):
+                        if model_regex.match(mfile) is not None:
+                            os.remove(model_dir + "/" + mfile)
             model_dir += "/"
 
     if args.model_type in {"attbigru2s", "attbilstm2s"}:

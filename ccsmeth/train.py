@@ -62,12 +62,12 @@ def train(args):
         raise ValueError("--model_type not right!")
 
     model_dir = args.model_dir
-    model_regex = re.compile(r"" + args.model_type + "\..*b\d+_epoch\d+\.ckpt*")
     if model_dir != "/":
         model_dir = os.path.abspath(model_dir).rstrip("/")
         if not os.path.exists(model_dir):
             os.makedirs(model_dir)
         else:
+            model_regex = re.compile(r"" + args.model_type + "\..*b\d+_epoch\d+\.ckpt*")
             for mfile in os.listdir(model_dir):
                 if model_regex.match(mfile) is not None:
                     os.remove(model_dir + "/" + mfile)
