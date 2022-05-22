@@ -299,11 +299,25 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
     else:
         raise ValueError("--model_type not right!")
 
-    para_dict = torch.load(model_path, map_location=torch.device('cpu'))
-    # para_dict = torch.load(model_path, map_location=torch.device(device))
-    model_dict = model.state_dict()
-    model_dict.update(para_dict)
-    model.load_state_dict(model_dict)
+    try:
+        para_dict = torch.load(model_path, map_location=torch.device('cpu'))
+        # para_dict = torch.load(model_path, map_location=torch.device(device))
+        model_dict = model.state_dict()
+        model_dict.update(para_dict)
+        model.load_state_dict(model_dict)
+        if str2bool(args.loginfo):
+            print('call_mods process-{} loads model param successfully'.format(os.getpid()))
+    except RuntimeError:
+        from collections import OrderedDict
+        # for DDP model convertion (key: module.embed.weight -> embed.weight)
+        para_dict = torch.load(model_path, map_location=torch.device('cpu'))
+        para_dict_new = OrderedDict()
+        for param_tensor in para_dict.keys():
+            para_dict_new[param_tensor[7:]] = para_dict[param_tensor]
+        model.load_state_dict(para_dict_new)
+        if str2bool(args.loginfo):
+            print('call_mods process-{} loads model param successfully-1'.format(os.getpid()))
+    sys.stdout.flush()
 
     if use_cuda:
         model = model.cuda(device)

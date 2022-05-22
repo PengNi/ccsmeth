@@ -316,7 +316,8 @@ def train_worker(local_rank, global_world_size, args):
 
             if v_accuracy > curr_best_accuracy - 0.0002:
                 if global_rank == 0:
-                    torch.save(model.state_dict(),
+                    # model.state_dict() or model.module.state_dict()?
+                    torch.save(model.module.state_dict(),
                                model_dir + args.model_type +
                                '.b{}_epoch{}.ckpt'.format(args.seq_len, epoch + 1))
                 # TODO: dist.barrier()? and read/sync model dict?
@@ -327,7 +328,7 @@ def train_worker(local_rank, global_world_size, args):
                 if len(v_accuracy_epoches) > 0 and v_accuracy > \
                         v_accuracy_epoches[-1]:
                     if global_rank == 0:
-                        torch.save(model.state_dict(),
+                        torch.save(model.module.state_dict(),
                                    model_dir + args.model_type +
                                    '.betterthanlast.b{}_epoch{}.ckpt'.format(args.seq_len,
                                                                              epoch + 1))
