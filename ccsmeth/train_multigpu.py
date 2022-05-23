@@ -385,7 +385,8 @@ def train_worker(local_rank, global_world_size, args):
 
 def train(args):
     torch.manual_seed(args.tseed)
-    torch.cuda.manual_seed(args.tseed)
+    if use_cuda:
+        torch.cuda.manual_seed(args.tseed)
 
     if use_cuda:
         print("GPU is available!")

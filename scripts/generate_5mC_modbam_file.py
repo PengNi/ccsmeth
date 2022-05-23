@@ -272,7 +272,7 @@ def _worker_write_modbam(wreads_q, modbamfile, inputbamfile):
 
 def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
                           rm_pulse=True, threads=3,
-                          reads_batch=100):
+                          reads_batch=100, mode="align"):
     sys.stderr.write("[generate_modbam_file]starts\n")
     start = time.time()
 
@@ -313,7 +313,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     wreads_q.put("kill")
     p_w.join()
 
-    if modbamfile.endswith(".bam"):
+    if modbamfile.endswith(".bam") and mode == "align":
         sys.stderr.write("sorting and indexing new bam file..\n")
         modbam_sorted = modbamfile + ".sorted.bam"
         pysam.sort("-o", modbam_sorted, "-@", str(threads), modbamfile)
@@ -333,6 +333,10 @@ def main():
     parser = argparse.ArgumentParser("add MM/ML tags to bam/sam")
     parser.add_argument("--per_readsite", type=str, required=True, help="from call_mods module")
     parser.add_argument("--bam", type=str, required=True, help="input bam file")
+    parser.add_argument("--mode", type=str, default="align", required=False,
+                        choices=["denovo", "align"],
+                        help="denovo mode: add tags to unaligned hifi.bam;\n"
+                             "align mode: add tags to aligned hifi.bam. default: align")
 
     parser.add_argument("--modbam", type=str, required=False, help="output modbam file")
     parser.add_argument("--rm_pulse", action="store_true", default=False, required=False,
@@ -346,7 +350,8 @@ def main():
     args = parser.parse_args()
 
     add_mm_ml_tags_to_bam(args.bam, args.per_readsite, args.modbam,
-                          args.rm_pulse, args.threads, args.batch_size)
+                          args.rm_pulse, args.threads, args.batch_size,
+                          args.mode)
 
 
 if __name__ == '__main__':

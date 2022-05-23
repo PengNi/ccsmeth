@@ -308,8 +308,8 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
         if str2bool(args.loginfo):
             print('call_mods process-{} loads model param successfully'.format(os.getpid()))
     except RuntimeError:
-        from collections import OrderedDict
         # for DDP model convertion (key: module.embed.weight -> embed.weight)
+        from collections import OrderedDict
         para_dict = torch.load(model_path, map_location=torch.device('cpu'))
         para_dict_new = OrderedDict()
         for param_tensor in para_dict.keys():

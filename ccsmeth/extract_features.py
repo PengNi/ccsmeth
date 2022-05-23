@@ -640,11 +640,6 @@ def extract_hifireads_features(args):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--threads", type=int, default=5, required=False,
-                        help="number of threads, default 5")
-    parser.add_argument("--loginfo", type=str, default="no", required=False,
-                        help="if printing more info of feature extraction on reads. "
-                             "yes or no, default no")
 
     p_input = parser.add_argument_group("INPUT")
     p_input.add_argument("--input", "-i", type=str, required=True,
@@ -709,6 +704,12 @@ def main():
                                help="if extract mapping features, yes or no, default no")
     p_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
                                help="if skipping unmapped sites in reads, yes or no, default yes")
+
+    parser.add_argument("--threads", type=int, default=5, required=False,
+                        help="number of threads, default 5")
+    parser.add_argument("--loginfo", type=str, default="no", required=False,
+                        help="if printing more info of feature extraction on reads. "
+                             "yes or no, default no")
 
     args = parser.parse_args()
 

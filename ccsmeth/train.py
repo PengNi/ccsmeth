@@ -26,7 +26,8 @@ from .utils.process_utils import str2bool
 def train(args):
     total_start = time.time()
     torch.manual_seed(args.tseed)
-    torch.cuda.manual_seed(args.tseed)
+    if use_cuda:
+        torch.cuda.manual_seed(args.tseed)
 
     print("[main]train starts..")
     if use_cuda:
