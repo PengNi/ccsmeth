@@ -4,11 +4,15 @@ ccsmeth
 
 Documentation
 -------------
-v0.2.2
+v0.2.3
 ----------
 more options in train module
 
 multi-gpu support in call_mods and trainm modules
+
+add denoise module
+
+Note: skip 0.2.2, cause 0.2.2 has been deleted in pypi (https://pypi.org/manage/project/ccsmeth/history/)
 
 
 v0.2.1
