@@ -625,12 +625,14 @@ def denoise(args):
         print("\n#####concat denoied file#####")
         pos_num = count_line_num(train_clean_pos_file)
         if pos_num > 0:
-            fname, fext = os.path.splitext(train_neg_file)
-            train_seled_neg_file = fname + ".r" + str(pos_num) + fext
             if train_clean_neg_file is None:
+                fname, fext = os.path.splitext(train_neg_file)
+                train_seled_neg_file = fname + ".r" + str(pos_num) + fext
                 select_negsamples_asposkmer(train_clean_pos_file, train_neg_file, train_seled_neg_file)
             else:
                 neg_num = count_line_num(train_clean_neg_file)
+                fname, fext = os.path.splitext(train_clean_neg_file)
+                train_seled_neg_file = fname + ".r" + str(pos_num) + fext
                 if pos_num <= neg_num:
                     select_negsamples_asposkmer(train_clean_pos_file, train_clean_neg_file, train_seled_neg_file)
                     os.remove(train_clean_neg_file)
