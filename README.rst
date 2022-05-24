@@ -4,6 +4,10 @@ ccsmeth
 
 Documentation
 -------------
+v0.3.0
+----------
+
+
 v0.2.3
 ----------
 more options in train module

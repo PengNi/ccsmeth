@@ -91,14 +91,14 @@ def _generate_sorted_per_read_calls(per_readsite, output):
 
 
 # generate modbam files ============
-def open_input_bamfile(bamfile):
+def open_input_bamfile(bamfile, threads=1):
     if bamfile.endswith(".bam"):
         try:
-            ori_bam = pysam.AlignmentFile(bamfile, 'rb')
+            ori_bam = pysam.AlignmentFile(bamfile, 'rb', threads=threads)
         except ValueError:
-            ori_bam = pysam.AlignmentFile(bamfile, 'rb', check_sq=False)
+            ori_bam = pysam.AlignmentFile(bamfile, 'rb', check_sq=False, threads=threads)
     else:
-        ori_bam = pysam.AlignmentFile(bamfile, 'r')
+        ori_bam = pysam.AlignmentFile(bamfile, 'r', threads=threads)
     return ori_bam
 
 
@@ -120,8 +120,8 @@ def _get_necessary_alignment_items(readitem):
             rnext, pnext, tlen, seq_seq, seq_qual, all_tags, is_reverse)
 
 
-def _worker_reader(bamfile, batch_size, rreads_q):
-    ori_bam = open_input_bamfile(bamfile)
+def _worker_reader(bamfile, batch_size, rreads_q, threads=1):
+    ori_bam = open_input_bamfile(bamfile, threads=threads)
     cnt_all = 0
     reads_batch = []
     for readitem in ori_bam.fetch(until_eof=True):
@@ -289,9 +289,9 @@ def write_alignedsegment(readitem_info, output_bam):
     output_bam.write(out_read)
 
 
-def _worker_write_modbam(wreads_q, modbamfile, inputbamfile):
+def _worker_write_modbam(wreads_q, modbamfile, inputbamfile, threads=1):
     ori_bam = open_input_bamfile(inputbamfile)
-    w_bam = pysam.AlignmentFile(modbamfile, "wb", template=ori_bam)
+    w_bam = pysam.AlignmentFile(modbamfile, "wb", template=ori_bam, threads=threads)
     ori_bam.close()
     cnt_w, cnt_mm = 0, 0
     while True:
@@ -324,16 +324,23 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     rreads_q = Queue()
     wreads_q = Queue()
 
+    nproc = threads
+    if nproc < 5:
+        nproc = 5
+    if nproc > 8:
+        threads_r, threads_w = 4, 4
+    elif nproc > 6:
+        threads_r, threads_w = 3, 3
+    else:
+        threads_r, threads_w = 2, 2
+
     p_read = mp.Process(target=_worker_reader,
-                        args=(bamfile, reads_batch, rreads_q))
+                        args=(bamfile, reads_batch, rreads_q, threads_r))
     p_read.daemon = True
     p_read.start()
 
-    nproc = threads
-    if nproc < 3:
-        nproc = 3
     ps_gen = []
-    for _ in range(nproc - 2):
+    for _ in range(nproc - threads_r - threads_w):
         p_gen = mp.Process(target=_worker_process_reads_batch,
                            args=(rreads_q, wreads_q, per_read_file, rm_pulse))
         p_gen.daemon = True
@@ -345,7 +352,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
         modbamfile = fname + ".modbam.bam"
     # TODO: multi write_porcess then merge all writed files?
     p_w = mp.Process(target=_worker_write_modbam,
-                     args=(wreads_q, modbamfile, bamfile))
+                     args=(wreads_q, modbamfile, bamfile, threads_w))
     p_w.daemon = True
     p_w.start()
 
