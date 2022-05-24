@@ -59,7 +59,7 @@ setup(
         'Programming Language :: Python :: 3',
         'Development Status :: 4 - Beta',
         'Natural Language :: English',
-        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+        'License :: OSI Approved :: BSD 3-Clause Clear License',
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: POSIX :: Linux',
         ],

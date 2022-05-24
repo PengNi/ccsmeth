@@ -284,7 +284,7 @@ optional arguments:
                         number of threads to be used, default 10.
   --threads_call THREADS_CALL
                         number of threads used to call with trained models, no
-                        more than threads/4 is suggested. default 2.
+                        more than threads/3 is suggested. default 3.
   --tseed TSEED         random seed for torch
 
 INPUT:
@@ -328,8 +328,8 @@ OUTPUT:
 EXTRACTION:
   --mode {denovo,align}
                         denovo mode: extract features from unaligned hifi.bam;
-                        align mode: extract features from aligned
-                        hifi.bam. default: align
+                        align mode: extract features from aligned hifi.bam.
+                        default: align
   --holeids_e HOLEIDS_E
                         file contains holeids to be extracted, default None
   --holeids_ne HOLEIDS_NE
@@ -416,7 +416,8 @@ CALL_FREQ:
                         0.0.
   --rm_1strand          abandon ccs reads with only 1 strand subreads
                         [DEPRECATED]
-  --refsites_only       only keep sites which is a target motif in reference
+  --refsites_only       only keep sites which are target motifs in both
+                        reference and reads
   --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
                         motifs splited by comma (no space allowed in the input
                         str), or use IUPAC alphabet, the mod_loc of all motifs
@@ -466,6 +467,7 @@ usage: ccsmeth call_freqb [-h] [--threads THREADS] --input_bam INPUT_BAM --ref
                           [--mapq MAPQ] [--identity IDENTITY]
                           [--no_supplementary] [--motifs MOTIFS]
                           [--mod_loc MOD_LOC] [--no_comb] [--refsites_only]
+                          [--refsites_all]
 
 call frequency of modifications at genome level from modbam.bam file
 
@@ -527,15 +529,16 @@ The format of the output file is the same as of `ccsmeth call_freqt`.
 
 ```shell
 ccsmeth extract -h
-usage: ccsmeth extract [-h] [--threads THREADS] [--loginfo LOGINFO] --input
-                       INPUT [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE]
-                       [--output OUTPUT] [--gzip] [--mode {denovo,align}]
-                       [--seq_len SEQ_LEN] [--motifs MOTIFS]
-                       [--mod_loc MOD_LOC] [--methy_label {1,0}]
+usage: ccsmeth extract [-h] --input INPUT [--holeids_e HOLEIDS_E]
+                       [--holeids_ne HOLEIDS_NE] [--output OUTPUT] [--gzip]
+                       [--mode {denovo,align}] [--seq_len SEQ_LEN]
+                       [--motifs MOTIFS] [--mod_loc MOD_LOC]
+                       [--methy_label {1,0}]
                        [--norm {zscore,min-mean,min-max,mad}] [--no_decode]
                        [--holes_batch HOLES_BATCH] [--ref REF] [--mapq MAPQ]
                        [--identity IDENTITY] [--no_supplementary]
                        [--is_mapfea IS_MAPFEA] [--skip_unmapped SKIP_UNMAPPED]
+                       [--threads THREADS] [--loginfo LOGINFO]
 
 extract features from hifi reads.
 
@@ -565,8 +568,8 @@ OUTPUT:
 EXTRACTION:
   --mode {denovo,align}
                         denovo mode: extract features from unaligned hifi.bam;
-                        align mode: extract features from aligned
-                        hifi.bam. default: align
+                        align mode: extract features from aligned hifi.bam.
+                        default: align
   --seq_len SEQ_LEN     len of kmer. default 21
   --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
                         motifs splited by comma (no space allowed in the input
