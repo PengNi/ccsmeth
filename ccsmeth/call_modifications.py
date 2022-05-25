@@ -48,6 +48,10 @@ from .extract_features import worker_read_split_holebatches_to_queue
 from .extract_features import worker_extract_features_from_holebatches
 from .extract_features import _get_holes
 
+# add this export temporarily
+# https://github.com/pytorch/pytorch/issues/37377
+os.environ['MKL_THREADING_LAYER'] = 'GNU'
+
 queue_size_border = 1000
 time_wait = 1
 
@@ -675,8 +679,8 @@ def main():
     parser.add_argument("--threads", "-p", action="store", type=int, default=10,
                         required=False, help="number of threads to be used, default 10.")
     parser.add_argument("--threads_call", action="store", type=int, default=3,
-                        required=False, help="number of threads used to call with trained models, "
-                                             "no more than threads/3 is suggested. default 3.")
+                        required=False, help="number of threads used to call modifications with trained "
+                                             "models, no more than threads/3 is suggested. default 3.")
     parser.add_argument('--tseed', type=int, default=1234,
                         help='random seed for torch')
 

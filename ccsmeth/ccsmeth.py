@@ -309,8 +309,8 @@ def main():
     sub_call_mods.add_argument("--threads", "-p", action="store", type=int, default=10,
                                required=False, help="number of threads to be used, default 10.")
     sub_call_mods.add_argument("--threads_call", action="store", type=int, default=3,
-                               required=False, help="number of threads used to call with trained models, "
-                                                    "no more than threads/3 is suggested. default 3.")
+                               required=False, help="number of threads used to call modifications with trained "
+                                                    "models, no more than threads/3 is suggested. default 3.")
     sub_call_mods.add_argument('--tseed', type=int, default=1234,
                                help='random seed for torch')
 

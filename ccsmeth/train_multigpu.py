@@ -28,6 +28,10 @@ import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
 
+# add this export temporarily
+# https://github.com/pytorch/pytorch/issues/37377
+os.environ['MKL_THREADING_LAYER'] = 'GNU'
+
 
 # https://zhuanlan.zhihu.com/p/350301395
 # https://github.com/tczhangzhi/pytorch-distributed/blob/master/multiprocessing_distributed.py

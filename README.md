@@ -283,8 +283,9 @@ optional arguments:
   --threads THREADS, -p THREADS
                         number of threads to be used, default 10.
   --threads_call THREADS_CALL
-                        number of threads used to call with trained models, no
-                        more than threads/3 is suggested. default 3.
+                        number of threads used to call modifications with
+                        trained models, no more than threads/3 is suggested.
+                        default 3.
   --tseed TSEED         random seed for torch
 
 INPUT:
