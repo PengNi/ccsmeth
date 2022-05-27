@@ -658,7 +658,7 @@ def denoise(args):
         if left_ratio >= args.kept_ratio or pos_num == 0:
             break
 
-    if os.path.exists(train_neg_file):
+    if not is_filter_fn and os.path.exists(train_neg_file):
         os.remove(train_neg_file)
     total_end = time.time()
     print("###### denoised file for training: {}".format(train_file))

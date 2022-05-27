@@ -444,15 +444,17 @@ def call_mods(args):
         else:
             if nproc_dp > nproc_to_call_mods_in_cpu_mode:
                 nproc_dp = nproc_to_call_mods_in_cpu_mode
-        if nproc <= nproc_dp + 2:
-            print("--threads must be > nproc_dp + 2!!")
-            nproc = nproc_dp + 2 + 1
+        if nproc <= nproc_dp + 3:
+            print("--threads must be > --threads_call + 3!!")
+            nproc = nproc_dp + 3 + 1  # 2 for reading, 1 for writing, 1 for extracting
 
+        # 2 threads/processes
         p_read = mp.Process(target=worker_read_split_holebatches_to_queue,
-                            args=(input_path, hole_batch_q, args))
+                            args=(input_path, hole_batch_q, 2, args))
         p_read.daemon = True
         p_read.start()
 
+        # 1 processes
         p_w = mp.Process(target=_write_predstr_to_file, args=(out_per_readsite, pred_str_q, args.gzip))
         p_w.daemon = True
         p_w.start()
@@ -460,7 +462,7 @@ def call_mods(args):
         # TODO: why the processes in ps_extract start so slowly?
         ps_extract = []
         ps_call = []
-        nproc_ext = nproc - nproc_dp - 2
+        nproc_ext = nproc - nproc_dp - 3
         gpulist = _get_gpus()
         gpuindex = 0
         for i in range(max(nproc_ext, nproc_dp)):
@@ -514,8 +516,8 @@ def call_mods(args):
             if nproc_dp > nproc_to_call_mods_in_cpu_mode:
                 nproc_dp = nproc_to_call_mods_in_cpu_mode
         if nproc < nproc_dp + 2:
-            print("--threads must be > nproc_dp + 2!!")
-            nproc = nproc_dp + 2 + 1
+            print("--threads must be > --threads_call + 2!!")
+            nproc = nproc_dp + 2 + 1  # 1 for reading, 1 for writing, 1 for extracting
         nproc_cnvt = nproc - nproc_dp - 2
 
         p_read = mp.Process(target=_read_features_file_to_str, args=(input_path, featurestrs_batch_q,

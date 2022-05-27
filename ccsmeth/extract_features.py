@@ -51,19 +51,19 @@ def check_output_file(outputfile, inputfile):
     return output_path
 
 
-def _open_inputfile(inputfile, rmode):
+def _open_inputfile(inputfile, rmode, threads=1):
     if inputfile.endswith(".bam"):
-        if rmode == "denovo":
-            inputreads = pysam.AlignmentFile(inputfile, 'rb', check_sq=False)
-        else:
+        if rmode == "align":
             try:
-                inputreads = pysam.AlignmentFile(inputfile, 'rb')
+                inputreads = pysam.AlignmentFile(inputfile, 'rb', threads=threads)
             except ValueError:
                 sys.stderr.write("[WARN] The input file has no sequences defined - Please align "
-                                 "the reads to genome reference, or use '--mode denovo'\n")
+                                 "the reads to genome reference first, or use '--mode denovo'\n")
                 return None
+        else:
+            inputreads = pysam.AlignmentFile(inputfile, 'rb', check_sq=False, threads=threads)
     else:
-        inputreads = pysam.AlignmentFile(inputfile, 'r')
+        inputreads = pysam.AlignmentFile(inputfile, 'r', threads=threads)
     return inputreads
 
 
@@ -115,9 +115,9 @@ def _get_necessary_items_of_a_alignedsegment(readitem):
         is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn
 
 
-def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, args):
+def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, threads, args):
     sys.stderr.write("split_holebatches process-{} starts\n".format(os.getpid()))
-    inputreads = _open_inputfile(inputfile, args.mode)
+    inputreads = _open_inputfile(inputfile, args.mode, threads=args.threads)
     if inputreads is None:
         holebatch_q.put("kill")
         return
@@ -139,7 +139,7 @@ def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, args):
 
     with tqdm(total=len(holebatches),
               desc="batch_reader") as pbar:
-        inputreads = _open_inputfile(inputfile, args.mode)
+        inputreads = _open_inputfile(inputfile, args.mode, threads=threads)
         all_reads = inputreads.fetch(until_eof=True)
         count = 0
         count_batch = 0
@@ -599,16 +599,16 @@ def extract_hifireads_features(args):
 
     # holebatches = split_inputreads_by_holebatch(inputpath, args)
     p_split = mp.Process(target=worker_read_split_holebatches_to_queue,
-                         args=(inputpath, holebatch_q, args))
+                         args=(inputpath, holebatch_q, 2, args))
     p_split.daemon = True
     p_split.start()
 
     ps_extract = []
     nproc = args.threads
-    if nproc <= 2:
+    if nproc <= 3:
         nproc = 1
     else:
-        nproc -= 2
+        nproc -= 3  # 2 for reading, 1 for writing
     for _ in range(nproc):
         p = mp.Process(target=worker_extract_features_from_holebatches,
                        args=(holebatch_q, features_q, motifs, holeids_e, holeids_ne, dnacontigs, args,
