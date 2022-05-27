@@ -201,7 +201,8 @@ def _convert_locs_to_mmtag(locs, seq_fwseq):
 
 
 def _convert_probs_to_mltag(probs):
-    return [math.floor(prob * 256) for prob in probs]
+    # force returned values in [0, 255]
+    return [math.floor(prob * 256) if prob < 1 else 255 for prob in probs]
 
 
 def _refill_tags(all_tags, mm_values, ml_values, rm_pulse=True):
@@ -350,7 +351,6 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     fname, fext = os.path.splitext(bamfile)
     if modbamfile is None:
         modbamfile = fname + ".modbam.bam"
-    # TODO: multi write_porcess then merge all writed files?
     p_w = mp.Process(target=_worker_write_modbam,
                      args=(wreads_q, modbamfile, bamfile, threads_w))
     p_w.daemon = True

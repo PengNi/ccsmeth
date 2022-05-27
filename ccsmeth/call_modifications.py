@@ -273,7 +273,7 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
                 # chromosome, pos, strand, holeid, loc, depth, prob_0, prob_1, called_label, seq
                 prob_0, prob_1 = logits[idx][0], logits[idx][1]
                 prob_0_norm = round(prob_0 / (prob_0 + prob_1), 6)
-                prob_1_norm = round(prob_1 / (prob_0 + prob_1), 6)
+                prob_1_norm = round(1 - prob_0_norm, 6)
                 b_idx_kmer = ''.join([code2base_dna[x] for x in b_fkmers[idx]])
                 center_idx = int(np.floor(len(b_idx_kmer)/2))
                 bkmer_start = center_idx - 2 if center_idx - 2 >= 0 else 0

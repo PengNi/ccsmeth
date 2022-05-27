@@ -6,6 +6,9 @@ Documentation
 -------------
 v0.3.0
 ----------
+add multi-threads support for reading .bam by pysam
+
+force mod prob discrete integer in [0, 255], which means mod prob in [0, 1), in ML tag
 
 
 v0.2.3

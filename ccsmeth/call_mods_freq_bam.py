@@ -120,6 +120,8 @@ def _get_moddict(readitem, modbase="C", modification="m"):
 
     # use .modified_bases instead of MM/ML tags to get moddict
     modinfo = readitem.modified_bases
+    if modinfo is None:
+        return {}
     modtuple = None
     for modkey in modinfo.keys():
         if modkey[0] == modbase and modkey[2] == modification:
