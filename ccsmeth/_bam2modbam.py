@@ -316,6 +316,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
                           rm_pulse=True, threads=3,
                           reads_batch=100, mode="align"):
     sys.stderr.write("[generate_modbam_file]starts\n")
+    sys.stderr.flush()
     start = time.time()
 
     sys.stderr.write("generating per_read mod_calls..\n")

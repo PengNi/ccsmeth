@@ -22,6 +22,8 @@ from .utils.process_utils import str2bool
 from .utils.process_utils import count_line_num
 from .utils.process_utils import concat_two_files
 
+device = "cuda" if use_cuda else "cpu"
+
 
 # functions ====================================
 def random_select_file_rows_s(ori_file, w_file, w_other_file, maxrownum=100000000, header=False):
@@ -248,17 +250,23 @@ def train_1time(train_file, valid_file, valid_lidxs, args):
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
                             is_npass=str2bool(args.is_npass),
-                            model_type=args.model_type)
+                            model_type=args.model_type,
+                            device=device)
     else:
         raise ValueError("--model_type not right!")
 
     if use_cuda:
-        model = model.cuda()
+        # TODO: WARNING not solved when using DataParalle():
+        # TODO: /pytorch/aten/src/ATen/native/cudnn/RNN.cpp:1266:
+        # TODO: UserWarning: RNN module weights are not part of single contiguous chunk of memory.
+        if torch.cuda.device_count() > 1:
+            model = nn.DataParallel(model)
+        model = model.to(device)
 
     # Loss and optimizer
     weight_rank = torch.from_numpy(np.array([1, args.pos_weight])).float()
     if use_cuda:
-        weight_rank = weight_rank.cuda()
+        weight_rank = weight_rank.to(device)
     criterion = nn.CrossEntropyLoss(weight=weight_rank)
     if args.optim_type == "Adam":
         optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
@@ -292,25 +300,25 @@ def train_1time(train_file, valid_file, valid_lidxs, args):
                     rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap, \
                     labels = sfeatures
                 if use_cuda:
-                    fkmer = fkmer.cuda()
-                    fpass = fpass.cuda()
-                    fipdm = fipdm.cuda()
-                    fipdsd = fipdsd.cuda()
-                    fpwm = fpwm.cuda()
-                    fpwsd = fpwsd.cuda()
-                    fqual = fqual.cuda()
-                    fmap = fmap.cuda()
+                    fkmer = fkmer.to(device)
+                    fpass = fpass.to(device)
+                    fipdm = fipdm.to(device)
+                    fipdsd = fipdsd.to(device)
+                    fpwm = fpwm.to(device)
+                    fpwsd = fpwsd.to(device)
+                    fqual = fqual.to(device)
+                    fmap = fmap.to(device)
 
-                    rkmer = rkmer.cuda()
-                    rpass = rpass.cuda()
-                    ripdm = ripdm.cuda()
-                    ripdsd = ripdsd.cuda()
-                    rpwm = rpwm.cuda()
-                    rpwsd = rpwsd.cuda()
-                    rqual = rqual.cuda()
-                    rmap = rmap.cuda()
+                    rkmer = rkmer.to(device)
+                    rpass = rpass.to(device)
+                    ripdm = ripdm.to(device)
+                    ripdsd = ripdsd.to(device)
+                    rpwm = rpwm.to(device)
+                    rpwsd = rpwsd.to(device)
+                    rqual = rqual.to(device)
+                    rmap = rmap.to(device)
 
-                    labels = labels.cuda()
+                    labels = labels.to(device)
                 # Forward pass
                 outputs, tlogits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap,
                                          rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap)
@@ -379,25 +387,25 @@ def train_1time(train_file, valid_file, valid_lidxs, args):
                 vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap, \
                 vlabels = vsfeatures
             if use_cuda:
-                vfkmer = vfkmer.cuda()
-                vfpass = vfpass.cuda()
-                vfipdm = vfipdm.cuda()
-                vfipdsd = vfipdsd.cuda()
-                vfpwm = vfpwm.cuda()
-                vfpwsd = vfpwsd.cuda()
-                vfqual = vfqual.cuda()
-                vfmap = vfmap.cuda()
+                vfkmer = vfkmer.to(device)
+                vfpass = vfpass.to(device)
+                vfipdm = vfipdm.to(device)
+                vfipdsd = vfipdsd.to(device)
+                vfpwm = vfpwm.to(device)
+                vfpwsd = vfpwsd.to(device)
+                vfqual = vfqual.to(device)
+                vfmap = vfmap.to(device)
 
-                vrkmer = vrkmer.cuda()
-                vrpass = vrpass.cuda()
-                vripdm = vripdm.cuda()
-                vripdsd = vripdsd.cuda()
-                vrpwm = vrpwm.cuda()
-                vrpwsd = vrpwsd.cuda()
-                vrqual = vrqual.cuda()
-                vrmap = vrmap.cuda()
+                vrkmer = vrkmer.to(device)
+                vrpass = vrpass.to(device)
+                vripdm = vripdm.to(device)
+                vripdsd = vripdsd.to(device)
+                vrpwm = vrpwm.to(device)
+                vrpwsd = vrpwsd.to(device)
+                vrqual = vrqual.to(device)
+                vrmap = vrmap.to(device)
 
-                vlabels = vlabels.cuda()
+                vlabels = vlabels.to(device)
             # Forward pass
             voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap,
                                       vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap)
