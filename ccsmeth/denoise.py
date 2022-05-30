@@ -626,6 +626,7 @@ def denoise(args):
         train_clean_pos_file, left_ratio, train_clean_neg_file = clean_samples(train_file, idxs2logtis_all,
                                                                                args.score_cf, is_filter_fn,
                                                                                args.train_file, modeltype_str)
+        del idxs2logtis_all
         if train_file != args.train_file:
             os.remove(train_file)
 
