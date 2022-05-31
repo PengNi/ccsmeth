@@ -33,7 +33,7 @@ def convert_ccsmeth_rmet_file2bedmethyl(args):
         cov, rmet = freqinfo[fkey]
         wf.write("\t".join([chrom, str(pos), str(pos + 1), ".", str(cov), strand,
                             str(pos), str(pos + 1), "0,0,0", str(cov),
-                            str(int(round(rmet * 100, 0)))]) + "\n")
+                            str(int(round(rmet * 100 + 0.001, 0)))]) + "\n")
     wf.close()
 
 
