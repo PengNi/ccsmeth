@@ -164,6 +164,8 @@ def _call_modfreq_of_one_region(refpos2modinfo, args):
             info_hp2 = _cal_modprob_in_count_mode(hp2_mods, args.prob_cf) if len(hp2_mods) > 0 else None
             refpos_results.append((refpos, info_all, info_hp1, info_hp2))
     elif args.call_mode == "aggregate":
+        import torch
+        from .models import AggrAttRNN
         pass
 
     return refpos_results

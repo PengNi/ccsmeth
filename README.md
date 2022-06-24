@@ -59,6 +59,8 @@ conda install pbccs pbmm2 samtools -c bioconda
 ## Trained models
 See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
 
+__We now are working to train a stable model.__
+
 
 ## Quick start
 
