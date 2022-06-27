@@ -41,7 +41,7 @@ conda activate ccsmethenv
 conda deactivate
 
 # 2. install ccsmeth
-# install ccsmeth from github (latest version)first
+# install ccsmeth from github (latest version)
 git clone https://github.com/PengNi/ccsmeth.git
 cd ccsmeth
 python setup.py install
@@ -50,9 +50,9 @@ pip install ccsmeth
 ```
 
 #### 2. install necessary packages
-Install necessary packages ([pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended:
+Install necessary packages ([bedtools](https://bedtools.readthedocs.io/en/latest/), and [pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended:
 ```shell
-conda install bedtools -c bioconda  # needed by pybedtools
+conda install bedtools -c bioconda  # required by pybedtools->ccsmeth-call_mods
 conda install pbccs pbmm2 samtools -c bioconda
 ```
 
