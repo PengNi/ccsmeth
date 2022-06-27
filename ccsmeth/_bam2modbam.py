@@ -371,7 +371,10 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
             os.rename(modbam_sorted, modbamfile)
         else:
             sys.stderr.write("indexing modbam file..\n")
-        pysam.index("-@", str(threads), modbamfile)
+        try:
+            pysam.index("-@", str(threads), modbamfile)
+        except Exception:
+            sys.stderr.write("failed on indexing modbam file..\n")
 
     if os.path.exists(per_read_file):
         os.remove(per_read_file)

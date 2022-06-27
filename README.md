@@ -17,7 +17,7 @@
 ## Installation
 ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pytorch.org/).
    - Prerequisites: \
-       [Python3.*](https://www.python.org/) (version>=3.6)\
+       [Python3.*](https://www.python.org/) (version>=3.8)\
        [pbccs](https://ccs.how/) (version>=6.3.0) \
        [pbmm2](https://github.com/PacificBiosciences/pbmm2) (version>=1.9.0) or [minimap2](https://github.com/lh3/minimap2) (version>=2.22-r1101) \
        [samtools](https://github.com/samtools/samtools) (version>=1.12)
@@ -25,7 +25,7 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [numpy](http://www.numpy.org/) \
        [statsmodels](https://github.com/statsmodels/statsmodels/) \
        [scikit-learn](https://scikit-learn.org/stable/) \
-       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.7.0?) \
+       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.11.0) \
        [tqdm](https://github.com/tqdm/tqdm) \
        [pysam](https://pysam.readthedocs.io/en/latest/installation.html) \
        [pybedtools](https://daler.github.io/pybedtools/) \
@@ -34,24 +34,25 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
 #### 1. install ccsmeth
 ```bash
 # 1. it is highly recommended to install ccsmeth in an virtual environment
-conda create -n ccsmethenv python=3.7
+conda create -n ccsmethenv python=3.8
 # activate
 conda activate ccsmethenv
 # deactivate this environment
 conda deactivate
 
 # 2. install ccsmeth
-# install ccsmeth from github (latest version)
+# install ccsmeth from github (latest version)first
 git clone https://github.com/PengNi/ccsmeth.git
 cd ccsmeth
 python setup.py install
-# OR install ccsmeth using pip
+# OR, install ccsmeth using pip
 pip install ccsmeth
 ```
 
 #### 2. install necessary packages
 Install necessary packages ([pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended:
 ```shell
+conda install bedtools -c bioconda  # needed by pybedtools
 conda install pbccs pbmm2 samtools -c bioconda
 ```
 

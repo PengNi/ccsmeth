@@ -12,6 +12,8 @@ force mod prob discrete integer in [0, 255], which means mod prob in [0, 1), in 
 
 fix align_hifi module, enable minimap2 and bwa
 
+update requirements
+
 
 v0.2.3
 ----------

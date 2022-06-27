@@ -229,25 +229,25 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
         batch_s, batch_e = i, i + batch_size
         b_sampleinfo = sampleinfo[batch_s:batch_e]
 
-        b_fkmers = fkmers[batch_s:batch_e]
-        b_fpasss = fpasss[batch_s:batch_e]
-        b_fipdms = fipdms[batch_s:batch_e]
-        b_fipdsds = fipdsds[batch_s:batch_e]
-        b_fpwms = fpwms[batch_s:batch_e]
-        b_fpwsds = fpwsds[batch_s:batch_e]
-        b_fquals = fquals[batch_s:batch_e]
-        b_fmaps = fmaps[batch_s:batch_e]
+        b_fkmers = np.array(fkmers[batch_s:batch_e])
+        b_fpasss = np.array(fpasss[batch_s:batch_e])
+        b_fipdms = np.array(fipdms[batch_s:batch_e])
+        b_fipdsds = np.array(fipdsds[batch_s:batch_e])
+        b_fpwms = np.array(fpwms[batch_s:batch_e])
+        b_fpwsds = np.array(fpwsds[batch_s:batch_e])
+        b_fquals = np.array(fquals[batch_s:batch_e])
+        b_fmaps = np.array(fmaps[batch_s:batch_e])
 
-        b_rkmers = rkmers[batch_s:batch_e]
-        b_rpasss = rpasss[batch_s:batch_e]
-        b_ripdms = ripdms[batch_s:batch_e]
-        b_ripdsds = ripdsds[batch_s:batch_e]
-        b_rpwms = rpwms[batch_s:batch_e]
-        b_rpwsds = rpwsds[batch_s:batch_e]
-        b_rquals = rquals[batch_s:batch_e]
-        b_rmaps = rmaps[batch_s:batch_e]
+        b_rkmers = np.array(rkmers[batch_s:batch_e])
+        b_rpasss = np.array(rpasss[batch_s:batch_e])
+        b_ripdms = np.array(ripdms[batch_s:batch_e])
+        b_ripdsds = np.array(ripdsds[batch_s:batch_e])
+        b_rpwms = np.array(rpwms[batch_s:batch_e])
+        b_rpwsds = np.array(rpwsds[batch_s:batch_e])
+        b_rquals = np.array(rquals[batch_s:batch_e])
+        b_rmaps = np.array(rmaps[batch_s:batch_e])
 
-        b_labels = labels[batch_s:batch_e]
+        b_labels = np.array(labels[batch_s:batch_e])
         if len(b_sampleinfo) > 0:
             voutputs, vlogits = model(FloatTensor(b_fkmers, device), FloatTensor(b_fpasss, device),
                                       FloatTensor(b_fipdms, device), FloatTensor(b_fipdsds, device),
