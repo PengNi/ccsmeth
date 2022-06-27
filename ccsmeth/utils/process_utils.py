@@ -250,6 +250,14 @@ def generate_samtools_index_cmd(path_to_samtools, threads=10):
     return samtools + " index -@ {}".format(threads if threads is not None else 3)
 
 
+def generate_samtools_sort_cmd(path_to_samtools, outputfile, threads=10):
+    samtools = samtools_exec
+    if path_to_samtools is not None:
+        samtools = os.path.abspath(path_to_samtools)
+    return samtools + " sort -@ {} -o {}".format(threads if threads is not None else 3,
+                                                 outputfile)
+
+
 # def index_bam_if_needed(inputfile, args):
 #     if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
 #         samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)

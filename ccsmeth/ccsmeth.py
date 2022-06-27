@@ -477,6 +477,8 @@ def main():
     scfb_callfreq.add_argument('--call_mode', type=str, action="store", required=False, default="count",
                                choices=["count", "aggregate"],
                                help='call mode: count, aggregate. default count.')
+    scfb_callfreq.add_argument("--ag_model", type=str, action="store", required=False,
+                               help='model path for call_mode aggregate')
     scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
                                help='this is to remove ambiguous calls. '
                                     'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '

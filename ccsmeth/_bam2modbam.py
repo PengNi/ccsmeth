@@ -363,11 +363,14 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     wreads_q.put("kill")
     p_w.join()
 
-    if modbamfile.endswith(".bam") and mode == "align":
-        sys.stderr.write("sorting and indexing new bam file..\n")
-        modbam_sorted = modbamfile + ".sorted.bam"
-        pysam.sort("-o", modbam_sorted, "-@", str(threads), modbamfile)
-        os.rename(modbam_sorted, modbamfile)
+    if modbamfile.endswith(".bam"):
+        if mode == "align":
+            sys.stderr.write("sorting and indexing modbam file..\n")
+            modbam_sorted = modbamfile + ".sorted.bam"
+            pysam.sort("-o", modbam_sorted, "-@", str(threads), modbamfile)
+            os.rename(modbam_sorted, modbamfile)
+        else:
+            sys.stderr.write("indexing modbam file..\n")
         pysam.index("-@", str(threads), modbamfile)
 
     if os.path.exists(per_read_file):

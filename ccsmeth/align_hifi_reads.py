@@ -10,10 +10,11 @@ from .utils.process_utils import minimap2_exec
 from .utils.process_utils import bwa_exec
 from .utils.process_utils import generate_samtools_view_cmd
 from .utils.process_utils import generate_samtools_index_cmd
+from .utils.process_utils import generate_samtools_sort_cmd
 
 
 here = os.path.abspath(os.path.dirname(__file__))
-sam2fq_exec = "python " + here + "/utils/subreads_sam2fastq_std.py"
+sam2fq_exec = "python " + here + "/utils/sam2fastq_std.py"
 
 
 def check_input_file(inputfile):
@@ -86,8 +87,7 @@ def align_hifi_reads_to_genome(args):
                                             args.path_to_pbmm2,
                                             args.bestn,
                                             args.threads)
-
-    samtools_view = generate_samtools_view_cmd(args.path_to_samtools, args.threads)
+    samtools_view = generate_samtools_view_cmd(args.path_to_samtools, args.threads // 2)
     samtools_index = generate_samtools_index_cmd(args.path_to_samtools, args.threads)
 
     if (not args.minimap2) and (not args.bwa):
@@ -102,7 +102,6 @@ def align_hifi_reads_to_genome(args):
         else:
             raise ValueError("--output/-o must be in bam/sam format!")
     else:
-        # TODO: sort and index?
         align_cmds = " ".join([aligner, reference, "-"])
         if inputpath.endswith(".fq") or inputpath.endswith(".fastq"):
             align_cmds = " ".join([aligner, reference, inputpath])
@@ -125,7 +124,10 @@ def align_hifi_reads_to_genome(args):
 
         post_align_cmds = ""
         if outputpath.endswith(".bam"):
-            post_align_cmds = " ".join([samtools_view, "-b - >", outputpath])
+            samtools_sort = generate_samtools_sort_cmd(args.path_to_samtools, outputpath, args.threads // 2)
+            post_align_cmds = " ".join([samtools_view, "-b |",
+                                        samtools_sort, "- &&",
+                                        samtools_index, outputpath])
         elif outputpath.endswith(".sam"):
             pass
 
