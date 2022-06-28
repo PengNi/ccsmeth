@@ -52,7 +52,7 @@ pip install ccsmeth
 #### 2. install necessary packages
 Install necessary packages ([bedtools](https://bedtools.readthedocs.io/en/latest/), and [pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended:
 ```shell
-conda install bedtools -c bioconda  # required by pybedtools->ccsmeth-call_mods
+conda install bedtools -c bioconda  # required by pybedtools->ccsmeth:call_mods
 conda install pbccs pbmm2 samtools -c bioconda
 ```
 
