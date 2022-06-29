@@ -4,6 +4,11 @@ ccsmeth
 
 Documentation
 -------------
+v0.3.1
+----------
+optimize call_mods module
+
+
 v0.3.0
 ----------
 add multi-threads support for reading .bam by pysam

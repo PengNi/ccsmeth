@@ -181,31 +181,25 @@ def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q, seq_
 
             sampleinfo.append("\t".join(words[0:5]))
 
-            fkmer = np.array([base2code_dna[x] for x in words[5][left_cut:-right_cut]])
+            fkmer = [base2code_dna[x] for x in words[5][left_cut:-right_cut]]
             fkmers.append(fkmer)
-            fpasss.append(np.array([int(words[6])] * len(fkmer)))
-            fipdms.append(np.array([float(x) for x in words[7].split(",")[left_cut:-right_cut]], dtype=np.float))
-            fipdsds.append(np.array([float(x) for x in words[8].split(",")[left_cut:-right_cut]], dtype=np.float)
-                           if words[8] != "." else 0)
-            fpwms.append(np.array([float(x) for x in words[9].split(",")[left_cut:-right_cut]], dtype=np.float))
-            fpwsds.append(np.array([float(x) for x in words[10].split(",")[left_cut:-right_cut]], dtype=np.float)
-                          if words[10] != "." else 0)
-            fquals.append(np.array([float(x) for x in words[11].split(",")[left_cut:-right_cut]], dtype=np.float))
-            fmaps.append(np.array([float(x) for x in words[12].split(",")[left_cut:-right_cut]], dtype=np.float)
-                         if words[12] != "." else 0)
+            fpasss.append([int(words[6])] * len(fkmer))
+            fipdms.append([float(x) for x in words[7].split(",")[left_cut:-right_cut]])
+            fipdsds.append([float(x) for x in words[8].split(",")[left_cut:-right_cut]] if words[8] != "." else 0)
+            fpwms.append([float(x) for x in words[9].split(",")[left_cut:-right_cut]])
+            fpwsds.append([float(x) for x in words[10].split(",")[left_cut:-right_cut]] if words[10] != "." else 0)
+            fquals.append([float(x) for x in words[11].split(",")[left_cut:-right_cut]])
+            fmaps.append([float(x) for x in words[12].split(",")[left_cut:-right_cut]] if words[12] != "." else 0)
 
-            rkmer = np.array([base2code_dna[x] for x in words[13][left_cut:-right_cut]])
+            rkmer = [base2code_dna[x] for x in words[13][left_cut:-right_cut]]
             rkmers.append(rkmer)
-            rpasss.append(np.array([int(words[14])] * len(rkmer)))
-            ripdms.append(np.array([float(x) for x in words[15].split(",")[left_cut:-right_cut]], dtype=np.float))
-            ripdsds.append(np.array([float(x) for x in words[16].split(",")[left_cut:-right_cut]], dtype=np.float)
-                           if words[16] != "." else 0)
-            rpwms.append(np.array([float(x) for x in words[17].split(",")[left_cut:-right_cut]], dtype=np.float))
-            rpwsds.append(np.array([float(x) for x in words[18].split(",")[left_cut:-right_cut]], dtype=np.float)
-                          if words[18] != "." else 0)
-            rquals.append(np.array([float(x) for x in words[19].split(",")[left_cut:-right_cut]], dtype=np.float))
-            rmaps.append(np.array([float(x) for x in words[20].split(",")[left_cut:-right_cut]], dtype=np.float)
-                         if words[20] != "." else 0)
+            rpasss.append([int(words[14])] * len(rkmer))
+            ripdms.append([float(x) for x in words[15].split(",")[left_cut:-right_cut]])
+            ripdsds.append([float(x) for x in words[16].split(",")[left_cut:-right_cut]] if words[16] != "." else 0)
+            rpwms.append([float(x) for x in words[17].split(",")[left_cut:-right_cut]])
+            rpwsds.append([float(x) for x in words[18].split(",")[left_cut:-right_cut]] if words[18] != "." else 0)
+            rquals.append([float(x) for x in words[19].split(",")[left_cut:-right_cut]])
+            rmaps.append([float(x) for x in words[20].split(",")[left_cut:-right_cut]] if words[20] != "." else 0)
 
             labels.append(int(words[21]))
 
@@ -311,6 +305,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
         model.load_state_dict(model_dict)
         if str2bool(args.loginfo):
             print('call_mods process-{} loads model param successfully'.format(os.getpid()))
+        del model_dict
     except RuntimeError:
         # for DDP model convertion (key: module.embed.weight -> embed.weight)
         from collections import OrderedDict
@@ -321,6 +316,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
         model.load_state_dict(para_dict_new)
         if str2bool(args.loginfo):
             print('call_mods process-{} loads model param successfully-1'.format(os.getpid()))
+        del para_dict_new
     sys.stdout.flush()
 
     if use_cuda:

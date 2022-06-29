@@ -514,10 +514,10 @@ def worker_extract_features_from_holebatches(holebatch_q, features_q,
             holebatch_q.put("kill")
             break
         # handle one holebatch
-        feature_list,  total_num, failed_num = process_one_holebatch(holebatch,
-                                                                     motifs, holeids_e, holeids_ne,
-                                                                     dnacontigs,
-                                                                     args)
+        feature_list, total_num, failed_num = process_one_holebatch(holebatch,
+                                                                    motifs, holeids_e, holeids_ne,
+                                                                    dnacontigs,
+                                                                    args)
         total_num_batch += total_num
         failed_num_batch += failed_num
         if len(feature_list) > 0:
