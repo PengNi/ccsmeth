@@ -31,16 +31,30 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [pybedtools](https://daler.github.io/pybedtools/) \
        [pytabix](https://github.com/slowkow/pytabix)
 
-#### 1. install ccsmeth
+#### Option 1. One-step installation
+Install ccsmeth, its dependencies, and other required packages in one step using [conda](https://conda.io/docs/) and [environment.yml](environment.yml):
+```shell
+# download deepsignal-plant
+git clone https://github.com/PengNi/ccsmeth.git
+
+# install tools in environment.yml
+conda env create --name ccsmethenv -f /path/to/ccsmeth/environment.yml
+
+# then the environment can be activated to use
+conda activate ccsmethenv
+```
+
+#### Option 2. Step-by-step installation
+##### (1) install ccsmeth
+It is highly recommended installing ccsmeth in a virtual environment.
 ```bash
-# 1. it is highly recommended to install ccsmeth in an virtual environment
 conda create -n ccsmethenv python=3.8
 # activate
 conda activate ccsmethenv
 # deactivate this environment
 conda deactivate
 
-# 2. install ccsmeth
+# install ccsmeth after activating ccsmethenv
 # install ccsmeth from github (latest version)
 git clone https://github.com/PengNi/ccsmeth.git
 cd ccsmeth
@@ -49,7 +63,7 @@ python setup.py install
 pip install ccsmeth
 ```
 
-#### 2. install necessary packages
+##### (2) install necessary packages
 Install necessary packages ([bedtools](https://bedtools.readthedocs.io/en/latest/), and [pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended:
 ```shell
 conda install bedtools -c bioconda  # required by pybedtools->ccsmeth:call_mods
