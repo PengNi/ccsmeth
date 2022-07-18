@@ -364,17 +364,18 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     p_w.join()
 
     if modbamfile.endswith(".bam"):
-        if mode == "align":
-            sys.stderr.write("sorting and indexing modbam file..\n")
+        try:
+            sys.stderr.write("sorting modbam file..\n")
             modbam_sorted = modbamfile + ".sorted.bam"
             pysam.sort("-o", modbam_sorted, "-@", str(threads), modbamfile)
             os.rename(modbam_sorted, modbamfile)
-        else:
-            sys.stderr.write("indexing modbam file..\n")
+        except Exception:
+            sys.stderr.write("failed sorting modbam file..\n")
         try:
+            sys.stderr.write("indexing modbam file..\n")
             pysam.index("-@", str(threads), modbamfile)
         except Exception:
-            sys.stderr.write("failed on indexing modbam file..\n")
+            sys.stderr.write("failed indexing modbam file..\n")
 
     if os.path.exists(per_read_file):
         os.remove(per_read_file)
