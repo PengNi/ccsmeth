@@ -254,6 +254,8 @@ def main():
     scm_output.add_argument("--modbam", type=str, default="yes", required=False,
                             help="if generating modbam file when --input is in bam/sam format. "
                                  "yes or no, default yes")
+    scm_output.add_argument("--rm_per_readsite", action="store_true", default=False, required=False,
+                            help="if rm per_readsite.tsv when --mobam is set to yes")
 
     scm_extract = sub_call_mods.add_argument_group("EXTRACTION")
     scm_extract.add_argument("--mode", type=str, default="align", required=False,

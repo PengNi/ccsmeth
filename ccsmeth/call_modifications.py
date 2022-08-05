@@ -496,6 +496,8 @@ def call_mods(args):
             add_mm_ml_tags_to_bam(input_path, out_per_readsite, out_modbam,
                                   rm_pulse=True, threads=args.threads,
                                   mode=args.mode)
+            if args.rm_per_readsite:
+                os.remove(out_per_readsite)
     else:
         # features_batch_q = mp.Queue()
         features_batch_q = Queue()
@@ -622,6 +624,8 @@ def main():
     p_output.add_argument("--modbam", type=str, default="yes", required=False,
                           help="if generating modbam file when --input is in bam/sam format. "
                                "yes or no, default yes")
+    p_output.add_argument("--rm_per_readsite", action="store_true", default=False, required=False,
+                          help="if rm per_readsite.tsv when --mobam is set to yes")
 
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--mode", type=str, default="align", required=False,
