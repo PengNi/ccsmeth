@@ -49,7 +49,7 @@ def _get_kmer2lines(feafile):
 
 
 # for balancing kmer distri in training samples ===
-def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac):
+def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac, is_floor):
     selected_lines = []
     unselected_lines = []
     unratioed_kmers = set()
@@ -57,15 +57,21 @@ def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac):
     negkmers = sorted(list(kmer2lines.keys()))
     for kmer in negkmers:
         if kmer in kmer2ratios.keys():
-            linenum = int(math.ceil(totalline * kmer2ratios[kmer]))
-            lines = kmer2lines[kmer]
-            if len(lines) <= linenum:
-                selected_lines += lines
-                cnts += (linenum - len(lines))
+            if is_floor:
+                linenum = int(math.floor(totalline * kmer2ratios[kmer]))
             else:
-                seledtmp = random.sample(lines, linenum)
-                selected_lines += seledtmp
-                unselected_lines += list(set(lines).difference(seledtmp))
+                linenum = int(math.ceil(totalline * kmer2ratios[kmer]))
+            if linenum <= 0:
+                unratioed_kmers.add(kmer)
+            else:
+                lines = kmer2lines[kmer]
+                if len(lines) <= linenum:
+                    selected_lines += lines
+                    cnts += (linenum - len(lines))
+                else:
+                    seledtmp = random.sample(lines, linenum)
+                    selected_lines += seledtmp
+                    unselected_lines += list(set(lines).difference(seledtmp))
         else:
             unratioed_kmers.add(kmer)
     print("for {} common kmers, fill {} samples, "
@@ -74,25 +80,29 @@ def _rand_select_by_kmer_ratio(kmer2lines, kmer2ratios, totalline, random_frac):
                                                 cnts))
     unfilled_cnt = totalline - len(selected_lines)
     print("totalline: {}, need to fill: {}".format(totalline, unfilled_cnt))
-    if len(unratioed_kmers) > 0:
-        minlinenum = int(math.ceil(float(unfilled_cnt)/len(unratioed_kmers)))
-        cnts = 0
-        unratioed_kmers = sorted(list(unratioed_kmers))
-        random.shuffle(unratioed_kmers)
-        for kmer in unratioed_kmers:
-            lines = kmer2lines[kmer]
-            if len(lines) <= minlinenum:
-                selected_lines += lines
-                cnts += len(lines)
-            else:
-                seledtmp = random.sample(lines, minlinenum)
-                selected_lines += seledtmp
-                cnts += minlinenum
-                unselected_lines += list(set(lines).difference(seledtmp))
-            # prevent too much random samples
-            if cnts >= random_frac * unfilled_cnt:
-                break
-        print("extract {} samples from {} diff kmers".format(cnts, len(unratioed_kmers)))
+    if len(unratioed_kmers) > 0 and unfilled_cnt > 0:
+        if is_floor:
+            minlinenum = int(math.floor(float(unfilled_cnt)/len(unratioed_kmers)))
+        else:
+            minlinenum = int(math.ceil(float(unfilled_cnt)/len(unratioed_kmers)))
+        if minlinenum > 0:
+            cnts = 0
+            unratioed_kmers = sorted(list(unratioed_kmers))
+            random.shuffle(unratioed_kmers)
+            for kmer in unratioed_kmers:
+                lines = kmer2lines[kmer]
+                if len(lines) <= minlinenum:
+                    selected_lines += lines
+                    cnts += len(lines)
+                else:
+                    seledtmp = random.sample(lines, minlinenum)
+                    selected_lines += seledtmp
+                    cnts += minlinenum
+                    unselected_lines += list(set(lines).difference(seledtmp))
+                # prevent too much random samples
+                if cnts >= random_frac * unfilled_cnt:
+                    break
+            print("extract {} samples from {} diff kmers".format(cnts, len(unratioed_kmers)))
     unfilled_cnt = totalline - len(selected_lines)
     if unfilled_cnt > 0:
         print("totalline: {}, still need to fill: {}".format(totalline, unfilled_cnt))
@@ -125,13 +135,16 @@ def _write_randsel_lines(feafile, wfile, seled_lines):
 
 
 # balance kmer distri in neg_training file as pos_training file
-def select_negsamples_asposkmer(pos_file, totalneg_file, seled_neg_file, random_frac):
+def select_negsamples_asposkmer(pos_file, totalneg_file, seled_neg_file, random_frac, sel_linenum,
+                                is_floor):
     kmer_count = _count_kmers_of_feafile(pos_file)
     kmer2ratio, totalline = _get_kmer2ratio_n_totalline(kmer_count)
 
     print("{} kmers from kmer2ratio file:{}".format(len(kmer2ratio), pos_file))
     kmer2lines = _get_kmer2lines(totalneg_file)
-    sel_lines = _rand_select_by_kmer_ratio(kmer2lines, kmer2ratio, totalline, random_frac)
+    if sel_linenum is not None:
+        totalline = sel_linenum
+    sel_lines = _rand_select_by_kmer_ratio(kmer2lines, kmer2ratio, totalline, random_frac, is_floor)
     _write_randsel_lines(totalneg_file, seled_neg_file, sel_lines)
 # =======================================================================================
 
@@ -146,10 +159,14 @@ def main():
     parser.add_argument("--random_frac", type=float, default=1.1, help="")
     parser.add_argument("--seed", type=int, default=111, required=False,
                         help="seed for randomly selecting subreads, default 111")
+    parser.add_argument("--sel_linenum", type=int, default=None, required=False,
+                        help="num of seled lines from --feafile; default None, means equal line")
+    parser.add_argument("--floor", action='store_true', default=False, help="use floor instead of ceil on sampling")
 
     args = parser.parse_args()
     random.seed(args.seed)
-    select_negsamples_asposkmer(args.kmer_feafile, args.feafile, args.wfile, args.random_frac)
+    select_negsamples_asposkmer(args.kmer_feafile, args.feafile, args.wfile, args.random_frac, args.sel_linenum,
+                                args.floor)
 
 
 if __name__ == '__main__':
