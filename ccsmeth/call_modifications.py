@@ -628,10 +628,12 @@ def main():
                           help="if rm per_readsite.tsv when --mobam is set to yes")
 
     p_extract = parser.add_argument_group("EXTRACTION")
-    p_extract.add_argument("--mode", type=str, default="align", required=False,
+    p_extract.add_argument("--mode", type=str, default="denovo", required=False,
                            choices=["denovo", "align"],
-                           help="denovo mode: extract features from unaligned hifi.bam;\n"
-                                "align mode: extract features from aligned hifi.bam. default: align")
+                           help="denovo mode: extract features from unaligned/aligned hifi.bam without "
+                                "reference position info;\n"
+                                "align mode: extract features from aligned hifi.bam with "
+                                "reference position info. default: denovo")
     p_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                            help="file contains holeids to be extracted, default None")
     p_extract.add_argument("--holeids_ne", type=str, default=None, required=False,

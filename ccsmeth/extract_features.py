@@ -658,10 +658,12 @@ def main():
                           help="if compressing the output using gzip")
 
     p_extract = parser.add_argument_group("EXTRACTION")
-    p_extract.add_argument("--mode", type=str, default="align", required=False,
+    p_extract.add_argument("--mode", type=str, default="denovo", required=False,
                            choices=["denovo", "align"],
-                           help="denovo mode: extract features from unaligned hifi.bam;\n"
-                                "align mode: extract features from aligned hifi.bam. default: align")
+                           help="denovo mode: extract features from unaligned/aligned hifi.bam without "
+                                "reference position info;\n"
+                                "align mode: extract features from aligned hifi.bam with "
+                                "reference position info. default: denovo")
     p_extract.add_argument("--seq_len", type=int, default=21, required=False,
                            help="len of kmer. default 21")
     p_extract.add_argument("--motifs", action="store", type=str,

@@ -258,10 +258,12 @@ def main():
                             help="if rm per_readsite.tsv when --mobam is set to yes")
 
     scm_extract = sub_call_mods.add_argument_group("EXTRACTION")
-    scm_extract.add_argument("--mode", type=str, default="align", required=False,
+    scm_extract.add_argument("--mode", type=str, default="denovo", required=False,
                              choices=["denovo", "align"],
-                             help="denovo mode: extract features from unaligned hifi.bam;\n"
-                                  "align mode: extract features from aligned hifi.bam. default: align")
+                             help="denovo mode: extract features from unaligned/aligned hifi.bam without "
+                                  "reference position info;\n"
+                                  "align mode: extract features from aligned hifi.bam with "
+                                  "reference position info. default: denovo")
     scm_extract.add_argument("--holeids_e", type=str, default=None, required=False,
                              help="file contains holeids to be extracted, default None")
     scm_extract.add_argument("--holeids_ne", type=str, default=None, required=False,
@@ -336,10 +338,12 @@ def main():
                            help="if compressing the output using gzip")
 
     se_extract = sub_extract.add_argument_group("EXTRACTION")
-    se_extract.add_argument("--mode", type=str, default="align", required=False,
+    se_extract.add_argument("--mode", type=str, default="denovo", required=False,
                             choices=["denovo", "align"],
-                            help="denovo mode: extract features from unaligned hifi.bam;\n"
-                                 "align mode: extract features from aligned hifi.bam. default: align")
+                            help="denovo mode: extract features from unaligned/aligned hifi.bam without "
+                                 "reference position info;\n"
+                                 "align mode: extract features from aligned hifi.bam with "
+                                 "reference position info. default: denovo")
     se_extract.add_argument("--seq_len", type=int, default=21, required=False,
                             help="len of kmer. default 21")
     se_extract.add_argument("--motifs", action="store", type=str,
