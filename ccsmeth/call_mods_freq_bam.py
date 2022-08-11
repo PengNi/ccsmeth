@@ -25,6 +25,8 @@ from .utils.process_utils import get_motif_seqs
 from .utils.process_utils import complement_seq
 from .utils.process_utils import get_refloc_of_methysite_in_motif
 
+from numpy.lib.stride_tricks import sliding_window_view
+
 time_wait = 1
 key_sep = "||"
 
@@ -135,7 +137,7 @@ def _get_moddict(readitem, modbase="C", modification="m"):
     return moddict
 
 
-def _cal_modprob_in_count_mode(modprobs, prob_cf=0):
+def _cal_modfreq_in_count_mode(modprobs, prob_cf=0):
     cnt_all, cnt_mod = 0, 0
     for modprob in modprobs:
         if abs(modprob - (1 - modprob)) < prob_cf:
@@ -147,9 +149,163 @@ def _cal_modprob_in_count_mode(modprobs, prob_cf=0):
     return cnt_all, cnt_mod, modfreq
 
 
-def _call_modfreq_of_one_region(refpos2modinfo, args):
+# from PacBio https://github.com/PacificBiosciences/pb-CpG-tools under BSD 3-Clause Clear License
+def _get_normalized_histo(probs, cov_cf=4, binsize=20):
+    """
+    Create the array data structure needed to apply the model, for a given site.
+
+    :param probs: List of methylation probabilities. (list)
+    :param cov_cf:
+    :param binsize:
+    :return: List with normalized histogram
+    """
+
+    cov = len(probs)
+    assert cov >= cov_cf
+
+    hist = np.histogram(probs, bins=binsize, range=[0, 1])[0]
+    norm = np.linalg.norm(hist)
+    # divide hist by norm and add values to arr
+    return np.round(hist / norm, 6)
+
+
+def _cal_modfreq_in_aggregate_mode(refposes, refposes_histos, model, seq_len=11):
+    from .utils.constants_torch import FloatTensor_cpu
+
+    if len(refposes) == 0:
+        return None
+
+    pad_len = seq_len // 2
+
+    histos_mat = np.pad(np.stack(refposes_histos),
+                        pad_width=((pad_len, pad_len), (0, 0)),
+                        mode='constant', constant_values=0)
+    histos_mat = np.swapaxes(sliding_window_view(histos_mat, seq_len, axis=0), 1, 2)
+
+    pos_mat = np.pad(refposes, pad_width=(pad_len, pad_len),
+                     mode='constant', constant_values=(refposes[0]-1000, refposes[-1]+1000))
+    pos_mat = sliding_window_view(pos_mat, seq_len)
+    pos_mat_center = np.repeat(refposes, seq_len).reshape((-1, seq_len))
+    pos_mat = np.subtract(pos_mat, pos_mat_center)
+    del pos_mat_center
+
+    probs = []
+    batch_size = 1024
+    for i in np.arange(0, len(histos_mat), batch_size):
+        batch_s, batch_e = i, i + batch_size
+        b_histos = np.array(histos_mat[batch_s:batch_e].copy())
+        b_pos = np.array(pos_mat[batch_s:batch_e])
+        if len(b_histos) > 0:
+            _, vlogits = model(FloatTensor_cpu(b_pos), FloatTensor_cpu(b_histos))
+            logits = vlogits.data.numpy()
+            for idx in range(len(b_histos)):
+                prob_0, prob_1 = logits[idx][0], logits[idx][1]
+                prob_1_norm = round(prob_1 / (prob_0 + prob_1), 6)
+                probs.append(prob_1_norm)
+    return probs
+
+
+def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
+    import torch
+    from .models import AggrAttRNN
+    from .utils.constants_torch import use_cuda
+    device = "cpu"
+
+    # load model
+    if args.model_type in {"attbigru", "attbilstm"}:
+        model = AggrAttRNN(args.seq_len, args.layer_rnn, args.class_num,
+                           0, args.hid_rnn, binsize=args.binsize,
+                           model_type=args.model_type,
+                           device=device)
+    else:
+        raise ValueError("--model_type not right!")
+    para_dict = torch.load(args.aggre_model, map_location=torch.device('cpu'))
+    model_dict = model.state_dict()
+    model_dict.update(para_dict)
+    model.load_state_dict(model_dict)
+    del model_dict
+    # if use_cuda:
+    #     model = model.cuda(device)
+    model.eval()
+
+    all_lowcov_pos, all_lowcov_mods, all_highcov_pos, all_highcov_histos = [], [], [], []
+    hp1_lowcov_pos, hp1_lowcov_mods, hp1_highcov_pos, hp1_highcov_histos = [], [], [], []
+    hp2_lowcov_pos, hp2_lowcov_mods, hp2_highcov_pos, hp2_highcov_histos = [], [], [], []
+    all_highcov_covs, hp1_highcov_covs, hp2_highcov_covs = [], [], []
+    all_refposes = sorted(refpos2modinfo.keys())
+    refpos2result = dict()
+    for refpos in all_refposes:
+        refpos2result[refpos] = [None, None, None]
+
+        modinfo = refpos2modinfo[refpos]
+        total_mods, hp1_mods, hp2_mods = [], [], []
+        for modprob, hap in modinfo:
+            total_mods.append(modprob)
+            if hap == 1:
+                hp1_mods.append(modprob)
+            elif hap == 2:
+                hp2_mods.append(modprob)
+
+        if len(total_mods) > 0:
+            if len(total_mods) >= args.cov_cf:
+                all_highcov_pos.append(refpos)
+                all_highcov_histos.append(_get_normalized_histo(total_mods, args.cov_cf, args.binsize))
+                all_highcov_covs.append(len(total_mods))
+            else:
+                all_lowcov_pos.append(refpos)
+                all_lowcov_mods.append(_cal_modfreq_in_count_mode(total_mods, args.prob_cf))
+        if len(hp1_mods) > 0:
+            if len(hp1_mods) >= args.cov_cf:
+                hp1_highcov_pos.append(refpos)
+                hp1_highcov_histos.append(_get_normalized_histo(hp1_mods, args.cov_cf, args.binsize))
+                hp1_highcov_covs.append(len(hp1_mods))
+            else:
+                hp1_lowcov_pos.append(refpos)
+                hp1_lowcov_mods.append(_cal_modfreq_in_count_mode(hp1_mods, args.prob_cf))
+        if len(hp2_mods) > 0:
+            if len(hp2_mods) >= args.cov_cf:
+                hp2_highcov_pos.append(refpos)
+                hp2_highcov_histos.append(_get_normalized_histo(hp2_mods, args.cov_cf, args.binsize))
+                hp2_highcov_covs.append(len(hp2_mods))
+            else:
+                hp2_lowcov_pos.append(refpos)
+                hp2_lowcov_mods.append(_cal_modfreq_in_count_mode(hp2_mods, args.prob_cf))
+    for lowcov_idx in range(len(all_lowcov_pos)):
+        refpos2result[all_lowcov_pos[lowcov_idx]][0] = all_lowcov_mods[lowcov_idx]
+    for lowcov_idx in range(len(hp1_lowcov_pos)):
+        refpos2result[hp1_lowcov_pos[lowcov_idx]][1] = hp1_lowcov_mods[lowcov_idx]
+    for lowcov_idx in range(len(hp2_lowcov_pos)):
+        refpos2result[hp2_lowcov_pos[lowcov_idx]][2] = hp2_lowcov_mods[lowcov_idx]
+
+    probs = _cal_modfreq_in_aggregate_mode(all_highcov_pos, all_highcov_histos, model, args.seq_len)
+    for highcov_idx in range(len(all_highcov_pos)):
+        modprob_tmp = probs[highcov_idx]
+        cov_tmp = all_highcov_covs[highcov_idx]
+        cnt_mod = round(cov_tmp * modprob_tmp, 2)
+        refpos2result[all_highcov_pos[highcov_idx]][0] = (cov_tmp, cnt_mod, modprob_tmp)
+    probs = _cal_modfreq_in_aggregate_mode(hp1_highcov_pos, hp1_highcov_histos, model, args.seq_len)
+    for highcov_idx in range(len(hp1_highcov_pos)):
+        modprob_tmp = probs[highcov_idx]
+        cov_tmp = hp1_highcov_covs[highcov_idx]
+        cnt_mod = round(cov_tmp * modprob_tmp, 2)
+        refpos2result[hp1_highcov_pos[highcov_idx]][1] = (cov_tmp, cnt_mod, modprob_tmp)
+    probs = _cal_modfreq_in_aggregate_mode(hp2_highcov_pos, hp2_highcov_histos, model, args.seq_len)
+    for highcov_idx in range(len(hp2_highcov_pos)):
+        modprob_tmp = probs[highcov_idx]
+        cov_tmp = hp2_highcov_covs[highcov_idx]
+        cnt_mod = round(cov_tmp * modprob_tmp, 2)
+        refpos2result[hp2_highcov_pos[highcov_idx]][2] = (cov_tmp, cnt_mod, modprob_tmp)
+
     refpos_results = []
+    for refpos in all_refposes:
+        refpos_results.append((refpos, refpos2result[refpos][0], refpos2result[refpos][1],
+                               refpos2result[refpos][2]))
+    return refpos_results
+
+
+def _call_modfreq_of_one_region(refpos2modinfo, args):
     if args.call_mode == "count":
+        refpos_results = []
         for refpos in sorted(refpos2modinfo.keys()):
             modinfo = refpos2modinfo[refpos]
             total_mods, hp1_mods, hp2_mods = [], [], []
@@ -159,14 +315,14 @@ def _call_modfreq_of_one_region(refpos2modinfo, args):
                     hp1_mods.append(modprob)
                 elif hap == 2:
                     hp2_mods.append(modprob)
-            info_all = _cal_modprob_in_count_mode(total_mods, args.prob_cf) if len(total_mods) > 0 else None
-            info_hp1 = _cal_modprob_in_count_mode(hp1_mods, args.prob_cf) if len(hp1_mods) > 0 else None
-            info_hp2 = _cal_modprob_in_count_mode(hp2_mods, args.prob_cf) if len(hp2_mods) > 0 else None
+            info_all = _cal_modfreq_in_count_mode(total_mods, args.prob_cf) if len(total_mods) > 0 else None
+            info_hp1 = _cal_modfreq_in_count_mode(hp1_mods, args.prob_cf) if len(hp1_mods) > 0 else None
+            info_hp2 = _cal_modfreq_in_count_mode(hp2_mods, args.prob_cf) if len(hp2_mods) > 0 else None
             refpos_results.append((refpos, info_all, info_hp1, info_hp2))
     elif args.call_mode == "aggregate":
-        import torch
-        from .models import AggrAttRNN
-        pass
+        refpos_results = _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args)
+    else:
+        raise ValueError("wrong --call_mode")
 
     return refpos_results
 
@@ -260,6 +416,8 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
             refposinfo[fwd_pos] += refposinfo_rev[rev_pos]
         del refposinfo_rev
         del refposes_rev
+
+    # gathering modfreq result
     bed_all, bed_hp1, bed_hp2 = [], [], []
     refpos_res = _call_modfreq_of_one_region(refposinfo, args)
     for refpositem in refpos_res:
@@ -384,6 +542,9 @@ def call_mods_frequency_from_bamfile(args):
     print("[main]call_freq_bam starts..")
     start = time.time()
 
+    if args.call_mode == "aggregate" and not os.path.exists(args.aggre_model):
+        raise ValueError("--aggre_model is not set right!")
+
     inputpath = _check_input_file(args.input_bam)
     index_bam_if_needed2(inputpath, args.threads)
     if not os.path.exists(args.ref):
@@ -465,8 +626,6 @@ def main():
     scfb_callfreq.add_argument('--call_mode', type=str, action="store", required=False, default="count",
                                choices=["count", "aggregate"],
                                help='call mode: count, aggregate. default count.')
-    scfb_callfreq.add_argument("--ag_model", type=str, action="store", required=False,
-                               help='model path for call_mode aggregate')
     scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
                                help='this is to remove ambiguous calls. '
                                'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
@@ -497,6 +656,27 @@ def main():
                                help="output all covered sites which are target motifs in reference. "
                                     "--refsites_all is True, also means we do not output sites which "
                                     "are target motifs only in reads.")
+
+    scfb_aggre = parser.add_argument_group("AGGREGATE_MODE")
+    scfb_aggre.add_argument("--aggre_model", "-m", action="store", type=str, required=False,
+                            help="file path of the aggregate model (.ckpt)")
+    scfb_aggre.add_argument('--model_type', type=str, default="attbigru",
+                            choices=["attbilstm", "attbigru"],
+                            required=False,
+                            help="type of model to use, 'attbigru', 'attbilstm', "
+                                 "default: attbigru")
+    scfb_aggre.add_argument('--seq_len', type=int, default=11, required=False,
+                            help="len of sites used. default 11")
+    scfb_aggre.add_argument('--class_num', type=int, default=2, required=False)
+    scfb_aggre.add_argument('--layer_rnn', type=int, default=1,
+                            required=False, help="BiRNN layer num, default 1")
+    scfb_aggre.add_argument('--hid_rnn', type=int, default=32, required=False,
+                            help="BiRNN hidden_size, default 32")
+    scfb_aggre.add_argument('--binsize', type=int, action="store", required=False, default=20,
+                            help="histogram bin size, default 20")
+    scfb_aggre.add_argument('--cov_cf', action="store", type=int, required=False,
+                            default=4, help="coverage cutoff, to consider if use aggregate model to "
+                                            "re-predict the modstate of the site")
 
     args = parser.parse_args()
 

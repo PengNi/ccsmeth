@@ -8,7 +8,7 @@ dependencies:
   - pip
   - cudatoolkit=10.2  # 11.0, 11.0.3, 10.2, 10.1, 9.2 for torch 1.7.0; 10.2 is ok for 1.7.0-1.11.0
   - bedtools=2.30.0  # required by pybedtools
-  - numpy>=1.19.2
+  - numpy>=1.20.0
   - statsmodels>=0.13.2
   - scikit-learn>=1.0.2
   - pytorch::pytorch=1.11.0  # add channel prefix (pytorch::) to make sure the cuda version being installed?

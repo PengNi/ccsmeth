@@ -12,6 +12,10 @@ def FloatTensor(tensor, device=0):
     return torch.tensor(tensor, dtype=torch.float)
 
 
+def FloatTensor_cpu(tensor):
+    return torch.tensor(tensor, dtype=torch.float)
+
+
 # LongTensor = torch.cuda.LongTensor if use_cuda else torch.LongTensor
 def LongTensor(tensor, device=0):
     if use_cuda:

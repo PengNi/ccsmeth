@@ -66,7 +66,7 @@ def read_rmetfile_of_tgs(tgs_file, contig_prefix, contig_names, cov_cf):
     return meancov, rmet_dp2.sort_values(by=['chromosome', 'pos'])
 
 
-def read_rmetfile_of_bs(bs_file, contig_prefix, contig_names, cov_cf):
+def read_rmetfile_of_bed_or_bsformat(bs_file, contig_prefix, contig_names, cov_cf):
     def _cal_ratio(row):
         cov = row["met"] + row["unmet"]
         return float(row["met"]) / cov if cov > 0 else 0
@@ -126,7 +126,7 @@ def correlation_with_any_rmets(args):
     bs_fname2rmetinfo = dict()
     for cmp_file in cmp_files:
         if not args.tgs:
-            bsmean_cov, bs_fname2rmetinfo[os.path.basename(cmp_file)] = read_rmetfile_of_bs(cmp_file,
+            bsmean_cov, bs_fname2rmetinfo[os.path.basename(cmp_file)] = read_rmetfile_of_bed_or_bsformat(cmp_file,
                                                                                             args.contig_prefix,
                                                                                             args.contig_names,
                                                                                             args.cov_cf_cmp)

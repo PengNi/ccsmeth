@@ -145,8 +145,8 @@ class ModelAttRNN(nn.Module):
 
 class AggrAttRNN(nn.Module):
     def __init__(self, seq_len=11, num_layers=1, num_classes=2,
-                 dropout_rate=0.5, hidden_size=256,
-                 model_type="attbilstm",
+                 dropout_rate=0.5, hidden_size=32, binsize=20,
+                 model_type="attbigru",
                  device=0):
         super(AggrAttRNN, self).__init__()
         self.model_type = model_type
@@ -157,7 +157,7 @@ class AggrAttRNN(nn.Module):
         self.num_classes = num_classes
         self.hidden_size = hidden_size
 
-        self.feas_ccs = 20 + 1
+        self.feas_ccs = binsize + 1
         if self.model_type == "attbilstm":
             self.rnn_cell = "lstm"
             self.rnn = nn.LSTM(self.feas_ccs, self.hidden_size, self.num_layers,
@@ -169,11 +169,10 @@ class AggrAttRNN(nn.Module):
         else:
             raise ValueError("--model_type not set right!")
 
-        self.dropout1 = nn.Dropout(p=dropout_rate)
-        self.fc1 = nn.Linear(self.hidden_size * 2 * 2, self.num_classes)  # 2 for bidirection, another 2 for 2 strands
-
         self._att3 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
-        self._att3_2 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
+
+        self.dropout1 = nn.Dropout(p=dropout_rate)
+        self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
 
         self.softmax = nn.Softmax(1)
 
@@ -183,17 +182,20 @@ class AggrAttRNN(nn.Module):
     def init_hidden(self, batch_size, num_layers, hidden_size):
         # Set initial states
         h0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
-        if use_cuda:
+        if use_cuda and self.device != "cpu":
             h0 = h0.cuda(self.device)
         if self.rnn_cell == "lstm":
             c0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
-            if use_cuda:
+            if use_cuda and self.device != "cpu":
                 c0 = c0.cuda(self.device)
             return h0, c0
         return h0
 
-    def forward(self, feaseq):
-        out = torch.reshape(feaseq, (-1, self.seq_len, 1)).float()
+    def forward(self, offsets, histos):
+
+        offsets = torch.reshape(offsets, (-1, self.seq_len, 1)).float()
+
+        out = torch.cat((histos.float(), offsets), 2)
 
         out, n_states = self.rnn(out, self.init_hidden(out.size(0),
                                                        self.num_layers,

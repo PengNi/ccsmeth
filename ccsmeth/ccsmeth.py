@@ -483,8 +483,6 @@ def main():
     scfb_callfreq.add_argument('--call_mode', type=str, action="store", required=False, default="count",
                                choices=["count", "aggregate"],
                                help='call mode: count, aggregate. default count.')
-    scfb_callfreq.add_argument("--ag_model", type=str, action="store", required=False,
-                               help='model path for call_mode aggregate')
     scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
                                help='this is to remove ambiguous calls. '
                                     'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
@@ -515,6 +513,27 @@ def main():
                                help="output all covered sites which are target motifs in reference. "
                                     "--refsites_all is True, also means we do not output sites which "
                                     "are target motifs only in reads.")
+
+    scfb_aggre = sub_call_freqb.add_argument_group("AGGREGATE_MODE")
+    scfb_aggre.add_argument("--aggre_model", "-m", action="store", type=str, required=False,
+                            help="file path of the aggregate model (.ckpt)")
+    scfb_aggre.add_argument('--model_type', type=str, default="attbigru",
+                            choices=["attbilstm", "attbigru"],
+                            required=False,
+                            help="type of model to use, 'attbigru', 'attbilstm', "
+                                 "default: attbigru")
+    scfb_aggre.add_argument('--seq_len', type=int, default=11, required=False,
+                            help="len of sites used. default 11")
+    scfb_aggre.add_argument('--class_num', type=int, default=2, required=False)
+    scfb_aggre.add_argument('--layer_rnn', type=int, default=1,
+                            required=False, help="BiRNN layer num, default 1")
+    scfb_aggre.add_argument('--hid_rnn', type=int, default=32, required=False,
+                            help="BiRNN hidden_size, default 32")
+    scfb_aggre.add_argument('--binsize', type=int, action="store", required=False, default=20,
+                            help="histogram bin size, default 20")
+    scfb_aggre.add_argument('--cov_cf', action="store", type=int, required=False,
+                            default=4, help="coverage cutoff, to consider if use aggregate model to "
+                                            "re-predict the modstate of the site")
 
     sub_call_freqb.set_defaults(func=main_call_freqb)
 

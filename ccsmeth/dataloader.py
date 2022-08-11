@@ -147,3 +147,48 @@ class FeaData3(Dataset):
 
     def close(self):
         pass
+
+
+# Dataloader for aggregate mode ==================================================================
+def parse_a_line_aggre(line):
+    # chrom, pos, strand, [offset_location_from_centerpos], [modprobs_histogram], [coverage], label
+    words = line.strip().split("\t")
+
+    sampleinfo = "\t".join(words[0:3])
+
+    offsets = np.array([int(x) for x in words[3].split(",")])
+    histos = np.array([[float(y) for y in x.split(",")] for x in words[4].split(";")])
+    covs = np.array([int(x) for x in words[5].split(",")])
+
+    label = int(words[6])
+
+    return sampleinfo, offsets, histos, covs, label
+
+
+class AggreFeaData(Dataset):
+    def __init__(self, filename, transform=None):
+        # print(">>>using linecache to access '{}'<<<\n"
+        #       ">>>after done using the file, "
+        #       "remember to use linecache.clearcache() to clear cache for safety<<<".format(filename))
+        self._filename = os.path.abspath(filename)
+        self._total_data = 0
+        self._transform = transform
+        # self.max_subreads = max_subreads
+        with open(filename, "r") as f:
+            self._total_data = len(f.readlines())
+
+    def __getitem__(self, idx):
+        line = linecache.getline(self._filename, idx + 1)
+        if line == "":
+            return None
+        else:
+            output = parse_a_line_aggre(line)
+            if self._transform is not None:
+                output = self._transform(output)
+            return output
+
+    def __len__(self):
+        return self._total_data
+
+    def close(self):
+        pass
