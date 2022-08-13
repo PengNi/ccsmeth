@@ -185,7 +185,7 @@ def _cal_modfreq_in_aggregate_mode(refposes, refposes_histos, model, seq_len=11)
                      mode='constant', constant_values=(refposes[0]-1000, refposes[-1]+1000))
     pos_mat = sliding_window_view(pos_mat, seq_len)
     pos_mat_center = np.repeat(refposes, seq_len).reshape((-1, seq_len))
-    pos_mat = np.subtract(pos_mat, pos_mat_center)
+    pos_mat = np.absolute(np.subtract(pos_mat, pos_mat_center))
     # no log2 is a litter better?
     # pos_mat = np.round(1. / (np.log2(np.absolute(pos_mat) + 1) + 1), 6)
     del pos_mat_center

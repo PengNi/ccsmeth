@@ -8,6 +8,8 @@ v0.3.1
 ----------
 optimize call_mods module
 
+add aggregate mode in call_freqb module
+
 
 v0.3.0
 ----------
