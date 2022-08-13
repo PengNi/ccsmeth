@@ -143,8 +143,9 @@ class ModelAttRNN(nn.Module):
         return out, self.softmax(out)
 
 
+# Using BS-seq modfreqs as gold standard to train a AggrAttRNN regression model, no softmax
 class AggrAttRNN(nn.Module):
-    def __init__(self, seq_len=11, num_layers=1, num_classes=2,
+    def __init__(self, seq_len=11, num_layers=1, num_classes=1,
                  dropout_rate=0.5, hidden_size=32, binsize=20,
                  model_type="attbigru",
                  device=0):
@@ -161,11 +162,11 @@ class AggrAttRNN(nn.Module):
         if self.model_type == "attbilstm":
             self.rnn_cell = "lstm"
             self.rnn = nn.LSTM(self.feas_ccs, self.hidden_size, self.num_layers,
-                               dropout=dropout_rate, batch_first=True, bidirectional=True)
+                               dropout=0, batch_first=True, bidirectional=True)
         elif self.model_type == "attbigru":
             self.rnn_cell = "gru"
             self.rnn = nn.GRU(self.feas_ccs, self.hidden_size, self.num_layers,
-                              dropout=dropout_rate, batch_first=True, bidirectional=True)
+                              dropout=0, batch_first=True, bidirectional=True)
         else:
             raise ValueError("--model_type not set right!")
 
@@ -174,7 +175,7 @@ class AggrAttRNN(nn.Module):
         self.dropout1 = nn.Dropout(p=dropout_rate)
         self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
 
-        self.softmax = nn.Softmax(1)
+        # self.softmax = nn.Softmax(1)
 
     def get_model_type(self):
         return self.model_type
@@ -193,7 +194,7 @@ class AggrAttRNN(nn.Module):
 
     def forward(self, offsets, histos):
 
-        offsets = torch.reshape(offsets, (-1, self.seq_len, 1)).float()
+        offsets = torch.reshape(offsets, (-1, self.seq_len, 1)).float()  # (N, L, 1)
 
         out = torch.cat((histos.float(), offsets), 2)
 
@@ -210,5 +211,6 @@ class AggrAttRNN(nn.Module):
 
         out = self.dropout1(out)
         out = self.fc1(out)
+        # out = self.softmax(out)
 
-        return out, self.softmax(out)
+        return out

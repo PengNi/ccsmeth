@@ -524,7 +524,7 @@ def main():
                                  "default: attbigru")
     scfb_aggre.add_argument('--seq_len', type=int, default=11, required=False,
                             help="len of sites used. default 11")
-    scfb_aggre.add_argument('--class_num', type=int, default=2, required=False)
+    scfb_aggre.add_argument('--class_num', type=int, default=1, required=False)
     scfb_aggre.add_argument('--layer_rnn', type=int, default=1,
                             required=False, help="BiRNN layer num, default 1")
     scfb_aggre.add_argument('--hid_rnn', type=int, default=32, required=False,

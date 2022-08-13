@@ -170,23 +170,24 @@ def _get_normalized_histo(probs, cov_cf=4, binsize=20):
 
 
 def _cal_modfreq_in_aggregate_mode(refposes, refposes_histos, model, seq_len=11):
-    from .utils.constants_torch import FloatTensor_cpu
 
     if len(refposes) == 0:
         return None
 
-    pad_len = seq_len // 2
+    from .utils.constants_torch import FloatTensor_cpu
 
+    pad_len = seq_len // 2
     histos_mat = np.pad(np.stack(refposes_histos),
                         pad_width=((pad_len, pad_len), (0, 0)),
                         mode='constant', constant_values=0)
     histos_mat = np.swapaxes(sliding_window_view(histos_mat, seq_len, axis=0), 1, 2)
-
     pos_mat = np.pad(refposes, pad_width=(pad_len, pad_len),
                      mode='constant', constant_values=(refposes[0]-1000, refposes[-1]+1000))
     pos_mat = sliding_window_view(pos_mat, seq_len)
     pos_mat_center = np.repeat(refposes, seq_len).reshape((-1, seq_len))
     pos_mat = np.subtract(pos_mat, pos_mat_center)
+    # no log2 is a litter better?
+    # pos_mat = np.round(1. / (np.log2(np.absolute(pos_mat) + 1) + 1), 6)
     del pos_mat_center
 
     probs = []
@@ -196,22 +197,20 @@ def _cal_modfreq_in_aggregate_mode(refposes, refposes_histos, model, seq_len=11)
         b_histos = np.array(histos_mat[batch_s:batch_e].copy())
         b_pos = np.array(pos_mat[batch_s:batch_e])
         if len(b_histos) > 0:
-            _, vlogits = model(FloatTensor_cpu(b_pos), FloatTensor_cpu(b_histos))
-            logits = vlogits.data.numpy()
+            voutputs = model(FloatTensor_cpu(b_pos), FloatTensor_cpu(b_histos))
+            logits = np.round(np.clip(voutputs.data.numpy(), 0, 1), 6)
             for idx in range(len(b_histos)):
-                prob_0, prob_1 = logits[idx][0], logits[idx][1]
-                prob_1_norm = round(prob_1 / (prob_0 + prob_1), 6)
-                probs.append(prob_1_norm)
+                probs.append(logits[idx][0])
     return probs
 
 
 def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
     import torch
     from .models import AggrAttRNN
-    from .utils.constants_torch import use_cuda
-    device = "cpu"
+    # from .utils.constants_torch import use_cuda
 
     # load model
+    device = "cpu"
     if args.model_type in {"attbigru", "attbilstm"}:
         model = AggrAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                            0, args.hid_rnn, binsize=args.binsize,
@@ -667,7 +666,7 @@ def main():
                                  "default: attbigru")
     scfb_aggre.add_argument('--seq_len', type=int, default=11, required=False,
                             help="len of sites used. default 11")
-    scfb_aggre.add_argument('--class_num', type=int, default=2, required=False)
+    scfb_aggre.add_argument('--class_num', type=int, default=1, required=False)
     scfb_aggre.add_argument('--layer_rnn', type=int, default=1,
                             required=False, help="BiRNN layer num, default 1")
     scfb_aggre.add_argument('--hid_rnn', type=int, default=32, required=False,
