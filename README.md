@@ -104,7 +104,7 @@ CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --model_file /path/to/ccsmeth/models/model.ckpt \
   --output /path/to/output.hifi.pbmm2.call_mods \
   --threads 10 --threads_call 2 --model_type attbigru2s \
-  --mode denovo
+  --rm_per_readsite --mode align
 
 # 4. call modification frequency
 # outputs: [--output].[--call_mode].all.bed
@@ -141,7 +141,8 @@ CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --input /path/to/output.hifi.bam \
   --model_file /path/to/ccsmeth/models/model.ckpt \
   --output /path/to/output.hifi.call_mods \
-  --threads 10 --threads_call 2 --model_type attbigru2s
+  --threads 10 --threads_call 2 --model_type attbigru2s \
+  --rm_per_readsite
 
 # 3. align hifi reads
 # should have added pbmm2 to $PATH or the used environment
