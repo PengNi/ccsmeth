@@ -243,7 +243,7 @@ def main():
     scm_call.add_argument('--layer_rnn', type=int, default=3,
                           required=False, help="BiRNN layer num, default 3")
     scm_call.add_argument('--hid_rnn', type=int, default=256, required=False,
-                          help="BiRNN hidden_size for combined feature")
+                          help="BiRNN hidden_size, default 256")
 
     scm_output = sub_call_mods.add_argument_group("OUTPUT")
     scm_output.add_argument("--output", "-o", action="store", type=str, required=True,
@@ -573,7 +573,7 @@ def main():
     st_train.add_argument('--layer_rnn', type=int, default=3,
                           required=False, help="BiRNN layer num, default 3")
     st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
-                          help="BiRNN hidden_size for combined feature")
+                          help="BiRNN hidden_size, default 256")
 
     st_training = sub_train.add_argument_group("TRAINING")
     # model training
@@ -650,7 +650,7 @@ def main():
     stm_train.add_argument('--layer_rnn', type=int, default=3,
                            required=False, help="BiRNN layer num, default 3")
     stm_train.add_argument('--hid_rnn', type=int, default=256, required=False,
-                           help="BiRNN hidden_size for combined feature")
+                           help="BiRNN hidden_size, default 256")
 
     # model training
     stm_training = sub_trainm.add_argument_group("TRAINING")
@@ -752,7 +752,7 @@ def main():
     # sd_train.add_argument('--layer_rnn', type=int, default=3,
     #                       required=False, help="BiRNN layer num, default 3")
     # sd_train.add_argument('--hid_rnn', type=int, default=256, required=False,
-    #                       help="BiRNN hidden_size for combined feature")
+    #                       help="BiRNN hidden_size, default 256")
     #
     # sd_training = sub_denoise.add_argument_group("TRAINING")
     # # model training

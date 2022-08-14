@@ -452,7 +452,7 @@ def main():
     st_train.add_argument('--layer_rnn', type=int, default=3,
                           required=False, help="BiRNN layer num, default 3")
     st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
-                          help="BiRNN hidden_size for combined feature")
+                          help="BiRNN hidden_size, default 256")
 
     st_training = parser.add_argument_group("TRAINING")
     # model training

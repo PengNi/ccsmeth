@@ -613,7 +613,7 @@ def main():
     p_call.add_argument('--layer_rnn', type=int, default=3,
                         required=False, help="BiRNN layer num, default 3")
     p_call.add_argument('--hid_rnn', type=int, default=256, required=False,
-                        help="BiRNN hidden_size for combined feature")
+                        help="BiRNN hidden_size, default 256")
 
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--output", "-o", action="store", type=str, required=True,
