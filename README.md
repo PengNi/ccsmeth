@@ -11,6 +11,7 @@
 ## Contents
 - [Installation](#Installation)
 - [Trained models](#Trained-models)
+- [Demo data](#Demo-data)
 - [Quick start](#Quick-start)
 - [Usage](#Usage)
 
@@ -70,12 +71,16 @@ conda install bedtools -c bioconda  # required by pybedtools->ccsmeth:call_mods
 conda install pbccs pbmm2 samtools -c bioconda
 ```
 
-
 ## Trained models
 See [models](/models):
 
 [_model_ccsmeth_5mCpG_call_mods_attbigru2s.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s.ckpt): A 5mCpG model for ccsmeth _**call_mods**_ module, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
+## Demo data
+Check [demo](/demo) for some demo data to play with:
+  - _hg002.chr20_demo.hifi.bam_: HG002 demo hifi reads which are aligned to human genome chr20:10000000-10100000.
+  - _chr20_demo.fa_: reference sequence of human chr20:10000000-10100000.
+  - _hg002_bsseq_chr20_demo.bed_: HG002 BS-seq results of region chr20:10000000-10100000.
 
 ## Quick start
 
@@ -116,7 +121,9 @@ ccsmeth call_freqb \
   --ref /path/to/genome.fa \
   --output /path/to/output.hifi.pbmm2.call_mods.modbam.freq \
   --threads 10 --sort --bed
+
 # OR, using '--call_mode aggregate':
+# NOTE: usually is more accurate than 'count' mode
 ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.pbmm2.call_mods.modbam.bam \
   --ref /path/to/genome.fa \
@@ -162,7 +169,9 @@ ccsmeth call_freqb \
   --ref /path/to/genome.fa \
   --output /path/to/output.hifi.call_mods.modbam.pbmm2.freq \
   --threads 10 --sort --bed
+
 # OR, using '--call_mode aggregate':
+# NOTE: usually is more accurate than 'count' mode
 ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
   --ref /path/to/genome.fa \
@@ -171,7 +180,6 @@ ccsmeth call_freqb \
   --call_mode aggregate \
   --aggre_model /path/to/ccsmeth/models/model_aggregate.ckpt
 ```
-
 
 ## Usage
 
@@ -576,7 +584,6 @@ TRAINING:
 ```
 
 See also `ccsmeth trainm -h` for multi-gpu distributed training.
-
 
 ## Acknowledgements
 - We thank Tse *et al.*, The Chinese University of Hong Kong (CUHK) Department of Chemical Pathology, for sharing their code and data, as reported in [Proc Natl Acad Sci USA 2021; 118(5): e2019768118](https://doi.org/10.1073/pnas.2019768118). We made use of their data and code for evaluation and comparison.
