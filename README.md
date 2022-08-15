@@ -72,9 +72,9 @@ conda install pbccs pbmm2 samtools -c bioconda
 
 
 ## Trained models
-See [models](https://github.com/PengNi/ccsmeth/tree/master/models):
+See [models](/models):
 
-__We now are working to train a stable model.__
+[_model_ccsmeth_5mCpG_call_mods_attbigru2s.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s.ckpt): A 5mCpG model for ccsmeth _**call_mods**_ module, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
 
 ## Quick start
@@ -101,7 +101,7 @@ ccsmeth align_hifi \
 CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --input /path/to/output.hifi.pbmm2.bam \
   --ref /path/to/genome.fa \
-  --model_file /path/to/ccsmeth/models/model.ckpt \
+  --model_file /path/to/ccsmeth/models/model_call_mods.ckpt \
   --output /path/to/output.hifi.pbmm2.call_mods \
   --threads 10 --threads_call 2 --model_type attbigru2s \
   --rm_per_readsite --mode align
@@ -123,7 +123,7 @@ ccsmeth call_freqb \
   --output /path/to/output.hifi.pbmm2.call_mods.modbam.freq \
   --threads 10 --sort --bed \
   --call_mode aggregate \
-  --aggre_model /path/to/aggregate_model.ckpt
+  --aggre_model /path/to/ccsmeth/models/model_aggregate.ckpt
 ```
 
 **OR**, use `denovo` mode (`call_mods`, then `align_hifi`):
@@ -139,7 +139,7 @@ ccsmeth call_hifi --subreads /path/to/subreads.bam \
 #          [--output].modbam.bam
 CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --input /path/to/output.hifi.bam \
-  --model_file /path/to/ccsmeth/models/model.ckpt \
+  --model_file /path/to/ccsmeth/models/model_call_mods.ckpt \
   --output /path/to/output.hifi.call_mods \
   --threads 10 --threads_call 2 --model_type attbigru2s \
   --rm_per_readsite
@@ -169,7 +169,7 @@ ccsmeth call_freqb \
   --output /path/to/output.hifi.call_mods.modbam.pbmm2.freq \
   --threads 10 --sort --bed \
   --call_mode aggregate \
-  --aggre_model /path/to/aggregate_model.ckpt
+  --aggre_model /path/to/ccsmeth/models/model_aggregate.ckpt
 ```
 
 
@@ -298,7 +298,7 @@ CALL:
   --n_embed N_EMBED     base_seq embedding_size
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 3
-  --hid_rnn HID_RNN     BiRNN hidden_size for combined feature
+  --hid_rnn HID_RNN     BiRNN hidden_size, default 256
 
 OUTPUT:
   --output OUTPUT, -o OUTPUT
@@ -545,7 +545,7 @@ TRAIN MODEL_HYPER:
   --n_embed N_EMBED     base_seq embedding_size
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 3
-  --hid_rnn HID_RNN     BiRNN hidden_size for combined feature
+  --hid_rnn HID_RNN     BiRNN hidden_size, default 256
 
 TRAINING:
   --optim_type {Adam,RMSprop,SGD,Ranger}

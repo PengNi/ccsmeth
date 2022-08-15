@@ -10,6 +10,8 @@ optimize call_mods module
 
 add aggregate mode in call_freqb module
 
+release a stable call_mods model
+
 
 v0.3.0
 ----------
