@@ -74,8 +74,8 @@ conda install pbccs pbmm2 samtools -c bioconda
 ## Trained models
 See [models](/models):
 
-[_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt): model for ccsmeth **_call_mods_** module for **_5mCpG_**, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
-[model_ccsmeth_5mCpG_aggregate_attbigru_b11.v1.ckpt](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v1.ckpt): model for **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_**, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
+  - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
+  - [_model_ccsmeth_5mCpG_aggregate_attbigru_b11.v1.ckpt_](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v1.ckpt): model of **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_** detection, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
 ## Demo data
 Check [demo](/demo) for some demo data to play with:
