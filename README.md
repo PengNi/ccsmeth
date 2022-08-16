@@ -65,7 +65,7 @@ pip install ccsmeth
 ```
 
 ##### (2) install necessary packages
-Install necessary packages ([bedtools](https://bedtools.readthedocs.io/en/latest/), and [pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended:
+Install necessary packages ([bedtools](https://bedtools.readthedocs.io/en/latest/), and [pbccs](https://ccs.how/), [pbmm2](https://github.com/PacificBiosciences/pbmm2) or [minimap2](https://github.com/lh3/minimap2), [samtools](https://github.com/samtools/samtools)) in the same environment. Installing of those packages using [Bioconda](https://bioconda.github.io/) is recommended:
 ```shell
 conda install bedtools -c bioconda  # required by pybedtools->ccsmeth:call_mods
 conda install pbccs pbmm2 samtools -c bioconda
@@ -74,7 +74,8 @@ conda install pbccs pbmm2 samtools -c bioconda
 ## Trained models
 See [models](/models):
 
-[_model_ccsmeth_5mCpG_call_mods_attbigru2s.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s.ckpt): A 5mCpG model for ccsmeth _**call_mods**_ module, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
+[_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt): model for ccsmeth **_call_mods_** module for **_5mCpG_**, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
+[model_ccsmeth_5mCpG_aggregate_attbigru_b11.v1.ckpt](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v1.ckpt): model for **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_**, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
 ## Demo data
 Check [demo](/demo) for some demo data to play with:
@@ -588,3 +589,4 @@ See also `ccsmeth trainm -h` for multi-gpu distributed training.
 ## Acknowledgements
 - We thank Tse *et al.*, The Chinese University of Hong Kong (CUHK) Department of Chemical Pathology, for sharing their code and data, as reported in [Proc Natl Acad Sci USA 2021; 118(5): e2019768118](https://doi.org/10.1073/pnas.2019768118). We made use of their data and code for evaluation and comparison.
 - We thank Akbari _et al._, as part of the code for haplotyping were taken from [NanoMethPhase](https://github.com/vahidAK/NanoMethPhase) of Akbari _et al._
+- The way to organize features for aggregate model is referenced from [pb-CpG-tools](https://github.com/PacificBiosciences/pb-CpG-tools).

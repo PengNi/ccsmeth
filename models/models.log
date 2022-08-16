@@ -1,0 +1,3 @@
+model_name	ori_name	training_data	else
+model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt	10.53:/homeb/nipeng/data/methccs/na12898_pcrmsssi/model_attbigru2s.NA12898_pcr_msssi_bc102-12_BAK8B_OA_hifi_pbmm2_chr1-22_nosupp_r80m_n_hc3b20m.lrReLa_e4m/attbigru2s.b21_epoch21.ckpt	na12898_1+m64012_190921,pcr,pcr+msssi,chr1-22,no_suppl+FWD_REV_CpG_combined,cov>=10,rmet>=0.95,rmet<=0.05;80m-random+20m-balance	kmer+ipd_mean+pw_mean+npasses;attbigru2s;kmer-21
+model_ccsmeth_5mCpG_aggregate_attbigru_b11.v1.ckpt	10.53:/homeb/nipeng/data/methccs/hg002_15kb_freeze/model_aggre_attbigru.hg002bs_m64012_190920_173625_allnhp_reg/attbigru.b11_epoch5.ckpt	m64012_190920_173625,illumina_deeptrio_phased,ccsmeth_call_mods_r80m_n_hc3b20m_results	attbigru,11_neighbour_cpgs,regression
