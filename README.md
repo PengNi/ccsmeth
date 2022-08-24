@@ -5,6 +5,8 @@
 
 [![PyPI-version](https://img.shields.io/pypi/v/ccsmeth)](https://pypi.org/project/ccsmeth/)
 [![PyPI-Downloads](https://pepy.tech/badge/ccsmeth)](https://pepy.tech/project/ccsmeth/)
+&emsp;[![Conda-version](https://img.shields.io/conda/vn/bioconda/ccsmeth)](https://anaconda.org/bioconda/ccsmeth)
+[![Conda-Downloads](https://img.shields.io/conda/dn/bioconda/ccsmeth)](https://anaconda.org/bioconda/ccsmeth)
 
 ### Detecting DNA methylation from PacBio CCS reads
 
@@ -62,6 +64,8 @@ cd ccsmeth
 python setup.py install
 # OR, install ccsmeth using pip
 pip install ccsmeth
+# OR, install ccsmeth using conda
+conda install ccsmeth -c bioconda
 ```
 
 ##### (2) install necessary packages
