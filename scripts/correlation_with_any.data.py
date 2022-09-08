@@ -136,10 +136,10 @@ def cmp_sitesrmet_of_tgs_and_bs(args):
     rmet_q, rmet_t, qnum, tnum, sitesnum, corr, r_square, scorr, rmse = _cal_corr_of_rmet1_and_rmet2(freqinfo_nano,
                                                                                                      freqinfo_t_comb)
     print("==target: combined\n"
-              "\t\tsites: inter-{}/query-{}/target-{}\n"
-              "\t\tpearson: {:.4f}, r_square: {:.4f}, "
-              "spearman: {:.4f}, RMSE: {:.4f}".format(sitesnum, qnum, tnum, 
-                                                      corr, r_square, scorr, rmse))
+          "\t\tsites: inter-{}/query-{}/target-{}\n"
+          "\t\tpearson: {:.4f}, r_square: {:.4f}, "
+          "spearman: {:.4f}, RMSE: {:.4f}".format(sitesnum, qnum, tnum,
+                                                  corr, r_square, scorr, rmse))
     wf = open(args.wfile, "w")
     wf.write("\t".join(["rmet_target", "rmet_query"]) + "\n")
     for ridx in range(0, len(rmet_t)):

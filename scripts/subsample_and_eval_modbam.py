@@ -24,10 +24,9 @@ def _get_fasta_from_bam(bamfile):
     fname, fext = os.path.splitext(bamfile)
     bam_collate = fname + ".collate.bam"
     fafile = fname + ".fa"
-    bam2fa_cmd = "samtools collate -@40 -o {} {} && samtools fasta -F 4 -@40 {} > {}".format(bam_collate,
-                                                                                             bamfile,
-                                                                                             bam_collate,
-                                                                                             fafile)
+    bam2fa_cmd = "samtools collate -@40 -o {} {} {}_prefix && " \
+                 "samtools fasta -F 4 -@40 {} > {}".format(bam_collate, bamfile, bamfile,
+                                                           bam_collate, fafile)
     sys.stderr.write("bam2fa cmd: {}\n".format(bam2fa_cmd))
     sys.stderr.flush()
     stdinfo, returncode = run_cmd(bam2fa_cmd)
@@ -349,6 +348,7 @@ def main():
                                                                                                        corrs_spearman),
                                                                                                    np.std(corrs_rmse)
                                                                                                    ))
+        sys.stdout.flush()
         del a_rmets
 
         # for bedfiletmp in count_beds:
