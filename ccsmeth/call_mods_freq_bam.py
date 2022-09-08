@@ -408,6 +408,8 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
         cnt_used += 1
     if args.motifs == "CG" and not args.no_comb:
         for rev_pos in refposes_rev:
+            if rev_pos == 0:
+                continue
             fwd_pos = rev_pos - 1
             if fwd_pos not in refposes:
                 refposes.add(fwd_pos)

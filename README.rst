@@ -4,6 +4,11 @@ ccsmeth
 
 Documentation
 -------------
+v0.3.2
+----------
+fix bug (0-pos CG in reverse strand) of call_freqb module
+
+
 v0.3.1
 ----------
 optimize call_mods module
