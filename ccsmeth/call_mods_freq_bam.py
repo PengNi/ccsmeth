@@ -550,6 +550,11 @@ def call_mods_frequency_from_bamfile(args):
     index_bam_if_needed2(inputpath, args.threads)
     if not os.path.exists(args.ref):
         raise ValueError("--ref does not exist!")
+
+    out_dir = os.path.dirname(os.path.abspath(args.output))
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
     dnacontigs = DNAReference(args.ref).getcontigs()
     motifs = get_motif_seqs(args.motifs)
 

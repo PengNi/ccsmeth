@@ -402,6 +402,10 @@ def call_mods(args):
     if not os.path.exists(input_path):
         raise ValueError("--input_file does not exist!")
 
+    out_dir = os.path.dirname(os.path.abspath(args.output))
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
     out_per_readsite = args.output + ".per_readsite.tsv"
 
     holeids_e = None if args.holeids_e is None else _get_holes(args.holeids_e)
