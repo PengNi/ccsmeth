@@ -359,7 +359,7 @@ def main():
     # model training
     st_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
                                                                                 "Ranger", "LookaheadAdam"],
-                             required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
+                             required=False, help="type of optimizer to use, 'Adam', 'SGD', 'RMSprop', "
                                                   "'Ranger' or 'LookaheadAdam', default Adam")
     st_training.add_argument('--batch_size', type=int, default=512, required=False)
     st_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,

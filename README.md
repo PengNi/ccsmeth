@@ -97,6 +97,7 @@ ccsmeth call_hifi --subreads /path/to/subreads.bam \
   --threads 10 \
   --output /path/to/output.hifi.bam
 
+
 # 2. align hifi reads
 # should have added pbmm2 to $PATH or the used environment
 ccsmeth align_hifi \
@@ -104,6 +105,7 @@ ccsmeth align_hifi \
   --ref /path/to/genome.fa \
   --output /path/to/output.hifi.pbmm2.bam \
   --threads 10
+
 
 # 3. call modifications
 # outputs: [--output].per_readsite.tsv, 
@@ -115,6 +117,7 @@ CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --output /path/to/output.hifi.pbmm2.call_mods \
   --threads 10 --threads_call 2 --model_type attbigru2s \
   --rm_per_readsite --mode align
+
 
 # 4. call modification frequency
 # outputs: [--output].[--call_mode].all.bed
@@ -146,6 +149,7 @@ ccsmeth call_hifi --subreads /path/to/subreads.bam \
   --threads 10 \
   --output /path/to/output.hifi.bam
 
+
 # 2. call modifications
 # outputs: [--output].per_readsite.tsv, 
 #          [--output].modbam.bam
@@ -156,6 +160,7 @@ CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --threads 10 --threads_call 2 --model_type attbigru2s \
   --rm_per_readsite
 
+
 # 3. align hifi reads
 # should have added pbmm2 to $PATH or the used environment
 ccsmeth align_hifi \
@@ -163,6 +168,7 @@ ccsmeth align_hifi \
   --ref /path/to/genome.fa \
   --output /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
   --threads 10
+
 
 # 4. call modification frequency
 # outputs: [--output].[--call_mode].all.bed
@@ -194,15 +200,21 @@ Users can use `ccsmeth subcommands --help/-h` for help.
 
 ```shell
 ccsmeth call_hifi -h
-usage: ccsmeth call_hifi [-h] --subreads SUBREADS [--output OUTPUT] [--path_to_ccs PATH_TO_CCS] [--threads THREADS] [--min-passes MIN_PASSES] [--by-strand] [--hd-finder] [--log-level LOG_LEVEL]
+usage: ccsmeth call_hifi [-h] --subreads SUBREADS [--output OUTPUT]
+                         [--path_to_ccs PATH_TO_CCS] [--threads THREADS]
+                         [--min-passes MIN_PASSES] [--by-strand] [--hd-finder]
+                         [--log-level LOG_LEVEL]
                          [--path_to_samtools PATH_TO_SAMTOOLS]
 
-call hifi reads with kinetics from subreads.bam using CCS, save in bam/sam format. cmd: ccsmeth call_hifi -i input.subreads.bam
+call hifi reads with kinetics from subreads.bam using CCS, save in bam/sam
+format. cmd: ccsmeth call_hifi -i input.subreads.bam
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   --path_to_samtools PATH_TO_SAMTOOLS
-                        full path to the executable binary samtools file. If not specified, it is assumed that samtools is in the PATH.
+                        full path to the executable binary samtools file. If
+                        not specified, it is assumed that samtools is in the
+                        PATH.
 
 INPUT:
   --subreads SUBREADS, -i SUBREADS
@@ -210,57 +222,83 @@ INPUT:
 
 OUTPUT:
   --output OUTPUT, -o OUTPUT
-                        output file path for alignment results, bam/sam supported. If not specified, the results will be saved in input_file_prefix.hifi.bam by default.
+                        output file path for alignment results, bam/sam
+                        supported. If not specified, the results will be saved
+                        in input_file_prefix.hifi.bam by default.
 
 CCS ARG:
   --path_to_ccs PATH_TO_CCS
-                        full path to the executable binary ccs(PBCCS) file. If not specified, it is assumed that ccs is in the PATH.
+                        full path to the executable binary ccs(PBCCS) file. If
+                        not specified, it is assumed that ccs is in the PATH.
   --threads THREADS, -t THREADS
-                        number of threads to call hifi reads, default None -> means using all available processors
+                        number of threads to call hifi reads, default None ->
+                        means using all available processors
   --min-passes MIN_PASSES
-                        CCS: Minimum number of full-length subreads required to generate CCS for a ZMW. default None -> means using a default value set by CCS
+                        CCS: Minimum number of full-length subreads required
+                        to generate CCS for a ZMW. default None -> means using
+                        a default value set by CCS
   --by-strand           CCS: Generate a consensus for each strand.
   --hd-finder           CCS: Enable heteroduplex finder and splitting.
   --log-level LOG_LEVEL
-                        CCS: Set log level. Valid choices: (TRACE, DEBUG, INFO, WARN, FATAL). [WARN]
+                        CCS: Set log level. Valid choices: (TRACE, DEBUG,
+                        INFO, WARN, FATAL). [WARN]
 ```
 
 #### 2. align hifi reads
 
 ```shell
 ccsmeth align_hifi -h
-usage: ccsmeth align_hifi [-h] --hifireads HIFIREADS --ref REF [--output OUTPUT] [--header] [--path_to_pbmm2 PATH_TO_PBMM2] [--minimap2] [--path_to_minimap2 PATH_TO_MINIMAP2] [--bestn BESTN] [--bwa]
-                          [--path_to_bwa PATH_TO_BWA] [--path_to_samtools PATH_TO_SAMTOOLS] [--threads THREADS]
+usage: ccsmeth align_hifi [-h] --hifireads HIFIREADS --ref REF
+                          [--output OUTPUT] [--header]
+                          [--path_to_pbmm2 PATH_TO_PBMM2] [--minimap2]
+                          [--path_to_minimap2 PATH_TO_MINIMAP2]
+                          [--bestn BESTN] [--bwa] [--path_to_bwa PATH_TO_BWA]
+                          [--path_to_samtools PATH_TO_SAMTOOLS]
+                          [--threads THREADS]
 
 align hifi reads using pbmm2/minimap2/bwa, default pbmm2
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
 
 INPUT:
   --hifireads HIFIREADS, -i HIFIREADS
-                        path to hifireads.bam/sam/fastq_with_pulseinfo file as input
-  --ref REF             path to genome reference to be aligned, in fasta/fa format. If using bwa, the reference must have already been indexed.
+                        path to hifireads.bam/sam/fastq_with_pulseinfo file as
+                        input
+  --ref REF             path to genome reference to be aligned, in fasta/fa
+                        format. If using bwa, the reference must have already
+                        been indexed.
 
 OUTPUT:
   --output OUTPUT, -o OUTPUT
-                        output file path for alignment results, bam/sam supported. If not specified, the results will be saved in input_file_prefix.bam by default.
+                        output file path for alignment results, bam/sam
+                        supported. If not specified, the results will be saved
+                        in input_file_prefix.bam by default.
   --header              save header annotations from bam/sam. DEPRECATED
 
 ALIGN:
   --path_to_pbmm2 PATH_TO_PBMM2
-                        full path to the executable binary pbmm2 file. If not specified, it is assumed that pbmm2 is in the PATH.
+                        full path to the executable binary pbmm2 file. If not
+                        specified, it is assumed that pbmm2 is in the PATH.
   --minimap2            use minimap2 instead of pbmm2 for alignment
   --path_to_minimap2 PATH_TO_MINIMAP2
-                        full path to the executable binary minimap2 file. If not specified, it is assumed that minimap2 is in the PATH.
+                        full path to the executable binary minimap2 file. If
+                        not specified, it is assumed that minimap2 is in the
+                        PATH.
   --bestn BESTN, -n BESTN
-                        retain at most n alignments in minimap2. default 3, which means 2 secondary alignments are retained. Do not use 2, cause -N1 is not suggested for high accuracy of alignment. [This arg is for further
-                        extension, for now it is no use cause we use only primary alignment.]
+                        retain at most n alignments in minimap2. default 3,
+                        which means 2 secondary alignments are retained. Do
+                        not use 2, cause -N1 is not suggested for high
+                        accuracy of alignment. [This arg is for further
+                        extension.]
   --bwa                 use bwa instead of pbmm2 for alignment
   --path_to_bwa PATH_TO_BWA
-                        full path to the executable binary bwa file. If not specified, it is assumed that bwa is in the PATH.
+                        full path to the executable binary bwa file. If not
+                        specified, it is assumed that bwa is in the PATH.
   --path_to_samtools PATH_TO_SAMTOOLS
-                        full path to the executable binary samtools file. If not specified, it is assumed that samtools is in the PATH.
+                        full path to the executable binary samtools file. If
+                        not specified, it is assumed that samtools is in the
+                        PATH.
   --threads THREADS, -t THREADS
                         number of threads, default 5
 ```
@@ -271,33 +309,53 @@ Use `CUDA_VISIBLE_DEVICES=${cuda_number} ccsmeth call_mods [options]` to call mo
 
 ```shell
 ccsmeth call_mods -h
-usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH] --model_file MODEL_FILE [--model_type {attbilstm2s,attbigru2s}] [--seq_len SEQ_LEN] [--is_npass IS_NPASS] [--is_qual IS_QUAL] [--is_map IS_MAP]
-                         [--is_stds IS_STDS] [--class_num CLASS_NUM] [--dropout_rate DROPOUT_RATE] [--batch_size BATCH_SIZE] [--n_vocab N_VOCAB] [--n_embed N_EMBED] [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN] --output
-                         OUTPUT [--gzip] [--modbam MODBAM] [--rm_per_readsite] [--mode {denovo,align}] [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE] [--motifs MOTIFS] [--mod_loc MOD_LOC] [--methy_label {1,0}]
-                         [--norm {zscore,min-mean,min-max,mad}] [--no_decode] [--loginfo LOGINFO] [--ref REF] [--mapq MAPQ] [--identity IDENTITY] [--no_supplementary] [--is_mapfea IS_MAPFEA] [--skip_unmapped SKIP_UNMAPPED]
-                         [--threads THREADS] [--threads_call THREADS_CALL] [--tseed TSEED]
+usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH]
+                         --model_file MODEL_FILE
+                         [--model_type {attbilstm2s,attbigru2s}]
+                         [--seq_len SEQ_LEN] [--is_npass IS_NPASS]
+                         [--is_qual IS_QUAL] [--is_map IS_MAP]
+                         [--is_stds IS_STDS] [--class_num CLASS_NUM]
+                         [--dropout_rate DROPOUT_RATE]
+                         [--batch_size BATCH_SIZE] [--n_vocab N_VOCAB]
+                         [--n_embed N_EMBED] [--layer_rnn LAYER_RNN]
+                         [--hid_rnn HID_RNN] --output OUTPUT [--gzip]
+                         [--modbam MODBAM] [--rm_per_readsite]
+                         [--mode {denovo,align}] [--holeids_e HOLEIDS_E]
+                         [--holeids_ne HOLEIDS_NE] [--motifs MOTIFS]
+                         [--mod_loc MOD_LOC] [--methy_label {1,0}]
+                         [--norm {zscore,min-mean,min-max,mad}] [--no_decode]
+                         [--loginfo LOGINFO] [--ref REF] [--mapq MAPQ]
+                         [--identity IDENTITY] [--no_supplementary]
+                         [--is_mapfea IS_MAPFEA]
+                         [--skip_unmapped SKIP_UNMAPPED] [--threads THREADS]
+                         [--threads_call THREADS_CALL] [--tseed TSEED]
 
 call modifications
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   --threads THREADS, -p THREADS
                         number of threads to be used, default 10.
   --threads_call THREADS_CALL
-                        number of threads used to call modifications with trained models, no more than threads/3 is suggested. default 3.
+                        number of threads used to call modifications with
+                        trained models, no more than threads/3 is suggested.
+                        default 3.
   --tseed TSEED         random seed for torch
 
 INPUT:
   --input INPUT, -i INPUT
-                        input file, can be bam/sam, or features.tsv generated by extract_features.py.
+                        input file, can be bam/sam, or features.tsv generated
+                        by extract_features.py.
   --holes_batch HOLES_BATCH
-                        number of holes/hifi-reads in an batch to get/put in queues, default 50. only used when --input is bam/sam
+                        number of holes/hifi-reads in an batch to get/put in
+                        queues, default 50. only used when --input is bam/sam
 
 CALL:
   --model_file MODEL_FILE, -m MODEL_FILE
                         file path of the trained model (.ckpt)
   --model_type {attbilstm2s,attbigru2s}
-                        type of model to use, 'attbilstm2s', 'attbigru2s', default: attbigru2s
+                        type of model to use, 'attbilstm2s', 'attbigru2s',
+                        default: attbigru2s
   --seq_len SEQ_LEN     len of kmer. default 21
   --is_npass IS_NPASS   if using num_pass features, yes or no, default yes
   --is_qual IS_QUAL     if using base_quality features, yes or no, default no
@@ -315,35 +373,53 @@ CALL:
 
 OUTPUT:
   --output OUTPUT, -o OUTPUT
-                        the prefix of output files to save the predicted results. output files will be [--output].per_readsite.tsv/.modbam.bam
+                        the prefix of output files to save the predicted
+                        results. output files will be
+                        [--output].per_readsite.tsv/.modbam.bam
   --gzip                if compressing .per_readsite.tsv using gzip
-  --modbam MODBAM       if generating modbam file when --input is in bam/sam format. yes or no, default yes
+  --modbam MODBAM       if generating modbam file when --input is in bam/sam
+                        format. yes or no, default yes
   --rm_per_readsite     if rm per_readsite.tsv when --mobam is set to yes
 
 EXTRACTION:
   --mode {denovo,align}
-                        denovo mode: extract features from unaligned/aligned hifi.bam without reference position info; align mode: extract features from aligned hifi.bam with reference position info. default: denovo
+                        denovo mode: extract features from unaligned/aligned
+                        hifi.bam without reference position info; align mode:
+                        extract features from aligned hifi.bam with reference
+                        position info. default: denovo
   --holeids_e HOLEIDS_E
                         file contains holeids to be extracted, default None
   --holeids_ne HOLEIDS_NE
-                        file contains holeids not to be extracted, default None
-  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi motifs splited by comma (no space allowed in the input str), or use IUPAC alphabet, the mod_loc of all motifs must be the same
-  --mod_loc MOD_LOC     0-based location of the targeted base in the motif, default 0
-  --methy_label {1,0}   the label of the interested modified bases, this is for training. 0 or 1, default 1
+                        file contains holeids not to be extracted, default
+                        None
+  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
+                        motifs splited by comma (no space allowed in the input
+                        str), or use IUPAC alphabet, the mod_loc of all motifs
+                        must be the same
+  --mod_loc MOD_LOC     0-based location of the targeted base in the motif,
+                        default 0
+  --methy_label {1,0}   the label of the interested modified bases, this is
+                        for training. 0 or 1, default 1
   --norm {zscore,min-mean,min-max,mad}
-                        method for normalizing ipd/pw in subread level. zscore, min-mean, min-max or mad, default zscore
+                        method for normalizing ipd/pw in subread level.
+                        zscore, min-mean, min-max or mad, default zscore
   --no_decode           not use CodecV1 to decode ipd/pw
-  --loginfo LOGINFO     if printing more info of feature extraction on reads. yes or no, default no
+  --loginfo LOGINFO     if printing more info of feature extraction on reads.
+                        yes or no, default no
 
 EXTRACTION ALIGN_MODE:
-  --ref REF             path to genome reference to be aligned, in fasta/fa format.
-  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items, default 10
-  --identity IDENTITY   identity cutoff for selecting alignment items, default 0.70
+  --ref REF             path to genome reference to be aligned, in fasta/fa
+                        format.
+  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
+                        default 10
+  --identity IDENTITY   identity cutoff for selecting alignment items, default
+                        0.70
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no
   --skip_unmapped SKIP_UNMAPPED
-                        if skipping unmapped sites in reads, yes or no, default yes
+                        if skipping unmapped sites in reads, yes or no,
+                        default yes
 ```
 
 The call_mods file is a tab-delimited text file in the following format:
@@ -362,13 +438,23 @@ The call_mods file is a tab-delimited text file in the following format:
 
 ```shell
 ccsmeth call_freqb -h
-usage: ccsmeth call_freqb [-h] [--threads THREADS] --input_bam INPUT_BAM --ref REF [--contigs CONTIGS] [--chunk_len CHUNK_LEN] --output OUTPUT [--bed] [--sort] [--gzip] [--modtype {5mC}] [--call_mode {count,aggregate}]
-                          [--prob_cf PROB_CF] [--hap_tag HAP_TAG] [--mapq MAPQ] [--identity IDENTITY] [--no_supplementary] [--motifs MOTIFS] [--mod_loc MOD_LOC] [--no_comb] [--refsites_only] [--refsites_all]
-                          [--aggre_model AGGRE_MODEL] [--model_type {attbilstm,attbigru}] [--seq_len SEQ_LEN] [--class_num CLASS_NUM] [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN] [--binsize BINSIZE] [--cov_cf COV_CF]
+usage: ccsmeth call_freqb [-h] [--threads THREADS] --input_bam INPUT_BAM --ref
+                          REF [--contigs CONTIGS] [--chunk_len CHUNK_LEN]
+                          --output OUTPUT [--bed] [--sort] [--gzip]
+                          [--modtype {5mC}] [--call_mode {count,aggregate}]
+                          [--prob_cf PROB_CF] [--hap_tag HAP_TAG]
+                          [--mapq MAPQ] [--identity IDENTITY]
+                          [--no_supplementary] [--motifs MOTIFS]
+                          [--mod_loc MOD_LOC] [--no_comb] [--refsites_only]
+                          [--refsites_all] [--aggre_model AGGRE_MODEL]
+                          [--model_type {attbilstm,attbigru}]
+                          [--seq_len SEQ_LEN] [--class_num CLASS_NUM]
+                          [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN]
+                          [--binsize BINSIZE] [--cov_cf COV_CF]
 
 call frequency of modifications at genome level from modbam.bam file
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   --threads THREADS     number of subprocesses used. default 5
 
@@ -376,7 +462,10 @@ INPUT:
   --input_bam INPUT_BAM
                         input bam, should be aligned and sorted
   --ref REF             path to genome reference, in fasta/fa format.
-  --contigs CONTIGS     path of a file containing chromosome/contig names, one name each line; or a string contains multiple chromosome names splited by comma.default None, which means all chromosomes will be processed.
+  --contigs CONTIGS     path of a file containing chromosome/contig names, one
+                        name each line; or a string contains multiple
+                        chromosome names splited by comma.default None, which
+                        means all chromosomes will be processed.
   --chunk_len CHUNK_LEN
                         chunk length, default 500000
 
@@ -391,29 +480,45 @@ CALL_FREQ:
   --modtype {5mC}       modification type, default 5mC.
   --call_mode {count,aggregate}
                         call mode: count, aggregate. default count.
-  --prob_cf PROB_CF     this is to remove ambiguous calls. if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 means use all calls. range [0, 1], default 0.0.
+  --prob_cf PROB_CF     this is to remove ambiguous calls. if
+                        abs(prob1-prob0)>=prob_cf, then we use the call. e.g.,
+                        proc_cf=0 means use all calls. range [0, 1], default
+                        0.0.
   --hap_tag HAP_TAG     haplotype tag, default HP
-  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items, default 10
-  --identity IDENTITY   identity cutoff for selecting alignment items, default 0.70
+  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
+                        default 10
+  --identity IDENTITY   identity cutoff for selecting alignment items, default
+                        0.70
   --no_supplementary    not use supplementary alignment
-  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi motifs splited by comma (no space allowed in the input str), or use IUPAC alphabet, the mod_loc of all motifs must be the same
-  --mod_loc MOD_LOC     0-based location of the targeted base in the motif, default 0
-  --no_comb             dont combine fwd/rev reads of one CG. [Only works when motifs is CG]
-  --refsites_only       only keep sites which are target motifs in both reference and reads
-  --refsites_all        output all covered sites which are target motifs in reference. --refsites_all is True, also means we do not output sites which are target motifs only in reads.
+  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
+                        motifs splited by comma (no space allowed in the input
+                        str), or use IUPAC alphabet, the mod_loc of all motifs
+                        must be the same
+  --mod_loc MOD_LOC     0-based location of the targeted base in the motif,
+                        default 0
+  --no_comb             dont combine fwd/rev reads of one CG. [Only works when
+                        motifs is CG]
+  --refsites_only       only keep sites which are target motifs in both
+                        reference and reads
+  --refsites_all        output all covered sites which are target motifs in
+                        reference. --refsites_all is True, also means we do
+                        not output sites which are target motifs only in
+                        reads.
 
 AGGREGATE_MODE:
   --aggre_model AGGRE_MODEL, -m AGGRE_MODEL
                         file path of the aggregate model (.ckpt)
   --model_type {attbilstm,attbigru}
-                        type of model to use, 'attbigru', 'attbilstm', default: attbigru
+                        type of model to use, 'attbigru', 'attbilstm',
+                        default: attbigru
   --seq_len SEQ_LEN     len of sites used. default 11
   --class_num CLASS_NUM
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 1
   --hid_rnn HID_RNN     BiRNN hidden_size, default 32
   --binsize BINSIZE     histogram bin size, default 20
-  --cov_cf COV_CF       coverage cutoff, to consider if use aggregate model to re-predict the modstate of the site
+  --cov_cf COV_CF       coverage cutoff, to consider if use aggregate model to
+                        re-predict the modstate of the site
 ```
 
 The modification_frequency file can be either saved in [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) format (by setting `--bed`), or saved as a tab-delimited text file in the following format by default:
@@ -432,19 +537,27 @@ The modification_frequency file can be either saved in [bedMethyl](https://www.e
 #### 5. call modification frequency from per_readsite file
 
 ```shell
-ccsmeth call_freqt -hccsmeth call_freqt -h
-usage: ccsmeth call_freqt [-h] --input_path INPUT_PATH [--file_uid FILE_UID] --result_file RESULT_FILE [--bed] [--sort] [--gzip] [--prob_cf PROB_CF] [--rm_1strand] [--refsites_only] [--motifs MOTIFS] [--mod_loc MOD_LOC]
-                          [--ref REF] [--contigs CONTIGS] [--threads THREADS]
+ccsmeth call_freqt -h
+usage: ccsmeth call_freqt [-h] --input_path INPUT_PATH [--file_uid FILE_UID]
+                          --result_file RESULT_FILE [--bed] [--sort] [--gzip]
+                          [--prob_cf PROB_CF] [--rm_1strand] [--refsites_only]
+                          [--motifs MOTIFS] [--mod_loc MOD_LOC] [--ref REF]
+                          [--contigs CONTIGS] [--threads THREADS]
 
 call frequency of modifications at genome level from per_readsite text files
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
 
 INPUT:
   --input_path INPUT_PATH, -i INPUT_PATH
-                        an output file from call_mods/call_modifications.py, or a directory contains a bunch of output files. this arg is in "append" mode, can be used multiple times
-  --file_uid FILE_UID   a unique str which all input files has, this is for finding all input files and ignoring the not-input-files in a input directory. if input_path is a file, ignore this arg.
+                        an output file from call_mods/call_modifications.py,
+                        or a directory contains a bunch of output files. this
+                        arg is in "append" mode, can be used multiple times
+  --file_uid FILE_UID   a unique str which all input files has, this is for
+                        finding all input files and ignoring the not-input-
+                        files in a input directory. if input_path is a file,
+                        ignore this arg.
 
 OUTPUT:
   --result_file RESULT_FILE, -o RESULT_FILE
@@ -454,18 +567,36 @@ OUTPUT:
   --gzip                if compressing the output using gzip
 
 CALL_FREQ:
-  --prob_cf PROB_CF     this is to remove ambiguous calls. if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 means use all calls. range [0, 1], default 0.0.
-  --rm_1strand          abandon ccs reads with only 1 strand subreads [DEPRECATED]
-  --refsites_only       only keep sites which are target motifs in both reference and reads
-  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi motifs splited by comma (no space allowed in the input str), or use IUPAC alphabet, the mod_loc of all motifs must be the same. [Only useful when
-                        --refsites_only is True]
-  --mod_loc MOD_LOC     0-based location of the targeted base in the motif, default 0. [Only useful when --refsites_only is True]
-  --ref REF             path to genome reference, in fasta/fa format. [Only useful when --refsites_only is True]
+  --prob_cf PROB_CF     this is to remove ambiguous calls. if
+                        abs(prob1-prob0)>=prob_cf, then we use the call. e.g.,
+                        proc_cf=0 means use all calls. range [0, 1], default
+                        0.0.
+  --rm_1strand          abandon ccs reads with only 1 strand subreads
+                        [DEPRECATED]
+  --refsites_only       only keep sites which are target motifs in both
+                        reference and reads
+  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
+                        motifs splited by comma (no space allowed in the input
+                        str), or use IUPAC alphabet, the mod_loc of all motifs
+                        must be the same. [Only useful when --refsites_only is
+                        True]
+  --mod_loc MOD_LOC     0-based location of the targeted base in the motif,
+                        default 0. [Only useful when --refsites_only is True]
+  --ref REF             path to genome reference, in fasta/fa format. [Only
+                        useful when --refsites_only is True]
 
 PARALLEL:
-  --contigs CONTIGS     a reference genome file (.fa/.fasta/.fna), used for extracting all contig names for parallel; or path of a file containing chromosome/contig names, one name each line; or a string contains multiple
-                        chromosome names splited by comma.default None, which means all chromosomes will be processed at one time. If not None, one chromosome will be processed by one subprocess.
-  --threads THREADS     number of subprocesses used when --contigs is set. i.e., number of contigs processed in parallel. default 1
+  --contigs CONTIGS     a reference genome file (.fa/.fasta/.fna), used for
+                        extracting all contig names for parallel; or path of a
+                        file containing chromosome/contig names, one name each
+                        line; or a string contains multiple chromosome names
+                        splited by comma.default None, which means all
+                        chromosomes will be processed at one time. If not
+                        None, one chromosome will be processed by one
+                        subprocess.
+  --threads THREADS     number of subprocesses used when --contigs is set.
+                        i.e., number of contigs processed in parallel. default
+                        1
 ```
 
 The format of the output file is the same as of `ccsmeth call_freqb`.
@@ -474,67 +605,107 @@ The format of the output file is the same as of `ccsmeth call_freqb`.
 
 ```shell
 ccsmeth extract -h
-usage: ccsmeth extract [-h] --input INPUT [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE] [--output OUTPUT] [--gzip] [--mode {denovo,align}] [--seq_len SEQ_LEN] [--motifs MOTIFS] [--mod_loc MOD_LOC] [--methy_label {1,0}]
-                       [--norm {zscore,min-mean,min-max,mad}] [--no_decode] [--holes_batch HOLES_BATCH] [--ref REF] [--mapq MAPQ] [--identity IDENTITY] [--no_supplementary] [--is_mapfea IS_MAPFEA]
-                       [--skip_unmapped SKIP_UNMAPPED] [--threads THREADS] [--loginfo LOGINFO]
+usage: ccsmeth extract [-h] --input INPUT [--holeids_e HOLEIDS_E]
+                       [--holeids_ne HOLEIDS_NE] [--output OUTPUT] [--gzip]
+                       [--mode {denovo,align}] [--seq_len SEQ_LEN]
+                       [--motifs MOTIFS] [--mod_loc MOD_LOC]
+                       [--methy_label {1,0}]
+                       [--norm {zscore,min-mean,min-max,mad}] [--no_decode]
+                       [--holes_batch HOLES_BATCH] [--ref REF] [--mapq MAPQ]
+                       [--identity IDENTITY] [--no_supplementary]
+                       [--is_mapfea IS_MAPFEA] [--skip_unmapped SKIP_UNMAPPED]
+                       [--threads THREADS] [--loginfo LOGINFO]
 
 extract features from hifi reads.
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
   --threads THREADS     number of threads, default 5
-  --loginfo LOGINFO     if printing more info of feature extraction on reads. yes or no, default no
+  --loginfo LOGINFO     if printing more info of feature extraction on reads.
+                        yes or no, default no
 
 INPUT:
   --input INPUT, -i INPUT
-                        input file in bam/sam format, can be unaligned hifi.bam/sam and aligned sorted hifi.bam/sam.
+                        input file in bam/sam format, can be unaligned
+                        hifi.bam/sam and aligned sorted hifi.bam/sam.
   --holeids_e HOLEIDS_E
-                        file contains holeids/hifiids to be extracted, default None
+                        file contains holeids/hifiids to be extracted, default
+                        None
   --holeids_ne HOLEIDS_NE
-                        file contains holeids/hifiids not to be extracted, default None
+                        file contains holeids/hifiids not to be extracted,
+                        default None
 
 OUTPUT:
   --output OUTPUT, -o OUTPUT
-                        output file path to save the extracted features. If not specified, use input_prefix.tsv as default.
+                        output file path to save the extracted features. If
+                        not specified, use input_prefix.tsv as default.
   --gzip                if compressing the output using gzip
 
 EXTRACTION:
   --mode {denovo,align}
-                        denovo mode: extract features from unaligned/aligned hifi.bam without reference position info; align mode: extract features from aligned hifi.bam with reference position info. default: denovo
+                        denovo mode: extract features from unaligned/aligned
+                        hifi.bam without reference position info; align mode:
+                        extract features from aligned hifi.bam with reference
+                        position info. default: denovo
   --seq_len SEQ_LEN     len of kmer. default 21
-  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi motifs splited by comma (no space allowed in the input str), or use IUPAC alphabet, the mod_loc of all motifs must be the same
-  --mod_loc MOD_LOC     0-based location of the targeted base in the motif, default 0
-  --methy_label {1,0}   the label of the interested modified bases, this is for training. 0 or 1, default 1
+  --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
+                        motifs splited by comma (no space allowed in the input
+                        str), or use IUPAC alphabet, the mod_loc of all motifs
+                        must be the same
+  --mod_loc MOD_LOC     0-based location of the targeted base in the motif,
+                        default 0
+  --methy_label {1,0}   the label of the interested modified bases, this is
+                        for training. 0 or 1, default 1
   --norm {zscore,min-mean,min-max,mad}
-                        method for normalizing ipd/pw in subread level. zscore, min-mean, min-max or mad, default zscore
+                        method for normalizing ipd/pw in subread level.
+                        zscore, min-mean, min-max or mad, default zscore
   --no_decode           not use CodecV1 to decode ipd/pw
   --holes_batch HOLES_BATCH
-                        number of holes/hifi-reads in an batch to get/put in queues, default 50
+                        number of holes/hifi-reads in an batch to get/put in
+                        queues, default 50
 
 EXTRACTION ALIGN_MODE:
-  --ref REF             path to genome reference to be aligned, in fasta/fa format.
-  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items, default 10
-  --identity IDENTITY   identity cutoff for selecting alignment items, default 0.70
+  --ref REF             path to genome reference to be aligned, in fasta/fa
+                        format.
+  --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
+                        default 10
+  --identity IDENTITY   identity cutoff for selecting alignment items, default
+                        0.70
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no
   --skip_unmapped SKIP_UNMAPPED
-                        if skipping unmapped sites in reads, yes or no, default yes
+                        if skipping unmapped sites in reads, yes or no,
+                        default yes
 ```
 
 #### 7. train a new model
 
 ```shell
-ccsmeth train -hccsmeth train -h
-usage: ccsmeth train [-h] --train_file TRAIN_FILE --valid_file VALID_FILE --model_dir MODEL_DIR [--model_type {attbilstm2s,attbigru2s}] [--seq_len SEQ_LEN] [--is_npass IS_NPASS] [--is_qual IS_QUAL] [--is_map IS_MAP]
-                     [--is_stds IS_STDS] [--class_num CLASS_NUM] [--dropout_rate DROPOUT_RATE] [--n_vocab N_VOCAB] [--n_embed N_EMBED] [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN] [--optim_type {Adam,RMSprop,SGD,Ranger}]
-                     [--batch_size BATCH_SIZE] [--lr_scheduler {StepLR,ReduceLROnPlateau}] [--lr LR] [--lr_decay LR_DECAY] [--lr_decay_step LR_DECAY_STEP] [--lr_patience LR_PATIENCE] [--lr_mode_strategy {last,mean,max}]
-                     [--max_epoch_num MAX_EPOCH_NUM] [--min_epoch_num MIN_EPOCH_NUM] [--pos_weight POS_WEIGHT] [--step_interval STEP_INTERVAL] [--dl_num_workers DL_NUM_WORKERS] [--dl_offsets] [--init_model INIT_MODEL]
-                     [--tseed TSEED]
+ccsmeth train -h
+usage: ccsmeth train [-h] --train_file TRAIN_FILE --valid_file VALID_FILE
+                     --model_dir MODEL_DIR
+                     [--model_type {attbilstm2s,attbigru2s}]
+                     [--seq_len SEQ_LEN] [--is_npass IS_NPASS]
+                     [--is_qual IS_QUAL] [--is_map IS_MAP] [--is_stds IS_STDS]
+                     [--class_num CLASS_NUM] [--dropout_rate DROPOUT_RATE]
+                     [--n_vocab N_VOCAB] [--n_embed N_EMBED]
+                     [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN]
+                     [--optim_type {Adam,RMSprop,SGD,Ranger,LookaheadAdam}]
+                     [--batch_size BATCH_SIZE]
+                     [--lr_scheduler {StepLR,ReduceLROnPlateau}] [--lr LR]
+                     [--lr_decay LR_DECAY] [--lr_decay_step LR_DECAY_STEP]
+                     [--lr_patience LR_PATIENCE]
+                     [--lr_mode_strategy {last,mean,max}]
+                     [--max_epoch_num MAX_EPOCH_NUM]
+                     [--min_epoch_num MIN_EPOCH_NUM] [--pos_weight POS_WEIGHT]
+                     [--step_interval STEP_INTERVAL]
+                     [--dl_num_workers DL_NUM_WORKERS] [--dl_offsets]
+                     [--init_model INIT_MODEL] [--tseed TSEED]
 
 train a model, need two independent datasets for training and validating
 
-options:
+optional arguments:
   -h, --help            show this help message and exit
 
 INPUT:
@@ -546,7 +717,8 @@ OUTPUT:
 
 TRAIN MODEL_HYPER:
   --model_type {attbilstm2s,attbigru2s}
-                        type of model to use, 'attbilstm2s', 'attbigru2s', default: attbigru2s
+                        type of model to use, 'attbilstm2s', 'attbigru2s',
+                        default: attbigru2s
   --seq_len SEQ_LEN     len of kmer. default 21
   --is_npass IS_NPASS   if using num_pass features, yes or no, default yes
   --is_qual IS_QUAL     if using base_quality features, yes or no, default no
@@ -561,8 +733,9 @@ TRAIN MODEL_HYPER:
   --hid_rnn HID_RNN     BiRNN hidden_size, default 256
 
 TRAINING:
-  --optim_type {Adam,RMSprop,SGD,Ranger}
-                        type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' or 'Ranger', default Adam
+  --optim_type {Adam,RMSprop,SGD,Ranger,LookaheadAdam}
+                        type of optimizer to use, 'Adam', 'SGD', 'RMSprop',
+                        'Ranger' or 'LookaheadAdam', default Adam
   --batch_size BATCH_SIZE
   --lr_scheduler {StepLR,ReduceLROnPlateau}
                         StepLR or ReduceLROnPlateau, default StepLR
@@ -573,7 +746,8 @@ TRAINING:
   --lr_patience LR_PATIENCE
                         effective in ReduceLROnPlateau. default 0
   --lr_mode_strategy {last,mean,max}
-                        effective in ReduceLROnPlateau. last, mean, or max, default last
+                        effective in ReduceLROnPlateau. last, mean, or max,
+                        default last
   --max_epoch_num MAX_EPOCH_NUM
                         max epoch num, default 50
   --min_epoch_num MIN_EPOCH_NUM
@@ -584,7 +758,8 @@ TRAINING:
                         default 0
   --dl_offsets          use file offsets loader
   --init_model INIT_MODEL
-                        file path of pre-trained model parameters to load before training
+                        file path of pre-trained model parameters to load
+                        before training
   --tseed TSEED         random seed for pytorch
 ```
 

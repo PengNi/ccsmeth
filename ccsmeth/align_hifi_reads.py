@@ -182,8 +182,7 @@ def main():
                          help="retain at most n alignments in minimap2. "
                               "default 3, which means 2 secondary alignments are retained. "
                               "Do not use 2, cause -N1 is not suggested for high accuracy of alignment. "
-                              "[This arg is for further extension, for now it is no use cause "
-                              "we use only primary alignment.]")
+                              "[This arg is for further extension.]")
     p_align.add_argument("--bwa", action="store_true", default=False, required=False,
                          help="use bwa instead of pbmm2 for alignment")
     p_align.add_argument("--path_to_bwa", type=str, default=None, required=False,
