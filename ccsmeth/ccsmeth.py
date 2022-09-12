@@ -578,9 +578,9 @@ def main():
     st_training = sub_train.add_argument_group("TRAINING")
     # model training
     st_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
-                                                                                "Ranger"],
+                                                                                "Ranger", "LookaheadAdam"],
                              required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
-                                                  "or 'Ranger', default Adam")
+                                                  "'Ranger' or 'LookaheadAdam', default Adam")
     st_training.add_argument('--batch_size', type=int, default=512, required=False)
     st_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,
                              choices=["StepLR", "ReduceLROnPlateau"],
@@ -655,9 +655,9 @@ def main():
     # model training
     stm_training = sub_trainm.add_argument_group("TRAINING")
     stm_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
-                                                                                 "Ranger"],
+                                                                                 "Ranger", "LookaheadAdam"],
                               required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
-                                                   "or 'Ranger', default Adam")
+                                                   "'Ranger' or 'LookaheadAdam', default Adam")
     stm_training.add_argument('--batch_size', type=int, default=512, required=False)
     stm_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,
                               choices=["StepLR", "ReduceLROnPlateau"],

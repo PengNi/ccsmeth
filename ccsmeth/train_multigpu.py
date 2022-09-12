@@ -183,6 +183,12 @@ def train_worker(local_rank, global_world_size, args):
         except ImportError:
             raise ImportError("please check if ranger2020.py is in utils/ dir!")
         optimizer = Ranger(model.parameters(), lr=args.lr, betas=(0.95, 0.999), eps=1e-5)
+    elif args.optim_type == "LookaheadAdam":
+        try:
+            from .utils.lookahead import LookaheadAdam
+        except ImportError:
+            raise ImportError("please check if lookahead.py is in utils/ dir!")
+        optimizer = LookaheadAdam(model.parameters(), lr=args.lr)
     else:
         raise ValueError("--optim_type is not right!")
 
@@ -457,9 +463,9 @@ def main():
     st_training = parser.add_argument_group("TRAINING")
     # model training
     st_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
-                                                                                "Ranger"],
+                                                                                "Ranger", "LookaheadAdam"],
                              required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
-                                                  "or 'Ranger', default Adam")
+                                                  "'Ranger' or 'LookaheadAdam', default Adam")
     st_training.add_argument('--batch_size', type=int, default=512, required=False)
     st_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,
                              choices=["StepLR", "ReduceLROnPlateau"],
