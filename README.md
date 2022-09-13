@@ -123,14 +123,14 @@ CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
 # outputs: [--output].[--call_mode].all.bed
 # if the input bam file contains haplotags, 
 # there will be [--output].[--call_mode].[hp1/hp2].bed in outputs.
-# using '--call_mode count':
+# use '--call_mode count':
 ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.pbmm2.call_mods.modbam.bam \
   --ref /path/to/genome.fa \
   --output /path/to/output.hifi.pbmm2.call_mods.modbam.freq \
   --threads 10 --sort --bed
 
-# OR, using '--call_mode aggregate':
+# OR, use '--call_mode aggregate':
 # NOTE: usually is more accurate than 'count' mode
 ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.pbmm2.call_mods.modbam.bam \
@@ -174,14 +174,14 @@ ccsmeth align_hifi \
 # outputs: [--output].[--call_mode].all.bed
 # if the input bam file contains haplotags, 
 # there will be [--output].[--call_mode].[hp1/hp2].bed in outputs.
-# using '--call_mode count':
+# use '--call_mode count':
 ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
   --ref /path/to/genome.fa \
   --output /path/to/output.hifi.call_mods.modbam.pbmm2.freq \
   --threads 10 --sort --bed
 
-# OR, using '--call_mode aggregate':
+# OR, use '--call_mode aggregate':
 # NOTE: usually is more accurate than 'count' mode
 ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \

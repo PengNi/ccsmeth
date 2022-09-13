@@ -505,13 +505,15 @@ def main():
     scfb_callfreq.add_argument("--mod_loc", action="store", type=int, required=False, default=0,
                                help='0-based location of the targeted base in the motif, default 0')
     scfb_callfreq.add_argument("--no_comb", action="store_true", default=False, required=False,
-                               help="dont combine fwd/rev reads of one CG. [Only works when motifs is CG]")
+                               help="don't combine fwd/rev reads of one CG. [Only works when motifs is CG]")
     scfb_callfreq.add_argument('--refsites_only', action='store_true', default=False,
                                help="only keep sites which are target motifs in both reference and reads")
     scfb_callfreq.add_argument('--refsites_all', action='store_true', default=False,
                                help="output all covered sites which are target motifs in reference. "
                                     "--refsites_all is True, also means we do not output sites which "
                                     "are target motifs only in reads.")
+    scfb_callfreq.add_argument("--no_hap", action="store_true", default=False, required=False,
+                               help="don't call_freq on hapolotypes ")
 
     scfb_aggre = sub_call_freqb.add_argument_group("AGGREGATE_MODE")
     scfb_aggre.add_argument("--aggre_model", "-m", action="store", type=str, required=False,
