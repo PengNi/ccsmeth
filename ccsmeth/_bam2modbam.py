@@ -366,7 +366,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     if modbamfile.endswith(".bam"):
         try:
             sys.stderr.write("sorting modbam file..\n")
-            modbam_sorted = modbamfile + ".sorted.bam"
+            modbam_sorted = os.path.splitext(modbamfile)[0] + ".sorted.bam"
             pysam.sort("-o", modbam_sorted, "-@", str(threads), modbamfile)
             os.rename(modbam_sorted, modbamfile)
         except Exception:

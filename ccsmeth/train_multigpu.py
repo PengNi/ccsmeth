@@ -220,7 +220,7 @@ def train_worker(local_rank, global_world_size, args):
                 _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap, \
                     rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap, \
                     labels = sfeatures
-                # TODO: on_blocking=True or False?
+                # TODO: non_blocking=True or False?
                 fkmer = fkmer.cuda(local_rank, non_blocking=True)
                 fpass = fpass.cuda(local_rank, non_blocking=True)
                 fipdm = fipdm.cuda(local_rank, non_blocking=True)

@@ -8,9 +8,11 @@ import scipy.stats
 import numpy as np
 from sklearn.metrics import mean_squared_error
 import math
+import gzip
 
 sep = "||"
-seeds = [111, 222, 333, 444, 555, 666, 777, 888, 999, 1111]
+seeds = [111, 222, 333, 444, 555, 666, 777, 888, 999, 1111,
+         2222, 3333, 4444, 5555, 6666, 7777, 8888, 9999, 11111]
 
 
 def run_cmd(args_list):
@@ -85,12 +87,14 @@ def _sample_bam(bamfile, fafile, genome_size, coverage, seed):
             return sub_bamfile
 
 
-def run_ccsmeth_call_freqb(bamfile, genomefa, aggre_model, out_dir):
+def run_ccsmeth_call_freqb(bamfile, genomefa, aggre_model, out_dir, no_hap):
     fname, fext = os.path.splitext(os.path.basename(bamfile))
     freq_prefix = out_dir + "/" + fname + ".freq"
     ccsmeth_count_cmd = "ccsmeth call_freqb --input_bam {} --ref {} " \
                         "--output {} --bed --sort --threads 40 --refsites_all --identity 0 --mapq 0 " \
                         "--call_mode count".format(bamfile, genomefa, freq_prefix)
+    if no_hap:
+        ccsmeth_count_cmd += " --no_hap"
     sys.stderr.write("ccsmeth_count cmd: {}\n".format(ccsmeth_count_cmd))
     sys.stderr.flush()
     stdinfo, returncode = run_cmd(ccsmeth_count_cmd)
@@ -107,6 +111,8 @@ def run_ccsmeth_call_freqb(bamfile, genomefa, aggre_model, out_dir):
     ccsmeth_aggre_cmd = "ccsmeth call_freqb --input_bam {} --ref {} " \
                         "--output {} --bed --sort --threads 40 --refsites_all --identity 0 --mapq 0 " \
                         "--call_mode aggregate --aggre_model {}".format(bamfile, genomefa, freq_prefix, aggre_model)
+    if no_hap:
+        ccsmeth_aggre_cmd += " --no_hap"
     sys.stderr.write("ccsmeth_aggre cmd: {}\n".format(ccsmeth_aggre_cmd))
     sys.stderr.flush()
     stdinfo, returncode = run_cmd(ccsmeth_aggre_cmd)
@@ -124,39 +130,97 @@ def run_ccsmeth_call_freqb(bamfile, genomefa, aggre_model, out_dir):
     return count_bed, aggre_bed
 
 
-def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf):
-    rmet_bed = pd.read_csv(bed_file, sep="\t", header=None,
-                           names=["chromosome", "pos", "end", "na1", "na2", "strand",
-                                  "na3", "na4", "na5", "coverage", "rpercent"],
-                           dtype={"chromosome": str})
-    rmet_bed["Rmet"] = rmet_bed.apply(lambda row: row["rpercent"] / 100.0, axis=1)
-    if contig_prefix is not None:
-        rmet_bed = rmet_bed[rmet_bed.apply(lambda row: row["chromosome"].startswith(contig_prefix), axis=1)]
-    elif contig_names is not None:
-        contigset = pd.Series(contig_names.split(","))
-        rmet_bed = rmet_bed[rmet_bed.chromosome.isin(contigset)]
+# def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf):
+#     rmet_bed = pd.read_csv(bed_file, sep="\t", header=None,
+#                            names=["chromosome", "pos", "end", "na1", "na2", "strand",
+#                                   "na3", "na4", "na5", "coverage", "rpercent"],
+#                            dtype={"chromosome": str})
+#     rmet_bed["Rmet"] = rmet_bed.apply(lambda row: row["rpercent"] / 100.0, axis=1)
+#     if contig_prefix is not None:
+#         rmet_bed = rmet_bed[rmet_bed.apply(lambda row: row["chromosome"].startswith(contig_prefix), axis=1)]
+#     elif contig_names is not None:
+#         contigset = pd.Series(contig_names.split(","))
+#         rmet_bed = rmet_bed[rmet_bed.chromosome.isin(contigset)]
+#     else:
+#         pass
+#     rmet_bed['key'] = rmet_bed.apply(lambda row: row["chromosome"] + sep + str(row["pos"]), axis=1)
+#     rmet_bed = rmet_bed[["chromosome", "pos", "coverage", "Rmet", "key"]]
+#
+#     meancov = rmet_bed["coverage"].mean()
+#     rmet_bed = rmet_bed[rmet_bed["coverage"] >= cov_cf]
+#     return meancov, rmet_bed.sort_values(by=['chromosome', 'pos'])
+
+
+def read_methylbed2(freqfile, contig_prefix, contig_names, cov_cf):
+    # methylbed format
+    # "chromosome", "pos", "end", "na1", "na2", "strand", "na3", "na4", "na5", "coverage", "rpercent"
+    contigset = set(contig_names.strip().split(",")) if contig_names is not None else None
+    freqinfo = {}
+    covs = []
+    if freqfile.endswith(".gz"):
+        infile = gzip.open(freqfile, 'rt')
     else:
-        pass
-    rmet_bed['key'] = rmet_bed.apply(lambda row: row["chromosome"] + sep + str(row["pos"]), axis=1)
-    rmet_bed = rmet_bed[["chromosome", "pos", "coverage", "Rmet", "key"]]
+        infile = open(freqfile, 'r')
+    for line in infile:
+        words = line.strip().split("\t")
+        chrom = words[0]
+        m_key = "\t".join([words[0], words[1], words[5]])
+        cov = float(words[9])
+        rmet = float(words[10]) / 100
+        # methy_cov = rmet * cov
 
-    meancov = rmet_bed["coverage"].mean()
-    rmet_bed = rmet_bed[rmet_bed["coverage"] >= cov_cf]
-    return meancov, rmet_bed.sort_values(by=['chromosome', 'pos'])
+        cnt_flag = 0
+        if contig_prefix is not None:
+            if str(chrom).startswith(contig_prefix):
+                cnt_flag = 1
+        elif contig_names is not None:
+            if chrom in contigset:
+                cnt_flag = 1
+        else:
+            cnt_flag = 1
+
+        if cnt_flag == 1:
+            covs.append(cov)
+            if cov >= cov_cf:
+                freqinfo[m_key] = rmet
+    infile.close()
+    return np.mean(covs) if len(covs) > 0 else 0, freqinfo
 
 
-def cal_corr_df1_vs_df2(df1, df2):
-    df1_inter = df1[df1.key.isin(df2.key)].sort_values(by=['chromosome', 'pos'])
-    df2_inter = df2[df2.key.isin(df1.key)].sort_values(by=['chromosome', 'pos'])
-    # df1_inter["Rmet"].corr(df2_inter['Rmet'], method='pearson'), wrong? 0.2660 vs scipy 0.9459
-    df1_array, df2_array = np.array(list(df1_inter["Rmet"])), np.array(list(df2_inter["Rmet"]))
-    pcorr, _ = scipy.stats.pearsonr(df1_array, df2_array)  # pearson
-    scorr, _ = scipy.stats.spearmanr(df1_array, df2_array)  # spearman
-    _, _, r_value, _, _ = scipy.stats.linregress(df1_array, df2_array)
-    r_square = r_value ** 2  # coefficient of determination
-    rmse = math.sqrt(mean_squared_error(df2_array, df1_array))  # RMSE
+# def cal_corr_df1_vs_df2(df1, df2):
+#     df1_inter = df1[df1.key.isin(df2.key)].sort_values(by=['chromosome', 'pos'])
+#     df2_inter = df2[df2.key.isin(df1.key)].sort_values(by=['chromosome', 'pos'])
+#     # df1_inter["Rmet"].corr(df2_inter['Rmet'], method='pearson'), wrong? 0.2660 vs scipy 0.9459
+#     df1_array, df2_array = np.array(list(df1_inter["Rmet"])), np.array(list(df2_inter["Rmet"]))
+#     pcorr, _ = scipy.stats.pearsonr(df1_array, df2_array)  # pearson
+#     scorr, _ = scipy.stats.spearmanr(df1_array, df2_array)  # spearman
+#     _, _, r_value, _, _ = scipy.stats.linregress(df1_array, df2_array)
+#     r_square = r_value ** 2  # coefficient of determination
+#     rmse = math.sqrt(mean_squared_error(df2_array, df1_array))  # RMSE
+#
+#     return len(df1.index), len(df2.index), len(df1_inter.index), pcorr, scorr, r_square, rmse
 
-    return len(df1.index), len(df2.index), len(df1_inter.index), pcorr, scorr, r_square, rmse
+
+def cal_corr_df1_vs_df2_v2(freqinfo1, freqinfo2):
+    keys_inter = set(freqinfo1.keys()).intersection(set(freqinfo2.keys()))
+    keys_inter = sorted(list(keys_inter))
+    rmet1, rmet2 = [], []
+    for ktmp in keys_inter:
+        rmet1.append(freqinfo1[ktmp])
+        rmet2.append(freqinfo2[ktmp])
+    rmet1 = np.array(rmet1)
+    rmet2 = np.array(rmet2)
+    if len(rmet1) > 1 and len(rmet2) > 1:
+        corr, pvalue = scipy.stats.pearsonr(rmet1, rmet2)
+        scorr, _ = scipy.stats.spearmanr(rmet1, rmet2)  # spearman
+        _, _, r_value, _, _ = scipy.stats.linregress(rmet1, rmet2)
+        r_square = r_value ** 2  # coefficient of determination
+        rmse = math.sqrt(mean_squared_error(rmet1, rmet2))  # RMSE
+    else:
+        corr, r_square, scorr, rmse = 0, 0, 0, 0
+
+    return len(freqinfo1.keys()), len(freqinfo2.keys()), len(keys_inter), \
+        corr, scorr, r_square, rmse
 
 
 def display_args(args, is_stderr=False):
@@ -197,6 +261,8 @@ def main():
     parser.add_argument("--aggre_model", type=str, required=True, help="aggre model/pileup model")
     parser.add_argument("--out_dir", type=str, required=False, default="results",
                         help="tmp/out dir")
+    parser.add_argument("--no_hap", action="store_true", default=False, required=False,
+                        help="don't call_freq on hapolotypes ")
 
     args = parser.parse_args()
 
@@ -209,10 +275,10 @@ def main():
     sys.stdout.write("\ncmp files:\n")
     cmpfname2rmetinfo = dict()
     for cmp_file in args.cmp_bed:
-        cmpmean_cov, cmpfname2rmetinfo[os.path.basename(cmp_file)] = read_methylbed(cmp_file,
-                                                                                    None,
-                                                                                    args.contig_names,
-                                                                                    args.cov_cf)
+        cmpmean_cov, cmpfname2rmetinfo[os.path.basename(cmp_file)] = read_methylbed2(cmp_file,
+                                                                                     None,
+                                                                                     args.contig_names,
+                                                                                     args.cov_cf)
         sys.stdout.write("cmpfile: {}, mean_covarge: {}\n".format(cmp_file, cmpmean_cov))
     sys.stdout.flush()
 
@@ -230,10 +296,10 @@ def main():
             aggre_beds.append(aggre_bed)
             os.remove(sampledbam)
             os.remove(sampledbam + ".bai")
-        sys.stdout.write("count-mode ==\n")
+        sys.stdout.write("ccsmeth count-mode ==\n")
         c_covs, c_rmets = [], []
         for cbedtmp in count_beds:
-            mean_cov, rmetinfo = read_methylbed(cbedtmp, None, args.contig_names, args.cov_cf)
+            mean_cov, rmetinfo = read_methylbed2(cbedtmp, None, args.contig_names, args.cov_cf)
             c_covs.append(mean_cov)
             c_rmets.append(rmetinfo)
         sys.stdout.write("means: {}\n".format(c_covs))
@@ -251,7 +317,7 @@ def main():
             corrs_rmse = []
             for c_rmet_tmp in c_rmets:
                 smrtnum, cmpnum, internum, \
-                    pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2(c_rmet_tmp, cmp_df)
+                    pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2_v2(c_rmet_tmp, cmp_df)
                 sitenums_inter.append(internum)
                 sitenums_pb.append(smrtnum)
                 sitenums_cmp.append(cmpnum)
@@ -288,10 +354,10 @@ def main():
         sys.stdout.flush()
         del c_rmets
 
-        sys.stdout.write("aggregate/pileup-mode ==\n")
+        sys.stdout.write("ccsmeth aggregate/pileup-mode ==\n")
         a_covs, a_rmets = [], []
         for abedtmp in aggre_beds:
-            mean_cov, rmetinfo = read_methylbed(abedtmp, None, args.contig_names, args.cov_cf)
+            mean_cov, rmetinfo = read_methylbed2(abedtmp, None, args.contig_names, args.cov_cf)
             a_covs.append(mean_cov)
             a_rmets.append(rmetinfo)
         sys.stdout.write("means: {}\n".format(a_covs))
@@ -309,7 +375,7 @@ def main():
             corrs_rmse = []
             for a_rmet_tmp in a_rmets:
                 smrtnum, cmpnum, internum, \
-                    pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2(a_rmet_tmp, cmp_df)
+                    pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2_v2(a_rmet_tmp, cmp_df)
                 sitenums_inter.append(internum)
                 sitenums_pb.append(smrtnum)
                 sitenums_cmp.append(cmpnum)
@@ -361,8 +427,8 @@ def main():
     if args.total:
         sys.stdout.write("\nfor total reads ====\n")
         count_bed, aggre_bed = run_ccsmeth_call_freqb(args.bam, args.genomefa, args.aggre_model, args.out_dir)
-        sys.stdout.write("count-mode ==\n")
-        mean_cov, rmetinfo = read_methylbed(count_bed, None, args.contig_names, args.cov_cf)
+        sys.stdout.write("ccsmeth count-mode ==\n")
+        mean_cov, rmetinfo = read_methylbed2(count_bed, None, args.contig_names, args.cov_cf)
         sys.stdout.write("means: {}\n".format(mean_cov))
         for cmp_file in cmpfname2rmetinfo.keys():
             sys.stdout.write("== cmp_file: {}\n".format(cmp_file))
@@ -370,12 +436,12 @@ def main():
                                         "pearson", "rsquare", "spearman", "RMSE"]) + "\n")
             cmp_df = cmpfname2rmetinfo[cmp_file]
             smrtnum, cmpnum, internum, \
-                pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2(rmetinfo, cmp_df)
+                pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2_v2(rmetinfo, cmp_df)
             sys.stdout.write("{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n".format(cmp_file, cmpnum, smrtnum,
                                                                                        internum, pcorr, r_square,
                                                                                        scorr, rmse))
-        sys.stdout.write("aggre/pileup-mode ==\n")
-        mean_cov, rmetinfo = read_methylbed(aggre_bed, None, args.contig_names, args.cov_cf)
+        sys.stdout.write("ccsmeth aggre/pileup-mode ==\n")
+        mean_cov, rmetinfo = read_methylbed2(aggre_bed, None, args.contig_names, args.cov_cf)
         sys.stdout.write("means: {}\n".format(mean_cov))
         for cmp_file in cmpfname2rmetinfo.keys():
             sys.stdout.write("== cmp_file: {}\n".format(cmp_file))
@@ -383,7 +449,7 @@ def main():
                                         "pearson", "rsquare", "spearman", "RMSE"]) + "\n")
             cmp_df = cmpfname2rmetinfo[cmp_file]
             smrtnum, cmpnum, internum, \
-                pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2(rmetinfo, cmp_df)
+                pcorr, scorr, r_square, rmse = cal_corr_df1_vs_df2_v2(rmetinfo, cmp_df)
             sys.stdout.write("{}\t{}\t{}\t{}\t{:.4f}\t{:.4f}\t{:.4f}\t{:.4f}\n".format(cmp_file, cmpnum, smrtnum,
                                                                                        internum, pcorr, r_square,
                                                                                        scorr, rmse))
