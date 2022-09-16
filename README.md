@@ -422,17 +422,17 @@ EXTRACTION ALIGN_MODE:
                         default yes
 ```
 
-The call_mods file is a tab-delimited text file in the following format:
+The [--output].per_readsite.tsv file is a tab-delimited text file in the following format:
    - **chrom**: the chromosome name
-   - **pos**:   0-based position of the targeted base in the chromosome
-   - **strand**:    +/-, the aligned strand of the read to the reference
-   - **read_name**:  read name of the ccs read
-   - **read_loc**:  0-based position of the targeted base in the read
-   - **read_depth**:   subreads depth of the ccs read, format: fwd_depth,rev_depth
-   - **prob_0**:    [0, 1], the probability of the targeted base predicted as 0 (unmethylated)
-   - **prob_1**:    [0, 1], the probability of the targeted base predicted as 1 (methylated)
-   - **called_label**:  0/1, unmethylated/methylated
-   - **k_mer**:   the kmer around the targeted base
+   - **pos**: 0-based position of the targeted base in the chromosome
+   - **strand**: +/-, the aligned strand of the read to the reference
+   - **read_name**: read name of the ccs read
+   - **read_loc**: 0-based position of the targeted base in the read
+   - **read_depth**: subreads depth of the ccs read, format: fwd_depth,rev_depth
+   - **prob_0**: [0, 1], the probability of the targeted base predicted as 0 (unmethylated)
+   - **prob_1**: [0, 1], the probability of the targeted base predicted as 1 (methylated)
+   - **called_label**: 0/1, unmethylated/methylated
+   - **k_mer**: the kmer around the targeted base
 
 #### 4. call modification frequency from modbam file
 
@@ -523,16 +523,16 @@ AGGREGATE_MODE:
 
 The modification_frequency file can be either saved in [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) format (by setting `--bed`), or saved as a tab-delimited text file in the following format by default:
    - **chrom**: the chromosome name
-   - **pos**:   0-based position of the targeted base in the chromosome
-   - **pos_end**:   pos + 1
-   - **strand**:    +/-, the aligned strand of the read to the reference
-   - **prob_0_sum**:    sum of the probabilities of the targeted base predicted as 0 (unmethylated)
-   - **prob_1_sum**:    sum of the probabilities of the targeted base predicted as 1 (methylated)
-   - **count_modified**:    number of reads in which the targeted base counted as modified
-   - **count_unmodified**:  number of reads in which the targeted base counted as unmodified
-   - **coverage**:  number of reads aligned to the targeted base
-   - **modification_frequency**:    modification frequency
-   - **k_mer**:   the kmer around the targeted base
+   - **pos**: 0-based position of the targeted base in the chromosome
+   - **pos_end**: pos + 1
+   - **strand**: +/-, the aligned strand of the read to the reference
+   - **prob_0_sum**: sum of the probabilities of the targeted base predicted as 0 (unmethylated) [DEPRECATED, ONLY meaningful in call_freqt module]
+   - **prob_1_sum**: sum of the probabilities of the targeted base predicted as 1 (methylated) [DEPRECATED, ONLY meaningful in call_freqt module]
+   - **count_modified**: number of reads in which the targeted base counted as modified
+   - **count_unmodified**: number of reads in which the targeted base counted as unmodified
+   - **coverage**: number of reads aligned to the targeted base
+   - **modification_frequency**: modification frequency
+   - **k_mer**: the kmer around the targeted base [DEPRECATED, ONLY meaningful in call_freqt module]
 
 #### 5. call modification frequency from per_readsite file
 

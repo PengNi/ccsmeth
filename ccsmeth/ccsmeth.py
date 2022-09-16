@@ -514,6 +514,8 @@ def main():
                                     "are target motifs only in reads.")
     scfb_callfreq.add_argument("--no_hap", action="store_true", default=False, required=False,
                                help="don't call_freq on hapolotypes ")
+    scfb_callfreq.add_argument("--base_clip", action="store", type=int, required=False, default=0,
+                               help='number of base clipped in each read, default 0')
 
     scfb_aggre = sub_call_freqb.add_argument_group("AGGREGATE_MODE")
     scfb_aggre.add_argument("--aggre_model", "-m", action="store", type=str, required=False,

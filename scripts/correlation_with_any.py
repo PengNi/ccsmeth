@@ -6,114 +6,142 @@ import scipy.stats
 import numpy as np
 from sklearn.metrics import mean_squared_error
 import math
+import gzip
 
 sep = "||"
 
 
 def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf):
-    rmet_bed = pd.read_csv(bed_file, sep="\t", header=None,
-                           names=["chromosome", "pos", "end", "na1", "na2", "strand",
-                                  "na3", "na4", "na5", "coverage", "rpercent"],
-                           dtype={"chromosome": str})
-    rmet_bed["Rmet"] = rmet_bed.apply(lambda row: row["rpercent"] / 100.0, axis=1)
-    if contig_prefix is not None:
-        rmet_bed = rmet_bed[rmet_bed.apply(lambda row: row["chromosome"].startswith(contig_prefix), axis=1)]
-    elif contig_names is not None:
-        contigset = pd.Series(contig_names.split(","))
-        rmet_bed = rmet_bed[rmet_bed.chromosome.isin(contigset)]
+    # methylbed format
+    # "chromosome", "pos", "end", "na1", "na2", "strand", "na3", "na4", "na5", "coverage", "rpercent"
+    contigset = set(contig_names.strip().split(",")) if contig_names is not None else None
+    freqinfo = {}
+    covs = []
+    if bed_file.endswith(".gz"):
+        infile = gzip.open(bed_file, 'rt')
     else:
-        pass
-    rmet_bed['key'] = rmet_bed.apply(lambda row: row["chromosome"] + sep + str(row["pos"]), axis=1)
-    rmet_bed = rmet_bed[["chromosome", "pos", "coverage", "Rmet", "key"]]
+        infile = open(bed_file, 'r')
+    for line in infile:
+        words = line.strip().split("\t")
+        chrom = words[0]
+        m_key = "\t".join([words[0], words[1], words[5]])
+        cov = float(words[9])
+        rmet = float(words[10]) / 100
+        # methy_cov = rmet * cov
 
-    meancov = rmet_bed["coverage"].mean()
-    rmet_bed = rmet_bed[rmet_bed["coverage"] >= cov_cf]
-    return meancov, rmet_bed.sort_values(by=['chromosome', 'pos'])
+        cnt_flag = 0
+        if contig_prefix is not None:
+            if str(chrom).startswith(contig_prefix):
+                cnt_flag = 1
+        elif contig_names is not None:
+            if chrom in contigset:
+                cnt_flag = 1
+        else:
+            cnt_flag = 1
+
+        if cnt_flag == 1:
+            covs.append(cov)
+            if cov >= cov_cf:
+                freqinfo[m_key] = rmet
+    infile.close()
+    return np.mean(covs) if len(covs) > 0 else 0, freqinfo
 
 
 def read_rmetfile_of_tgs(tgs_file, contig_prefix, contig_names, cov_cf):
-    rftmp = open(tgs_file, 'r')
-    words = next(rftmp).strip().split("\t")
-    rftmp.close()
-    if len(words) == 11:
-        # nanopore deepsignal
-        rmet_dp2 = pd.read_csv(tgs_file, sep="\t", header=None,
-                               names=["chromosome", "pos", "strand", "pos_in_strand", "prob0", "prob1", "met", "unmet",
-                                      "coverage", "Rmet", "kmer"],
-                               dtype={"chromosome": str})
-    elif len(words) == 10:
-        # smrt methccs
-        rmet_dp2 = pd.read_csv(tgs_file, sep="\t", header=None,
-                               names=["chromosome", "pos", "strand", "prob0", "prob1", "met", "unmet",
-                                      "coverage", "Rmet", "kmer"],
-                               dtype={"chromosome": str})
+    contigset = set(contig_names.strip().split(",")) if contig_names is not None else None
+    freqinfo = {}
+    covs = []
+    if tgs_file.endswith(".gz"):
+        infile = gzip.open(tgs_file, 'rt')
     else:
-        raise ValueError("tgs_file wrong!")
+        infile = open(tgs_file, 'r')
+    for line in infile:
+        words = line.strip().split("\t")
+        chrom = words[0]
+        m_key = "\t".join([words[0], words[1], words[2]])
+        if len(words) == 11:
+            cov = int(words[8])
+            rmet = float(words[9])
+        elif len(words) == 10:
+            cov = int(words[7])
+            rmet = float(words[8])
+        else:
+            raise ValueError("freq wrong!")
 
-    if contig_prefix is not None:
-        rmet_dp2 = rmet_dp2[rmet_dp2.apply(lambda row: row["chromosome"].startswith(contig_prefix), axis=1)]
-    elif contig_names is not None:
-        contigset = pd.Series(contig_names.split(","))
-        rmet_dp2 = rmet_dp2[rmet_dp2.chromosome.isin(contigset)]
-    else:
-        pass
-    rmet_dp2['key'] = rmet_dp2.apply(lambda row: row["chromosome"] + sep + str(row["pos"]), axis=1)
-    rmet_dp2 = rmet_dp2[["chromosome", "pos", "coverage", "Rmet", "key"]]
-
-    meancov = rmet_dp2["coverage"].mean()
-    rmet_dp2 = rmet_dp2[rmet_dp2["coverage"] >= cov_cf]
-
-    return meancov, rmet_dp2.sort_values(by=['chromosome', 'pos'])
+        cnt_flag = 0
+        if contig_prefix is not None:
+            if str(chrom).startswith(contig_prefix):
+                cnt_flag = 1
+        elif contig_names is not None:
+            if chrom in contigset:
+                cnt_flag = 1
+        else:
+            cnt_flag = 1
+        if cnt_flag == 1:
+            covs.append(cov)
+            if cov >= cov_cf:
+                freqinfo[m_key] = rmet
+    infile.close()
+    return np.mean(covs) if len(covs) > 0 else 0, freqinfo
 
 
 def read_rmetfile_of_bed_or_bsformat(bs_file, contig_prefix, contig_names, cov_cf):
-    def _cal_ratio(row):
-        cov = row["met"] + row["unmet"]
-        return float(row["met"]) / cov if cov > 0 else 0
     if bs_file.endswith(".bed"):
-        rmet_bs = pd.read_csv(bs_file, sep="\t", header=None,
-                              names=["chromosome", "pos", "end", "na1", "na2", "strand",
-                                     "na3", "na4", "na5", "coverage", "rpercent"],
-                              dtype={"chromosome": str})
-        rmet_bs["Rmet"] = rmet_bs.apply(lambda row: row["rpercent"] / 100.0, axis=1)
+        return read_methylbed(bs_file, contig_prefix, contig_names, cov_cf)
     else:
         # CpG_report.txt
-        rmet_bs = pd.read_csv(bs_file, sep="\t", header=None,
-                              names=["chromosome", "pos", "strand", "met", "unmet",
-                                     "motif", "kmer"],
-                              dtype={"chromosome": str, "motif": str, "kmer": str})
-        rmet_bs["coverage"] = rmet_bs.apply(lambda row: row["met"] + row["unmet"], axis=1)
-        rmet_bs["Rmet"] = rmet_bs.apply(lambda row: _cal_ratio(row), axis=1)
+        contigset = set(contig_names.strip().split(",")) if contig_names is not None else None
+        freqinfo = {}
+        covs = []
+        if bs_file.endswith(".gz"):
+            infile = gzip.open(bs_file, 'rt')
+        else:
+            infile = open(bs_file, 'r')
+        for line in infile:
+            words = line.strip().split("\t")
+            chrom = words[0]
+            m_key = "\t".join([words[0], words[1], words[2]])
+            cov = int(words[3]) + int(words[4])
+            rmet = float(words[3]) / cov if cov > 0 else 0
 
-    if contig_prefix is not None:
-        rmet_bs = rmet_bs[rmet_bs.apply(lambda row: row["chromosome"].startswith(contig_prefix), axis=1)]
-    elif contig_names is not None:
-        contigset = pd.Series(contig_names.split(","))
-        rmet_bs = rmet_bs[rmet_bs.chromosome.isin(contigset)]
+            cnt_flag = 0
+            if contig_prefix is not None:
+                if str(chrom).startswith(contig_prefix):
+                    cnt_flag = 1
+            elif contig_names is not None:
+                if chrom in contigset:
+                    cnt_flag = 1
+            else:
+                cnt_flag = 1
+            if cnt_flag == 1:
+                covs.append(cov)
+                if cov >= cov_cf:
+                    freqinfo[m_key] = rmet
+        infile.close()
+
+        return np.mean(covs) if len(covs) > 0 else 0, freqinfo
+
+
+def cal_corr_df1_vs_df2(freqinfo1, freqinfo2):
+    keys_inter = set(freqinfo1.keys()).intersection(set(freqinfo2.keys()))
+    keys_inter = sorted(list(keys_inter))
+    rmet1, rmet2 = [], []
+    for ktmp in keys_inter:
+        rmet1.append(freqinfo1[ktmp])
+        rmet2.append(freqinfo2[ktmp])
+    rmet1 = np.array(rmet1)
+    rmet2 = np.array(rmet2)
+    if len(rmet1) > 1 and len(rmet2) > 1:
+        corr, pvalue = scipy.stats.pearsonr(rmet1, rmet2)
+        scorr, _ = scipy.stats.spearmanr(rmet1, rmet2)  # spearman
+        _, _, r_value, _, _ = scipy.stats.linregress(rmet1, rmet2)
+        r_square = r_value ** 2  # coefficient of determination
+        rmse = math.sqrt(mean_squared_error(rmet1, rmet2))  # RMSE
     else:
-        pass
+        corr, r_square, scorr, rmse = 0, 0, 0, 0
 
-    rmet_bs['key'] = rmet_bs.apply(lambda row: row["chromosome"] + sep + str(row["pos"]), axis=1)
-    rmet_bs = rmet_bs[["chromosome", "pos", "coverage", "Rmet", "key"]]
-
-    meancov = rmet_bs["coverage"].mean()
-    rmet_bs = rmet_bs[rmet_bs["coverage"] >= cov_cf]
-
-    return meancov, rmet_bs.sort_values(by=['chromosome', 'pos'])
-
-
-def cal_corr_df1_vs_df2(df1, df2):
-    df1_inter = df1[df1.key.isin(df2.key)].sort_values(by=['chromosome', 'pos'])
-    df2_inter = df2[df2.key.isin(df1.key)].sort_values(by=['chromosome', 'pos'])
-    # df1_inter["Rmet"].corr(df2_inter['Rmet'], method='pearson'), wrong? 0.2660 vs scipy 0.9459
-    df1_array, df2_array = np.array(list(df1_inter["Rmet"])), np.array(list(df2_inter["Rmet"]))
-    pcorr, _ = scipy.stats.pearsonr(df1_array, df2_array)  # pearson
-    scorr, _ = scipy.stats.spearmanr(df1_array, df2_array)  # spearman
-    _, _, r_value, _, _ = scipy.stats.linregress(df1_array, df2_array)
-    r_square = r_value ** 2  # coefficient of determination
-    rmse = math.sqrt(mean_squared_error(df2_array, df1_array))  # RMSE
-
-    return len(df1.index), len(df2.index), len(df1_inter.index), pcorr, scorr, r_square, rmse
+    return len(freqinfo1.keys()), len(freqinfo2.keys()), len(keys_inter), \
+        corr, scorr, r_square, rmse
 
 
 def correlation_with_any_rmets(args):
@@ -127,9 +155,9 @@ def correlation_with_any_rmets(args):
     for cmp_file in cmp_files:
         if not args.tgs:
             bsmean_cov, bs_fname2rmetinfo[os.path.basename(cmp_file)] = read_rmetfile_of_bed_or_bsformat(cmp_file,
-                                                                                            args.contig_prefix,
-                                                                                            args.contig_names,
-                                                                                            args.cov_cf_cmp)
+                                                                                                args.contig_prefix,
+                                                                                                args.contig_names,
+                                                                                                args.cov_cf_cmp)
         else:
             bsmean_cov, bs_fname2rmetinfo[os.path.basename(cmp_file)] = read_rmetfile_of_tgs(cmp_file,
                                                                                              args.contig_prefix,

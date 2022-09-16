@@ -218,11 +218,21 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
                            device=device)
     else:
         raise ValueError("--model_type not right!")
-    para_dict = torch.load(args.aggre_model, map_location=torch.device('cpu'))
-    model_dict = model.state_dict()
-    model_dict.update(para_dict)
-    model.load_state_dict(model_dict)
-    del model_dict
+    try:
+        para_dict = torch.load(args.aggre_model, map_location=torch.device('cpu'))
+        model_dict = model.state_dict()
+        model_dict.update(para_dict)
+        model.load_state_dict(model_dict)
+        del model_dict
+    except RuntimeError:
+        # for DDP model convertion (key: module.embed.weight -> embed.weight)
+        from collections import OrderedDict
+        para_dict = torch.load(args.aggre_model, map_location=torch.device('cpu'))
+        para_dict_new = OrderedDict()
+        for param_tensor in para_dict.keys():
+            para_dict_new[param_tensor[7:]] = para_dict[param_tensor]
+        model.load_state_dict(para_dict_new)
+        del para_dict_new
     # if use_cuda:
     #     model = model.cuda(device)
     model.eval()
@@ -382,7 +392,7 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
         matches_only = False if args.refsites_all else True
         aligned_pairs = readitem.get_aligned_pairs(matches_only=matches_only)
         if is_reverse:
-            for q_pos, r_pos in aligned_pairs:
+            for q_pos, r_pos in aligned_pairs[args.base_clip:-args.base_clip]:
                 if r_pos is not None and ref_start <= r_pos < ref_end:
                     if q_pos is not None and q_pos in modlocs:
                         if r_pos not in refposes_rev:
@@ -395,7 +405,7 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
                             refposinfo_rev[r_pos] = []
                         refposinfo_rev[r_pos].append((0.0, hap))
         else:
-            for q_pos, r_pos in aligned_pairs:
+            for q_pos, r_pos in aligned_pairs[args.base_clip:-args.base_clip]:
                 if r_pos is not None and ref_start <= r_pos < ref_end:
                     if q_pos is not None and q_pos in modlocs:
                         if r_pos not in refposes:
@@ -494,8 +504,8 @@ def _write_one_line(beditem, wf, is_bed):
                             strand, str(refpos), str(refpos + 1),
                             "0,0,0", str(cov), str(int(round(metprob * 100 + 0.001, 0)))]) + "\n")
     else:
-        wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), strand, "-", "-", str(met),
-                            str(cov-met), str(cov), str(round(metprob + 0.000001, 4))]) + "\n")
+        wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), strand, ".", ".", str(met),
+                            str(cov-met), str(cov), str(round(metprob + 0.000001, 4)), "."]) + "\n")
 
 
 def _worker_write_bed_result(output_prefix, bed_q, args):
@@ -666,6 +676,8 @@ def main():
                                     "are target motifs only in reads.")
     scfb_callfreq.add_argument("--no_hap", action="store_true", default=False, required=False,
                                help="don't call_freq on hapolotypes ")
+    scfb_callfreq.add_argument("--base_clip", action="store", type=int, required=False, default=0,
+                               help='number of base clipped in each read, default 0')
 
     scfb_aggre = parser.add_argument_group("AGGREGATE_MODE")
     scfb_aggre.add_argument("--aggre_model", "-m", action="store", type=str, required=False,
