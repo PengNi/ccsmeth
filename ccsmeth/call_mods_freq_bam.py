@@ -391,8 +391,10 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
         modlocs = set(moddict.keys())
         matches_only = False if args.refsites_all else True
         aligned_pairs = readitem.get_aligned_pairs(matches_only=matches_only)
+        if args.base_clip > 0:
+            aligned_pairs = aligned_pairs[args.base_clip:(-args.base_clip)]
         if is_reverse:
-            for q_pos, r_pos in aligned_pairs[args.base_clip:-args.base_clip]:
+            for q_pos, r_pos in aligned_pairs:
                 if r_pos is not None and ref_start <= r_pos < ref_end:
                     if q_pos is not None and q_pos in modlocs:
                         if r_pos not in refposes_rev:
@@ -405,7 +407,7 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
                             refposinfo_rev[r_pos] = []
                         refposinfo_rev[r_pos].append((0.0, hap))
         else:
-            for q_pos, r_pos in aligned_pairs[args.base_clip:-args.base_clip]:
+            for q_pos, r_pos in aligned_pairs:
                 if r_pos is not None and ref_start <= r_pos < ref_end:
                     if q_pos is not None and q_pos in modlocs:
                         if r_pos not in refposes:
