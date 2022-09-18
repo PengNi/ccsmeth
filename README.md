@@ -506,7 +506,7 @@ CALL_FREQ:
                         reference. --refsites_all is True, also means we do
                         not output sites which are target motifs only in
                         reads.
-  --no_hap              don't call_freq on hapolotypes
+  --no_hap              don't call_freq on haplotypes
   --base_clip BASE_CLIP
                         number of base clipped in each read, default 0
 

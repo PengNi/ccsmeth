@@ -680,7 +680,7 @@ def main():
                                     "--refsites_all is True, also means we do not output sites which "
                                     "are target motifs only in reads.")
     scfb_callfreq.add_argument("--no_hap", action="store_true", default=False, required=False,
-                               help="don't call_freq on hapolotypes")
+                               help="don't call_freq on haplotypes")
     scfb_callfreq.add_argument("--base_clip", action="store", type=int, required=False, default=0,
                                help='number of base clipped in each read, default 0')
 
