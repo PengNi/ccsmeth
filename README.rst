@@ -10,6 +10,8 @@ fix bug (0-pos CG in reverse strand) of call_freqb module
 
 add output check at the start of call_mods/call_freqb
 
+update aggregate model
+
 
 v0.3.1
 ----------
