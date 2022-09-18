@@ -446,11 +446,13 @@ usage: ccsmeth call_freqb [-h] [--threads THREADS] --input_bam INPUT_BAM --ref
                           [--mapq MAPQ] [--identity IDENTITY]
                           [--no_supplementary] [--motifs MOTIFS]
                           [--mod_loc MOD_LOC] [--no_comb] [--refsites_only]
-                          [--refsites_all] [--aggre_model AGGRE_MODEL]
+                          [--refsites_all] [--no_hap] [--base_clip BASE_CLIP]
+                          [--aggre_model AGGRE_MODEL]
                           [--model_type {attbilstm,attbigru}]
                           [--seq_len SEQ_LEN] [--class_num CLASS_NUM]
                           [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN]
-                          [--binsize BINSIZE] [--cov_cf COV_CF]
+                          [--bin_size BIN_SIZE] [--cov_cf COV_CF]
+                          [--tseed TSEED]
 
 call frequency of modifications at genome level from modbam.bam file
 
@@ -496,14 +498,17 @@ CALL_FREQ:
                         must be the same
   --mod_loc MOD_LOC     0-based location of the targeted base in the motif,
                         default 0
-  --no_comb             dont combine fwd/rev reads of one CG. [Only works when
-                        motifs is CG]
+  --no_comb             don't combine fwd/rev reads of one CG. [Only works
+                        when motifs is CG]
   --refsites_only       only keep sites which are target motifs in both
                         reference and reads
   --refsites_all        output all covered sites which are target motifs in
                         reference. --refsites_all is True, also means we do
                         not output sites which are target motifs only in
                         reads.
+  --no_hap              don't call_freq on hapolotypes
+  --base_clip BASE_CLIP
+                        number of base clipped in each read, default 0
 
 AGGREGATE_MODE:
   --aggre_model AGGRE_MODEL, -m AGGRE_MODEL
@@ -516,9 +521,10 @@ AGGREGATE_MODE:
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 1
   --hid_rnn HID_RNN     BiRNN hidden_size, default 32
-  --binsize BINSIZE     histogram bin size, default 20
+  --bin_size BIN_SIZE   histogram bin size, default 20
   --cov_cf COV_CF       coverage cutoff, to consider if use aggregate model to
                         re-predict the modstate of the site
+  --tseed TSEED         random seed for torch
 ```
 
 The modification_frequency file can be either saved in [bedMethyl](https://www.encodeproject.org/data-standards/wgbs/) format (by setting `--bed`), or saved as a tab-delimited text file in the following format by default:
