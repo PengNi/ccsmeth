@@ -11,7 +11,35 @@ import gzip
 sep = "||"
 
 
-def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf):
+def get_intersected_keys(tgs_files, cov_cf=5):
+    keys = set()
+    for tgs_file in tgs_files:
+        keystmp = set()
+        with open(tgs_file, "r") as rf:
+            for line in rf:
+                words = line.strip().split("\t")
+                chrom, pos = words[0], words[1]
+                if str(tgs_file).endswith(".bed"):
+                    strand = words[5]
+                    cov = int(words[9])
+                else:
+                    strand = words[2]
+                    if len(words) == 11:
+                        cov = int(words[8])
+                    elif len(words) == 10:
+                        cov = int(words[7])
+                    else:
+                        raise ValueError("freq wrong!")
+                if cov >= cov_cf:
+                    keystmp.add(sep.join([chrom, pos, strand]))
+        if len(keys) == 0:
+            keys.update(keystmp)
+        else:
+            keys = keys.intersection(keystmp)
+    return keys
+
+
+def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf, keys=None):
     # methylbed format
     # "chromosome", "pos", "end", "na1", "na2", "strand", "na3", "na4", "na5", "coverage", "rpercent"
     contigset = set(contig_names.strip().split(",")) if contig_names is not None else None
@@ -24,7 +52,7 @@ def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf):
     for line in infile:
         words = line.strip().split("\t")
         chrom = words[0]
-        m_key = "\t".join([words[0], words[1], words[5]])
+        m_key = sep.join([words[0], words[1], words[5]])
         cov = float(words[9])
         rmet = float(words[10]) / 100
         # methy_cov = rmet * cov
@@ -44,10 +72,14 @@ def read_methylbed(bed_file, contig_prefix, contig_names, cov_cf):
             if cov >= cov_cf:
                 freqinfo[m_key] = rmet
     infile.close()
+    if keys is not None:
+        for m_key in list(freqinfo.keys()):
+            if m_key not in keys:
+                del freqinfo[m_key]
     return np.mean(covs) if len(covs) > 0 else 0, freqinfo
 
 
-def read_rmetfile_of_tgs(tgs_file, contig_prefix, contig_names, cov_cf):
+def read_rmetfile_of_tgs(tgs_file, contig_prefix, contig_names, cov_cf, keys=None):
     contigset = set(contig_names.strip().split(",")) if contig_names is not None else None
     freqinfo = {}
     covs = []
@@ -58,7 +90,7 @@ def read_rmetfile_of_tgs(tgs_file, contig_prefix, contig_names, cov_cf):
     for line in infile:
         words = line.strip().split("\t")
         chrom = words[0]
-        m_key = "\t".join([words[0], words[1], words[2]])
+        m_key = sep.join([words[0], words[1], words[2]])
         if len(words) == 11:
             cov = int(words[8])
             rmet = float(words[9])
@@ -82,6 +114,10 @@ def read_rmetfile_of_tgs(tgs_file, contig_prefix, contig_names, cov_cf):
             if cov >= cov_cf:
                 freqinfo[m_key] = rmet
     infile.close()
+    if keys is not None:
+        for m_key in list(freqinfo.keys()):
+            if m_key not in keys:
+                del freqinfo[m_key]
     return np.mean(covs) if len(covs) > 0 else 0, freqinfo
 
 
@@ -100,7 +136,7 @@ def read_rmetfile_of_bed_or_bsformat(bs_file, contig_prefix, contig_names, cov_c
         for line in infile:
             words = line.strip().split("\t")
             chrom = words[0]
-            m_key = "\t".join([words[0], words[1], words[2]])
+            m_key = sep.join([words[0], words[1], words[2]])
             cov = int(words[3]) + int(words[4])
             rmet = float(words[3]) / cov if cov > 0 else 0
 
@@ -164,13 +200,18 @@ def correlation_with_any_rmets(args):
                                                                                              args.contig_names,
                                                                                              args.cov_cf_cmp)
         print("cmpfile: {}, mean_covarge: {}".format(cmp_file, bsmean_cov))
+    keys = None
+    if args.inter:
+        keys = get_intersected_keys(tgs_files, args.cov_cf)
     for tgs_file in tgs_files:
         print("====== {}".format(tgs_file))
         if str(tgs_file).endswith(".bed"):
-            mean_cov, dp2rmetinfo = read_methylbed(tgs_file, args.contig_prefix, args.contig_names, args.cov_cf)
+            mean_cov, dp2rmetinfo = read_methylbed(tgs_file, args.contig_prefix, args.contig_names, args.cov_cf,
+                                                   keys)
         else:
             mean_cov, dp2rmetinfo = read_rmetfile_of_tgs(tgs_file, args.contig_prefix,
-                                                         args.contig_names, args.cov_cf)
+                                                         args.contig_names, args.cov_cf,
+                                                         keys)
         print("mean_covarge: {}".format(mean_cov))
         print("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}".format("cmp_file", "cmpnum", "tgsnum", "internum", "pearson",
                                                       "rsquare", "spearman", "RMSE"))
@@ -224,6 +265,8 @@ def main():
     parser.add_argument("--contig_names", type=str, required=False, default=None)
     parser.add_argument("--cov_cf", type=int, required=False, default=5, help="")
     parser.add_argument("--cov_cf_cmp", type=int, required=False, default=5, help="")
+    parser.add_argument("--inter", action="store_true", required=False, default=False,
+                        help="if using intersected keys of tgs_file")
 
     args = parser.parse_args()
     correlation_with_any_rmets(args)

@@ -532,11 +532,13 @@ def main():
                             required=False, help="BiRNN layer num, default 1")
     scfb_aggre.add_argument('--hid_rnn', type=int, default=32, required=False,
                             help="BiRNN hidden_size, default 32")
-    scfb_aggre.add_argument('--binsize', type=int, action="store", required=False, default=20,
+    scfb_aggre.add_argument('--bin_size', type=int, action="store", required=False, default=20,
                             help="histogram bin size, default 20")
     scfb_aggre.add_argument('--cov_cf', action="store", type=int, required=False,
                             default=4, help="coverage cutoff, to consider if use aggregate model to "
                                             "re-predict the modstate of the site")
+    scfb_aggre.add_argument('--tseed', type=int, default=1234,
+                            help='random seed for torch')
 
     sub_call_freqb.set_defaults(func=main_call_freqb)
 

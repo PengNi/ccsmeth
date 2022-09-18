@@ -209,11 +209,13 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
     from .models import AggrAttRNN
     # from .utils.constants_torch import use_cuda
 
+    torch.manual_seed(args.tseed)
+
     # load model
     device = "cpu"
     if args.model_type in {"attbigru", "attbilstm"}:
         model = AggrAttRNN(args.seq_len, args.layer_rnn, args.class_num,
-                           0, args.hid_rnn, binsize=args.binsize,
+                           0, args.hid_rnn, binsize=args.bin_size,
                            model_type=args.model_type,
                            device=device)
     else:
@@ -230,7 +232,8 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
         para_dict = torch.load(args.aggre_model, map_location=torch.device('cpu'))
         para_dict_new = OrderedDict()
         for param_tensor in para_dict.keys():
-            para_dict_new[param_tensor[7:]] = para_dict[param_tensor]
+            keytmp = param_tensor[7:]
+            para_dict_new[keytmp] = para_dict[param_tensor]
         model.load_state_dict(para_dict_new)
         del para_dict_new
     # if use_cuda:
@@ -259,7 +262,7 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
         if len(total_mods) > 0:
             if len(total_mods) >= args.cov_cf:
                 all_highcov_pos.append(refpos)
-                all_highcov_histos.append(_get_normalized_histo(total_mods, args.cov_cf, args.binsize))
+                all_highcov_histos.append(_get_normalized_histo(total_mods, args.cov_cf, args.bin_size))
                 all_highcov_covs.append(len(total_mods))
             else:
                 all_lowcov_pos.append(refpos)
@@ -267,7 +270,7 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
         if len(hp1_mods) > 0:
             if len(hp1_mods) >= args.cov_cf:
                 hp1_highcov_pos.append(refpos)
-                hp1_highcov_histos.append(_get_normalized_histo(hp1_mods, args.cov_cf, args.binsize))
+                hp1_highcov_histos.append(_get_normalized_histo(hp1_mods, args.cov_cf, args.bin_size))
                 hp1_highcov_covs.append(len(hp1_mods))
             else:
                 hp1_lowcov_pos.append(refpos)
@@ -275,7 +278,7 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
         if len(hp2_mods) > 0:
             if len(hp2_mods) >= args.cov_cf:
                 hp2_highcov_pos.append(refpos)
-                hp2_highcov_histos.append(_get_normalized_histo(hp2_mods, args.cov_cf, args.binsize))
+                hp2_highcov_histos.append(_get_normalized_histo(hp2_mods, args.cov_cf, args.bin_size))
                 hp2_highcov_covs.append(len(hp2_mods))
             else:
                 hp2_lowcov_pos.append(refpos)
@@ -677,7 +680,7 @@ def main():
                                     "--refsites_all is True, also means we do not output sites which "
                                     "are target motifs only in reads.")
     scfb_callfreq.add_argument("--no_hap", action="store_true", default=False, required=False,
-                               help="don't call_freq on hapolotypes ")
+                               help="don't call_freq on hapolotypes")
     scfb_callfreq.add_argument("--base_clip", action="store", type=int, required=False, default=0,
                                help='number of base clipped in each read, default 0')
 
@@ -696,11 +699,13 @@ def main():
                             required=False, help="BiRNN layer num, default 1")
     scfb_aggre.add_argument('--hid_rnn', type=int, default=32, required=False,
                             help="BiRNN hidden_size, default 32")
-    scfb_aggre.add_argument('--binsize', type=int, action="store", required=False, default=20,
+    scfb_aggre.add_argument('--bin_size', type=int, action="store", required=False, default=20,
                             help="histogram bin size, default 20")
     scfb_aggre.add_argument('--cov_cf', action="store", type=int, required=False,
                             default=4, help="coverage cutoff, to consider if use aggregate model to "
                                             "re-predict the modstate of the site")
+    scfb_aggre.add_argument('--tseed', type=int, default=1234,
+                            help='random seed for torch')
 
     args = parser.parse_args()
 
