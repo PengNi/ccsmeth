@@ -16,6 +16,7 @@
 - [Demo data](#Demo-data)
 - [Quick start](#Quick-start)
 - [Usage](#Usage)
+- [Acknowledgements](#Acknowledgements)
 
 ## Installation
 ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pytorch.org/).

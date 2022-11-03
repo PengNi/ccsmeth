@@ -87,14 +87,16 @@ def _sample_bam(bamfile, fafile, genome_size, coverage, seed):
             return sub_bamfile
 
 
-def run_ccsmeth_call_freqb(bamfile, genomefa, aggre_model, out_dir, no_hap):
+def run_ccsmeth_call_freqb(bamfile, genomefa, aggre_model, out_dir, is_nohap=False, is_clip=False):
     fname, fext = os.path.splitext(os.path.basename(bamfile))
     freq_prefix = out_dir + "/" + fname + ".freq"
     ccsmeth_count_cmd = "ccsmeth call_freqb --input_bam {} --ref {} " \
                         "--output {} --bed --sort --threads 40 --refsites_all --identity 0 --mapq 0 " \
                         "--call_mode count".format(bamfile, genomefa, freq_prefix)
-    if no_hap:
+    if is_nohap:
         ccsmeth_count_cmd += " --no_hap"
+    if is_clip:
+        ccsmeth_count_cmd += " --base_clip 20"
     sys.stderr.write("ccsmeth_count cmd: {}\n".format(ccsmeth_count_cmd))
     sys.stderr.flush()
     stdinfo, returncode = run_cmd(ccsmeth_count_cmd)
@@ -111,8 +113,10 @@ def run_ccsmeth_call_freqb(bamfile, genomefa, aggre_model, out_dir, no_hap):
     ccsmeth_aggre_cmd = "ccsmeth call_freqb --input_bam {} --ref {} " \
                         "--output {} --bed --sort --threads 40 --refsites_all --identity 0 --mapq 0 " \
                         "--call_mode aggregate --aggre_model {}".format(bamfile, genomefa, freq_prefix, aggre_model)
-    if no_hap:
+    if is_nohap:
         ccsmeth_aggre_cmd += " --no_hap"
+    if is_clip:
+        ccsmeth_aggre_cmd += " --base_clip 20"
     sys.stderr.write("ccsmeth_aggre cmd: {}\n".format(ccsmeth_aggre_cmd))
     sys.stderr.flush()
     stdinfo, returncode = run_cmd(ccsmeth_aggre_cmd)
@@ -261,8 +265,10 @@ def main():
     parser.add_argument("--aggre_model", type=str, required=True, help="aggre model/pileup model")
     parser.add_argument("--out_dir", type=str, required=False, default="results",
                         help="tmp/out dir")
-    parser.add_argument("--no_hap", action="store_true", default=False, required=False,
-                        help="don't call_freq on hapolotypes ")
+    parser.add_argument("--is_nohap", action="store_true", default=False, required=False,
+                        help="is_nohap")
+    parser.add_argument("--is_clip", action="store_true", default=False, required=False,
+                        help="is_clip")
 
     args = parser.parse_args()
 
@@ -291,7 +297,8 @@ def main():
             seedtmp = seeds[ridx]
             sampledbam = _sample_bam(args.bam, fafile, args.genome_size,
                                      cov, seedtmp)
-            count_bed, aggre_bed = run_ccsmeth_call_freqb(sampledbam, args.genomefa, args.aggre_model, args.out_dir)
+            count_bed, aggre_bed = run_ccsmeth_call_freqb(sampledbam, args.genomefa, args.aggre_model, args.out_dir,
+                                                          is_nohap=args.is_nohap, is_clip=args.is_clip)
             count_beds.append(count_bed)
             aggre_beds.append(aggre_bed)
             os.remove(sampledbam)
@@ -426,7 +433,8 @@ def main():
 
     if args.total:
         sys.stdout.write("\nfor total reads ====\n")
-        count_bed, aggre_bed = run_ccsmeth_call_freqb(args.bam, args.genomefa, args.aggre_model, args.out_dir)
+        count_bed, aggre_bed = run_ccsmeth_call_freqb(args.bam, args.genomefa, args.aggre_model, args.out_dir,
+                                                      is_clip=args.is_clip)
         sys.stdout.write("ccsmeth count-mode ==\n")
         mean_cov, rmetinfo = read_methylbed2(count_bed, None, args.contig_names, args.cov_cf)
         sys.stdout.write("means: {}\n".format(mean_cov))

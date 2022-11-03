@@ -104,8 +104,6 @@ def get_sampleids(sampleids_file):
 
 
 if __name__ == '__main__':
-    random.seed(1234)
-
     parser = argparse.ArgumentParser(description='Calculate call accuracy stats of hkmodel for cpgs')
     parser.add_argument('--unmethylated', type=str, required=True)
     parser.add_argument('--methylated', type=str, required=True)
@@ -123,8 +121,11 @@ if __name__ == '__main__':
     parser.add_argument('--sampleids_file_m', type=str, default=None, required=False,
                         help='the file contains methylated ids of sites to be tested')
     parser.add_argument('--ont', action='store_true', default=False, help="is call_mods file from deepsignal series")
+    parser.add_argument('--seed', type=int, default=1234, help="seed")
 
     args = parser.parse_args()
+
+    random.seed(args.seed)
 
     depth_cfs = args.depth_cf
     prob_cfs = args.prob_cf

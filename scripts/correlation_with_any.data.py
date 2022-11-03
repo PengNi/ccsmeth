@@ -100,6 +100,18 @@ def _cal_corr_of_rmet1_and_rmet2(freqinfo1, freqinfo2):
         corr, r_square, scorr, rmse
 
 
+def read_sites(site_file, covcf):
+    site_keys = set()
+    with open(site_file, "r") as rf:
+        for line in rf:
+            words = line.strip().split("\t")
+            # ONLY support bedmethyl file now
+            if float(words[9]) >= covcf:
+                m_key = "\t".join([words[0], words[1], words[5]])
+                site_keys.add(m_key)
+    return site_keys
+
+
 def cmp_sitesrmet_of_tgs_and_bs(args):
     print("==coverage cutoff for query file: {}".format(args.covcf))
     print("==coverage cutoff for target file: {}".format(args.covcf_t))
@@ -109,6 +121,18 @@ def cmp_sitesrmet_of_tgs_and_bs(args):
         freqinfo_nano = _read_one_mod_bed_file(args.queryfile, args.covcf, args)
     else:
         freqinfo_nano = _read_one_mod_freq_file(args.queryfile, args.covcf, args)
+
+    if args.filter is not None:
+        print()
+        print("filter query file by positions in {}".format(args.filter))
+        f_count = 0
+        site_filter = read_sites(args.filter, args.covcf)
+        for mkey in list(freqinfo_nano.keys()):
+            if mkey not in site_filter:
+                del freqinfo_nano[mkey]
+                f_count += 1
+        print("filter {} sites".format(f_count))
+        print()
     freqinfo_t = []
     for targetfile in args.targetfile:
         if str(targetfile).endswith(".bed") or str(targetfile).endswith(".bed.gz"):
@@ -160,6 +184,8 @@ def main():
     parser.add_argument("--contig_prefix", type=str, required=False, default=None)  # NC_003,
     parser.add_argument("--contig_names", type=str, required=False, default=None)  # 1,2,3,4,5,6,7,8,9,10,11,12
     parser.add_argument("--wfile", type=str, required=True)
+
+    parser.add_argument("--filter", type=str, required=False, default=None)
 
     args = parser.parse_args()
     cmp_sitesrmet_of_tgs_and_bs(args)
