@@ -35,6 +35,11 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [pybedtools](https://daler.github.io/pybedtools/) \
        [pytabix](https://github.com/slowkow/pytabix)
 
+#### System Requirements
+Recommended Hardware: 128 GB RAM, 40 CPU processors, 4 TB disk storage, >=8 GB GPU 
+
+Recommended OS: Linux (Ubuntu 16.04, CentOS 7, etc.)
+
 #### Option 1. One-step installation
 Install ccsmeth, its dependencies, and other required packages in one step using [conda](https://conda.io/docs/) and [environment.yml](environment.yml):
 ```shell
