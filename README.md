@@ -36,6 +36,8 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [pytabix](https://github.com/slowkow/pytabix)
 
 #### System Requirements
+`ccsmeth` requires only a standard computer with enough RAM to support the in-memory operations. Using GPU could acceralate the process of methylation calling.
+
 Recommended Hardware: 128 GB RAM, 40 CPU processors, 4 TB disk storage, >=8 GB GPU 
 
 Recommended OS: Linux (Ubuntu 16.04, CentOS 7, etc.)
