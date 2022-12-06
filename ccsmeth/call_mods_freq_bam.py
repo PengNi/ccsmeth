@@ -16,6 +16,7 @@ from multiprocessing import Queue
 from tqdm import tqdm
 import pysam
 import pybedtools
+import re
 
 from .utils.ref_reader import DNAReference
 from .utils.process_utils import compute_pct_identity
@@ -103,38 +104,80 @@ def _cal_mod_prob(ml_value):
     return round(ml_value / float(256) + 0.000001, 6)
 
 
+# refer from PacBio https://github.com/PacificBiosciences/pb-CpG-tools under BSD 3-Clause Clear License
+def _get_mm_position_iters(mm_idxs):
+    base_count = 0
+    base_counts = []
+    for idx in mm_idxs:
+        base_count += idx + 1
+        base_counts.append(base_count)
+    return base_counts
+
+
+# refer from PacBio https://github.com/PacificBiosciences/pb-CpG-tools under BSD 3-Clause Clear License
+def _get_all_modbase_positions(fwd_seq, modbase):
+    return [i.start() for i in re.finditer(modbase, fwd_seq)]
+
+
+# THIS FUNCTION HAS NOT BEEN TESTED YET
+def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
+    mmtag, mltag = None, None
+    try:
+        mmtag = readitem.get_tag('MM')
+        mltag = readitem.get_tag('ML')
+    except KeyError:
+        pass
+    if mmtag is None or mltag is None:
+        return {}
+    else:
+        seq_fwdseq = readitem.get_forward_sequence()
+        # is_reverse = readitem.is_reverse
+
+        # parse MM tag
+        mod_iters = None
+        for x in mmtag.split(';'):
+            if x.startswith(modbase + "+" + modification):
+                mod_iters = _get_mm_position_iters([int(y) for y in x.split(",")[1:]])
+                break
+        if mod_iters is None:
+            return {}
+        modbases_all = _get_all_modbase_positions(seq_fwdseq, modbase)
+        try:
+            modbases = [modbases_all[idx - 1] for idx in mod_iters]
+            assert len(modbases) == len(mltag)
+            moddict = dict()
+            for idx in range(len(modbases)):
+                moddict[modbases[idx]] = _cal_mod_prob(mltag[idx])
+            return moddict
+        except IndexError:
+            return {}
+
+
 def _get_moddict(readitem, modbase="C", modification="m"):
     """
 
     :param readitem:
     :return: moddict: query_pos(in alignment strand) 2 mod_probs([0,1])
     """
-    # mmtag, mltag = None, None
-    # try:
-    #     mmtag = readitem.get_tag('MM')
-    #     mltag = readitem.get_tag('ML')
-    #     seq_fwdseq = readitem.get_forward_sequence()
-    #     is_reverse = readitem.is_reverse
-    # except KeyError:
-    #     pass
-    # if mmtag is None or mltag is None:
-    #     return {}
 
-    # use .modified_bases instead of MM/ML tags to get moddict
+    # first try to use .modified_bases (pysam>=0.19.0) instead of MM/ML tags to get moddict
     modinfo = readitem.modified_bases
-    if modinfo is None:
-        return {}
-    modtuple = None
-    for modkey in modinfo.keys():
-        if modkey[0] == modbase and modkey[2] == modification:
-            modtuple = modinfo[modkey]
-            break
-    if modtuple is None:
-        return {}
-    moddict = dict(modtuple)
-    for modloc in moddict.keys():
-        moddict[modloc] = _cal_mod_prob(moddict[modloc])
-    return moddict
+    if not (modinfo is None or len(modinfo) == 0):
+        modtuple = None
+        for modkey in modinfo.keys():
+            if modkey[0] == modbase and modkey[2] == modification:
+                modtuple = modinfo[modkey]
+                break
+        if modtuple is None:
+            return {}
+        moddict = dict(modtuple)
+        for modloc in moddict.keys():
+            moddict[modloc] = _cal_mod_prob(moddict[modloc])
+        return moddict
+    else:
+        # case 1: the MM tag is "MM:Z:C+m?,..."?
+        # case 2: there are no MM/ML tags
+        return _get_moddict_in_tags(readitem, modbase, modification)
 
 
 def _cal_modfreq_in_count_mode(modprobs, prob_cf=0):
