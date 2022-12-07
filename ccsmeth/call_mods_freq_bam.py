@@ -101,7 +101,7 @@ def _cal_mod_prob(ml_value):
     # WARN: then if we use the following to convert ml_value to prob, the the new_prob = 0.5000001.
     # WARN: if we use the rule: label = 1 if prob>0.5 else 0, then the label of new_prob will be
     # WARN: different with the label of ori_prob
-    return round(ml_value / float(256) + 0.000001, 6)
+    return round(ml_value / float(256) + 0.000001, 6) if ml_value > 0 else 0
 
 
 # refer from PacBio https://github.com/PacificBiosciences/pb-CpG-tools under BSD 3-Clause Clear License
@@ -137,7 +137,12 @@ def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
         mod_iters = None
         for x in mmtag.split(';'):
             if x.startswith(modbase + "+" + modification):
-                mod_iters = _get_mm_position_iters([int(y) for y in x.split(",")[1:]])
+                start_index = len(modbase) + 1 + len(modification)
+                if len(x) > start_index and x[start_index] in "?.":
+                    start_index += 1
+                if len(x) > start_index and x[start_index] == ",":
+                    start_index += 1
+                    mod_iters = _get_mm_position_iters([int(y) for y in x[start_index:].split(",")])
                 break
         if mod_iters is None:
             return {}
@@ -150,6 +155,11 @@ def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
                 moddict[modbases[idx]] = _cal_mod_prob(mltag[idx])
             return moddict
         except IndexError:
+            sys.stderr.write("[WARN] read {}: MM tag length does not match length of modbases "
+                             "in read!\n".format(readitem.query_name))
+            return {}
+        except AssertionError:
+            sys.stderr.write("[WARN] read {}: MM tag length != ML tag length!\n".format(readitem.query_name))
             return {}
 
 
@@ -600,7 +610,7 @@ def _worker_write_bed_result(output_prefix, bed_q, args):
 
 
 def call_mods_frequency_from_bamfile(args):
-    print("[main]call_freq_bam starts..")
+    sys.stderr.write("[main]call_freq_bam starts..\n")
     start = time.time()
 
     if args.call_mode == "aggregate" and not os.path.exists(args.aggre_model):
@@ -621,8 +631,9 @@ def call_mods_frequency_from_bamfile(args):
     motifs_filter = None
     if args.refsites_only or args.refsites_all:
         motifs_filter = motifs
-        print("[###] --refsites_only (or/and --refsites_all) is set as True, gonna keep only motifs({}) sites "
-              "of genome reference in the results".format(motifs_filter))
+        sys.stderr.write("[###] --refsites_only (or/and --refsites_all) is set as True, "
+                         "gonna keep only motifs({}) sites of genome reference in the "
+                         "results\n".format(motifs_filter))
 
     nproc = args.threads
     if nproc < 3:
@@ -654,7 +665,7 @@ def call_mods_frequency_from_bamfile(args):
     bed_q.put("kill")
     p_w.join()
 
-    print("[main]call_freq_bam costs %.1f seconds.." % (time.time() - start))
+    sys.stderr.write("[main]call_freq_bam costs %.1f seconds..\n" % (time.time() - start))
 
 
 def main():

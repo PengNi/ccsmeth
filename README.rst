@@ -6,7 +6,7 @@ Documentation
 -------------
 v0.3.3
 ----------
-more robust operation for MM/ML tags?
+more robust operation for MM/ML tags
 
 
 v0.3.2
