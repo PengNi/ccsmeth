@@ -107,11 +107,12 @@ def _cal_mod_prob(ml_value):
 # refer from PacBio https://github.com/PacificBiosciences/pb-CpG-tools under BSD 3-Clause Clear License
 def _get_mm_position_iters(mm_idxs):
     base_count = 0
-    base_counts = []
+    # base_counts = []
     for idx in mm_idxs:
         base_count += idx + 1
-        base_counts.append(base_count)
-    return base_counts
+        yield base_count
+        # base_counts.append(base_count)
+    # return base_counts
 
 
 # refer from PacBio https://github.com/PacificBiosciences/pb-CpG-tools under BSD 3-Clause Clear License
@@ -131,9 +132,10 @@ def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
         return {}
     else:
         seq_fwdseq = readitem.get_forward_sequence()
-        # is_reverse = readitem.is_reverse
+        seq_len = len(seq_fwdseq)
+        is_reverse = readitem.is_reverse
 
-        # parse MM tag
+        # parse MM/ML tags
         mod_iters = None
         for x in mmtag.split(';'):
             if x.startswith(modbase + "+" + modification):
@@ -152,7 +154,10 @@ def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
             assert len(modbases) == len(mltag)
             moddict = dict()
             for idx in range(len(modbases)):
-                moddict[modbases[idx]] = _cal_mod_prob(mltag[idx])
+                mod_pos = modbases[idx]
+                if is_reverse:
+                    mod_pos = seq_len - 1 - mod_pos
+                moddict[mod_pos] = _cal_mod_prob(mltag[idx])
             return moddict
         except IndexError:
             sys.stderr.write("[WARN] read {}: MM tag length does not match length of modbases "
