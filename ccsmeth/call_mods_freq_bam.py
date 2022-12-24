@@ -120,7 +120,6 @@ def _get_all_modbase_positions(fwd_seq, modbase):
     return [i.start() for i in re.finditer(modbase, fwd_seq)]
 
 
-# THIS FUNCTION HAS NOT BEEN TESTED YET
 def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
     mmtag, mltag = None, None
     try:
