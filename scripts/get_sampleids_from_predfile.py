@@ -8,6 +8,7 @@ def main():
     parser.add_argument("--idsrc", type=str, required=True)
     # default false, which means add pos in rc strand too, for CG sites
     parser.add_argument("--one_strand", action="store_true", default=False)
+    parser.add_argument("--rev_strand", action="store_true", default=False)
     # parser.add_argument("--depth", type=int, default=1)
     args = parser.parse_args()
     result_file = args.idsrc
@@ -27,7 +28,7 @@ def main():
             #     continue
             chrom, pos, strand, holeid = words[0], int(words[1]), words[2], words[3]
             holeid = holeid.split("/")[1]
-            if strand == "-":
+            if strand == "-" and not args.rev_strand:
                 pos = pos - 1
             sampid = "\t".join([chrom, str(pos), holeid])  # chrom, pos, holeid
             wf.write(sampid + "\n")

@@ -104,7 +104,7 @@ def get_sampleids(sampleids_file):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Calculate call accuracy stats of hkmodel for cpgs')
+    parser = argparse.ArgumentParser(description='Calculate call accuracy stats of ccsmeth for cpgs')
     parser.add_argument('--unmethylated', type=str, required=True)
     parser.add_argument('--methylated', type=str, required=True)
     parser.add_argument('--depth_cf', action="append", required=True)
