@@ -25,7 +25,7 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [pbccs](https://ccs.how/) (version>=6.3.0) \
        [pbmm2](https://github.com/PacificBiosciences/pbmm2) (version>=1.9.0) or [minimap2](https://github.com/lh3/minimap2) (version>=2.22-r1101) \
        [samtools](https://github.com/samtools/samtools) (version>=1.12) \
-       [CUDA Toolkit](https://anaconda.org/anaconda/cudatoolkit) (version>=10.2)
+       [CUDA Toolkit](https://anaconda.org/anaconda/cudatoolkit) (version>=10.2, for GPU only)
    - Dependencies: \
        [numpy](http://www.numpy.org/) \
        [statsmodels](https://github.com/statsmodels/statsmodels/) \
@@ -210,6 +210,7 @@ ccsmeth call_freqb \
 
 Users can use `ccsmeth subcommands --help/-h` for help.
 
+[the cmds need to be updated]
 #### 1. call hifi reads
 
 ```shell
