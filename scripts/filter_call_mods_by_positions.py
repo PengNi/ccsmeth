@@ -1,6 +1,7 @@
 #! /usr/bin/env python
 import argparse
 import os
+import gzip
 
 
 sep_key = "||"
@@ -48,12 +49,16 @@ def main():
     print('there are {} positions to be chosen'.format(len(positions)))
     wf = open(wfile, "w")
     for cmf in cmfiles:
-        with open(cmf, "r") as rf:
-            for line in rf:
-                words = line.strip().split("\t")
-                postmp = sep_key.join([words[0], words[1]])
-                if postmp in positions:
-                    wf.write(line)
+        if cmf.endswith(".gz"):
+            infile = gzip.open(cmf, 'rt')
+        else:
+            infile = open(cmf, 'r')
+        for line in infile:
+            words = line.strip().split("\t")
+            postmp = sep_key.join([words[0], words[1]])
+            if postmp in positions:
+                wf.write(line)
+        infile.close()
     wf.flush()
     wf.close()
 

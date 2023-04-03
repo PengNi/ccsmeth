@@ -24,7 +24,8 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [Python3.*](https://www.python.org/) (version>=3.8)\
        [pbccs](https://ccs.how/) (version>=6.3.0) \
        [pbmm2](https://github.com/PacificBiosciences/pbmm2) (version>=1.9.0) or [minimap2](https://github.com/lh3/minimap2) (version>=2.22-r1101) \
-       [samtools](https://github.com/samtools/samtools) (version>=1.12)
+       [samtools](https://github.com/samtools/samtools) (version>=1.12) \
+       [CUDA Toolkit](https://anaconda.org/anaconda/cudatoolkit) (version>=10.2)
    - Dependencies: \
        [numpy](http://www.numpy.org/) \
        [statsmodels](https://github.com/statsmodels/statsmodels/) \
@@ -82,6 +83,11 @@ Install necessary packages ([bedtools](https://bedtools.readthedocs.io/en/latest
 conda install bedtools -c bioconda  # required by pybedtools->ccsmeth:call_mods
 conda install pbccs pbmm2 samtools -c bioconda
 ```
+
+Also install cudatoolkit(>=10.2) if you want use **GPU** to run ccsmeth in your GPU machine.
+```shell
+conda install -c anaconda cudatoolkit=10.2
+``` 
 
 ## Trained models
 See [models](/models):

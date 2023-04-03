@@ -194,16 +194,24 @@ def _get_moddict(readitem, modbase="C", modification="m"):
         return _get_moddict_in_tags(readitem, modbase, modification)
 
 
-def _cal_modfreq_in_count_mode(modprobs, prob_cf=0):
-    cnt_all, cnt_mod = 0, 0
+def _cal_modfreq_in_count_mode(modprobs, prob_cf=0, no_amb_cov=False):
+    cnt_all_filtered, cnt_mod = 0, 0
     for modprob in modprobs:
         if abs(modprob - (1 - modprob)) < prob_cf:
             continue
-        cnt_all += 1
+        cnt_all_filtered += 1
         if modprob > 0.5:
             cnt_mod += 1
-    modfreq = cnt_mod / float(cnt_all) if cnt_all > 0 else 0.
-    return cnt_all, cnt_mod, modfreq
+    modfreq = cnt_mod / float(cnt_all_filtered) if cnt_all_filtered > 0 else 0.
+    if no_amb_cov:
+        return cnt_all_filtered, cnt_mod, modfreq
+    else:
+        # WARN -- when prob_cf>0, cnt_mod/modfreq does not always equal len(modprobs)
+        # So:
+        if cnt_all_filtered != len(modprobs):
+            # adjust cnt_mod
+            cnt_mod = np.round(len(modprobs) * modfreq, 2)
+        return len(modprobs), cnt_mod, modfreq
 
 
 # from PacBio https://github.com/PacificBiosciences/pb-CpG-tools under BSD 3-Clause Clear License
@@ -226,7 +234,32 @@ def _get_normalized_histo(probs, cov_cf=4, binsize=20):
     return np.round(hist / norm, 6)
 
 
-def _cal_modfreq_in_aggregate_mode(refposes, refposes_histos, model, seq_len=11):
+# try discretizing, similar idea from PacBio https://github.com/PacificBiosciences/pb-CpG-tools
+# under BSD 3-Clause Clear License
+def discretize_score(modprob, coverage):
+    """
+
+    """
+    # need to round up or round down modified read numbers based on score
+    # which allows a push towards 0/100 for adjusted score
+    if modprob > 0.66:
+        mod_reads = int(np.ceil(modprob * float(coverage)))
+    elif modprob <= 0.33:
+        mod_reads = int(np.floor(modprob * float(coverage)))
+    else:
+        mod_reads = round(coverage * modprob, 2)
+
+    unmod_reads = int(coverage) - mod_reads
+
+    if mod_reads == 0:
+        adjusted_score = 0.0
+    else:
+        adjusted_score = float(mod_reads) / (mod_reads + unmod_reads)
+
+    return mod_reads, unmod_reads, adjusted_score
+
+
+def _cal_modfreq_in_aggregate_mode(refposes, refposes_histos, model, seq_len=11, only_close=False):
 
     if len(refposes) == 0:
         return None
@@ -238,14 +271,22 @@ def _cal_modfreq_in_aggregate_mode(refposes, refposes_histos, model, seq_len=11)
                         pad_width=((pad_len, pad_len), (0, 0)),
                         mode='constant', constant_values=0)
     histos_mat = np.swapaxes(sliding_window_view(histos_mat, seq_len, axis=0), 1, 2)
-    pos_mat = np.pad(refposes, pad_width=(pad_len, pad_len),
-                     mode='constant', constant_values=(refposes[0]-1000, refposes[-1]+1000))
-    pos_mat = sliding_window_view(pos_mat, seq_len)
-    pos_mat_center = np.repeat(refposes, seq_len).reshape((-1, seq_len))
-    pos_mat = np.absolute(np.subtract(pos_mat, pos_mat_center))
-    # no log2 is a litter better?
-    # pos_mat = np.round(1. / (np.log2(np.absolute(pos_mat) + 1) + 1), 6)
-    del pos_mat_center
+
+    if not only_close:
+        pos_mat = np.pad(refposes, pad_width=(pad_len, pad_len),
+                         mode='constant', constant_values=(refposes[0] - 1000, refposes[-1] + 1000))
+        pos_mat = sliding_window_view(pos_mat, seq_len)
+        pos_mat_center = np.repeat(refposes, seq_len).reshape((-1, seq_len))
+        pos_mat = np.absolute(np.subtract(pos_mat, pos_mat_center))
+        # no log2 is a litter better?
+        # pos_mat = np.round(1. / (np.log2(np.absolute(pos_mat) + 1) + 1), 6)
+        del pos_mat_center
+    else:
+        pos_mat = np.pad(refposes, pad_width=(pad_len + 1, pad_len),
+                         mode='constant', constant_values=(refposes[0] - 1000, refposes[-1] + 1000))
+        pos_mat = np.diff(pos_mat)
+        pos_mat = (pos_mat == 2).astype(int)
+        pos_mat = sliding_window_view(pos_mat, seq_len)
 
     probs = []
     batch_size = 1024
@@ -323,7 +364,7 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
                 all_highcov_covs.append(len(total_mods))
             else:
                 all_lowcov_pos.append(refpos)
-                all_lowcov_mods.append(_cal_modfreq_in_count_mode(total_mods, args.prob_cf))
+                all_lowcov_mods.append(_cal_modfreq_in_count_mode(total_mods, args.prob_cf, args.no_amb_cov))
         if len(hp1_mods) > 0:
             if len(hp1_mods) >= args.cov_cf:
                 hp1_highcov_pos.append(refpos)
@@ -331,7 +372,7 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
                 hp1_highcov_covs.append(len(hp1_mods))
             else:
                 hp1_lowcov_pos.append(refpos)
-                hp1_lowcov_mods.append(_cal_modfreq_in_count_mode(hp1_mods, args.prob_cf))
+                hp1_lowcov_mods.append(_cal_modfreq_in_count_mode(hp1_mods, args.prob_cf, args.no_amb_cov))
         if len(hp2_mods) > 0:
             if len(hp2_mods) >= args.cov_cf:
                 hp2_highcov_pos.append(refpos)
@@ -339,7 +380,7 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
                 hp2_highcov_covs.append(len(hp2_mods))
             else:
                 hp2_lowcov_pos.append(refpos)
-                hp2_lowcov_mods.append(_cal_modfreq_in_count_mode(hp2_mods, args.prob_cf))
+                hp2_lowcov_mods.append(_cal_modfreq_in_count_mode(hp2_mods, args.prob_cf, args.no_amb_cov))
     for lowcov_idx in range(len(all_lowcov_pos)):
         refpos2result[all_lowcov_pos[lowcov_idx]][0] = all_lowcov_mods[lowcov_idx]
     for lowcov_idx in range(len(hp1_lowcov_pos)):
@@ -347,24 +388,36 @@ def _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args):
     for lowcov_idx in range(len(hp2_lowcov_pos)):
         refpos2result[hp2_lowcov_pos[lowcov_idx]][2] = hp2_lowcov_mods[lowcov_idx]
 
-    probs = _cal_modfreq_in_aggregate_mode(all_highcov_pos, all_highcov_histos, model, args.seq_len)
+    probs = _cal_modfreq_in_aggregate_mode(all_highcov_pos, all_highcov_histos, model, args.seq_len, args.only_close)
     for highcov_idx in range(len(all_highcov_pos)):
         modprob_tmp = probs[highcov_idx]
         cov_tmp = all_highcov_covs[highcov_idx]
-        cnt_mod = round(cov_tmp * modprob_tmp, 2)
-        refpos2result[all_highcov_pos[highcov_idx]][0] = (cov_tmp, cnt_mod, modprob_tmp)
-    probs = _cal_modfreq_in_aggregate_mode(hp1_highcov_pos, hp1_highcov_histos, model, args.seq_len)
+        if args.discrete:
+            d_cnt_mod, _, d_modprob_tmp = discretize_score(modprob_tmp, cov_tmp)
+            refpos2result[all_highcov_pos[highcov_idx]][0] = (cov_tmp, d_cnt_mod, d_modprob_tmp)
+        else:
+            cnt_mod = round(cov_tmp * modprob_tmp, 2)
+            refpos2result[all_highcov_pos[highcov_idx]][0] = (cov_tmp, cnt_mod, modprob_tmp)
+    probs = _cal_modfreq_in_aggregate_mode(hp1_highcov_pos, hp1_highcov_histos, model, args.seq_len, args.only_close)
     for highcov_idx in range(len(hp1_highcov_pos)):
         modprob_tmp = probs[highcov_idx]
         cov_tmp = hp1_highcov_covs[highcov_idx]
-        cnt_mod = round(cov_tmp * modprob_tmp, 2)
-        refpos2result[hp1_highcov_pos[highcov_idx]][1] = (cov_tmp, cnt_mod, modprob_tmp)
-    probs = _cal_modfreq_in_aggregate_mode(hp2_highcov_pos, hp2_highcov_histos, model, args.seq_len)
+        if args.discrete:
+            d_cnt_mod, _, d_modprob_tmp = discretize_score(modprob_tmp, cov_tmp)
+            refpos2result[hp1_highcov_pos[highcov_idx]][1] = (cov_tmp, d_cnt_mod, d_modprob_tmp)
+        else:
+            cnt_mod = round(cov_tmp * modprob_tmp, 2)
+            refpos2result[hp1_highcov_pos[highcov_idx]][1] = (cov_tmp, cnt_mod, modprob_tmp)
+    probs = _cal_modfreq_in_aggregate_mode(hp2_highcov_pos, hp2_highcov_histos, model, args.seq_len, args.only_close)
     for highcov_idx in range(len(hp2_highcov_pos)):
         modprob_tmp = probs[highcov_idx]
         cov_tmp = hp2_highcov_covs[highcov_idx]
-        cnt_mod = round(cov_tmp * modprob_tmp, 2)
-        refpos2result[hp2_highcov_pos[highcov_idx]][2] = (cov_tmp, cnt_mod, modprob_tmp)
+        if args.discrete:
+            d_cnt_mod, _, d_modprob_tmp = discretize_score(modprob_tmp, cov_tmp)
+            refpos2result[hp2_highcov_pos[highcov_idx]][2] = (cov_tmp, d_cnt_mod, d_modprob_tmp)
+        else:
+            cnt_mod = round(cov_tmp * modprob_tmp, 2)
+            refpos2result[hp2_highcov_pos[highcov_idx]][2] = (cov_tmp, cnt_mod, modprob_tmp)
 
     refpos_results = []
     for refpos in all_refposes:
@@ -386,9 +439,9 @@ def _call_modfreq_of_one_region(refpos2modinfo, args):
                         hp1_mods.append(modprob)
                     elif hap == 2:
                         hp2_mods.append(modprob)
-            info_all = _cal_modfreq_in_count_mode(total_mods, args.prob_cf) if len(total_mods) > 0 else None
-            info_hp1 = _cal_modfreq_in_count_mode(hp1_mods, args.prob_cf) if len(hp1_mods) > 0 else None
-            info_hp2 = _cal_modfreq_in_count_mode(hp2_mods, args.prob_cf) if len(hp2_mods) > 0 else None
+            info_all = _cal_modfreq_in_count_mode(total_mods, args.prob_cf, args.no_amb_cov) if len(total_mods) > 0 else None
+            info_hp1 = _cal_modfreq_in_count_mode(hp1_mods, args.prob_cf, args.no_amb_cov) if len(hp1_mods) > 0 else None
+            info_hp2 = _cal_modfreq_in_count_mode(hp2_mods, args.prob_cf, args.no_amb_cov) if len(hp2_mods) > 0 else None
             refpos_results.append((refpos, info_all, info_hp1, info_hp2))
     elif args.call_mode == "aggregate":
         refpos_results = _call_modfreq_of_one_region_aggregate_mode(refpos2modinfo, args)
@@ -708,9 +761,12 @@ def main():
                                choices=["count", "aggregate"],
                                help='call mode: count, aggregate. default count.')
     scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
-                               help='this is to remove ambiguous calls. '
+                               help='this is to remove ambiguous calls (only for count-mode now). '
                                'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
                                'means use all calls. range [0, 1], default 0.0.')
+    scfb_callfreq.add_argument('--no_amb_cov', action="store_true", required=False, default=False,
+                               help='when using prob_cf>0, DO NOT count ambiguous calls '
+                                    'for calculating reads coverage')
     scfb_callfreq.add_argument("--hap_tag", type=str, action="store", required=False, default="HP",
                                help="haplotype tag, default HP")
     scfb_callfreq.add_argument("--mapq", type=int, default=10, required=False,
@@ -762,6 +818,10 @@ def main():
     scfb_aggre.add_argument('--cov_cf', action="store", type=int, required=False,
                             default=4, help="coverage cutoff, to consider if use aggregate model to "
                                             "re-predict the modstate of the site")
+    scfb_aggre.add_argument('--only_close', action="store_true", default=False, required=False,
+                            help="[EXPERIMENTAL]")
+    scfb_aggre.add_argument('--discrete', action="store_true", default=False, required=False,
+                            help="[EXPERIMENTAL]")
     scfb_aggre.add_argument('--tseed', type=int, default=1234,
                             help='random seed for torch')
 

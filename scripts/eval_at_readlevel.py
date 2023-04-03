@@ -11,8 +11,8 @@ import numpy as np
 from sklearn.metrics import roc_auc_score
 
 
-num_sites = [10000, 100000, 200000, 1000000000]
-# num_sites = [100000, ]
+# num_sites = [10000, 100000, 200000, 1000000000]
+num_sites = [100000, ]
 CallRecord = namedtuple('CallRecord', ['chrom', 'pos', 'strand',
                                        'holeid', 'loc', 'depth',
                                        'prob0', 'prob1',
@@ -20,7 +20,7 @@ CallRecord = namedtuple('CallRecord', ['chrom', 'pos', 'strand',
                                        'is_true_methylated'])
 
 
-def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
+def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None, dstrand=False):
     all_crs = list()
     rf = open(filename)
     skip_cnt = 0
@@ -31,11 +31,19 @@ def sample_sites(filename, is_methylated, depthcf, probcf, sampleids=None):
         cnt += 1
         words = line.strip().split("\t")
         holeid = words[3].split("/")[1]
-        pos = int(words[1]) if words[2] == "+" else int(words[1]) - 1
+        pos = int(words[1])
+        if not dstrand and words[2] == "-":
+            pos -= 1
         sampid = "\t".join([words[0], str(pos), holeid])  # chrom, pos, holeid
-        if sampleids is not None and sampid not in sampleids:
-            skip_cnt += 1
-            continue
+        if sampleids is not None:
+            if not dstrand and sampid not in sampleids:
+                skip_cnt += 1
+                continue
+            elif dstrand:
+                sampid_fwd = "\t".join([words[0], str(pos-1), holeid])
+                if sampid not in sampleids and sampid_fwd not in sampleids:
+                    skip_cnt += 1
+                    continue
         depth = words[5]
         if "," in depth:
             depthW, depthC = float(depth.split(",")[0]), float(depth.split(",")[1])
@@ -123,6 +131,10 @@ if __name__ == '__main__':
     parser.add_argument('--ont', action='store_true', default=False, help="is call_mods file from deepsignal series")
     parser.add_argument('--seed', type=int, default=1234, help="seed")
 
+    parser.add_argument('--dstrand', action='store_true', default=False, help="when there are fwd/rev sites in the "
+                                                                              "evaluated files, but the "
+                                                                              "sampleids_files only have fwd sites")
+
     args = parser.parse_args()
 
     random.seed(args.seed)
@@ -145,8 +157,10 @@ if __name__ == '__main__':
                 unmethylated_sites = sample_sites_ont(args.unmethylated, False, float(prob_cf), sample_ids_u)
                 methylated_sites = sample_sites_ont(args.methylated, True, float(prob_cf), sample_ids_m)
             else:
-                unmethylated_sites = sample_sites(args.unmethylated, False, int(depth_cf), float(prob_cf), sample_ids_u)
-                methylated_sites = sample_sites(args.methylated, True, int(depth_cf), float(prob_cf), sample_ids_m)
+                unmethylated_sites = sample_sites(args.unmethylated, False, int(depth_cf), float(prob_cf),
+                                                  sample_ids_u, args.dstrand)
+                methylated_sites = sample_sites(args.methylated, True, int(depth_cf), float(prob_cf),
+                                                sample_ids_m, args.dstrand)
 
             for site_num in num_sites:
                 num_rounds = args.round
@@ -212,11 +226,20 @@ if __name__ == '__main__':
                 print("")
                 # cal mean
                 metrics = np.array(metrics, dtype=float)
+
                 metrics_mean = np.mean(metrics, 0)
                 mean_tpfntnfp = "\t".join([str(round(x, 1)) for x in metrics_mean[:4]])
                 mean_perf = "\t".join([str(round(x, 4)) for x in metrics_mean[4:13]])
                 mean_numlen = str(round(metrics_mean[13]))
                 pr_writer.write("\t".join([str(site_num), mean_tpfntnfp, mean_perf, mean_numlen,
                                            str(depth_cf), str(prob_cf), str(num_rounds)]) + "\n")
+
+                metrics_std = np.std(metrics, 0)
+                std_tpfntnfp = "\t".join([str(round(x, 1)) for x in metrics_std[:4]])
+                std_perf = "\t".join([str(round(x, 4)) for x in metrics_std[4:13]])
+                std_numlen = str(round(metrics_std[13]))
+                pr_writer.write("\t".join([str(site_num) + "_std", std_tpfntnfp, std_perf, std_numlen,
+                                           str(depth_cf), str(prob_cf), str(num_rounds)]) + "\n")
+                pr_writer.flush()
 
     pr_writer.close()

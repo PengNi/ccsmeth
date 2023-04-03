@@ -45,6 +45,7 @@ class ModelAttRNN(nn.Module):
             self.rnn_cell = "lstm"
             self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
+            # TODO: rnn2 NOT USED??? need to use it and test further
             self.rnn2 = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                                 dropout=dropout_rate, batch_first=True, bidirectional=True)
         elif self.model_type == "attbigru2s":

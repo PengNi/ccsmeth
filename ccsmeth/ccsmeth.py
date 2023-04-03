@@ -483,9 +483,12 @@ def main():
                                choices=["count", "aggregate"],
                                help='call mode: count, aggregate. default count.')
     scfb_callfreq.add_argument('--prob_cf', type=float, action="store", required=False, default=0.0,
-                               help='this is to remove ambiguous calls. '
+                               help='this is to remove ambiguous calls (only for count-mode now). '
                                     'if abs(prob1-prob0)>=prob_cf, then we use the call. e.g., proc_cf=0 '
                                     'means use all calls. range [0, 1], default 0.0.')
+    scfb_callfreq.add_argument('--no_amb_cov', action="store_true", required=False, default=False,
+                               help='when using prob_cf>0, DO NOT count ambiguous calls '
+                                    'for calculating reads coverage')
     scfb_callfreq.add_argument("--hap_tag", type=str, action="store", required=False, default="HP",
                                help="haplotype tag, default HP")
     scfb_callfreq.add_argument("--mapq", type=int, default=10, required=False,
@@ -537,6 +540,10 @@ def main():
     scfb_aggre.add_argument('--cov_cf', action="store", type=int, required=False,
                             default=4, help="coverage cutoff, to consider if use aggregate model to "
                                             "re-predict the modstate of the site")
+    scfb_aggre.add_argument('--only_close', action="store_true", default=False, required=False,
+                            help="[EXPERIMENTAL]")
+    scfb_aggre.add_argument('--discrete', action="store_true", default=False, required=False,
+                            help="[EXPERIMENTAL]")
     scfb_aggre.add_argument('--tseed', type=int, default=1234,
                             help='random seed for torch')
 
