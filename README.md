@@ -84,7 +84,7 @@ conda install bedtools -c bioconda  # required by pybedtools->ccsmeth:call_mods
 conda install pbccs pbmm2 samtools -c bioconda
 ```
 
-Also install cudatoolkit(>=10.2) if you want use **GPU** to run ccsmeth in your GPU machine.
+Also install cudatoolkit (>=10.2) if you want use **GPU** to run ccsmeth in your GPU machine.
 ```shell
 conda install -c anaconda cudatoolkit=10.2
 ``` 
@@ -92,7 +92,7 @@ conda install -c anaconda cudatoolkit=10.2
 ## Trained models
 See [models](/models):
 
-  - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v1.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
+  - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
   - [_model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2.ckpt_](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2.ckpt): model of **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_** detection, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
 ## Demo data

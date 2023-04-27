@@ -45,15 +45,14 @@ class ModelAttRNN(nn.Module):
             self.rnn_cell = "lstm"
             self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
-            # TODO: rnn2 NOT USED??? need to use it and test further
-            self.rnn2 = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
-                                dropout=dropout_rate, batch_first=True, bidirectional=True)
+            # self.rnn2 = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
+            #                     dropout=dropout_rate, batch_first=True, bidirectional=True)
         elif self.model_type == "attbigru2s":
             self.rnn_cell = "gru"
             self.rnn = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
                               dropout=dropout_rate, batch_first=True, bidirectional=True)
-            self.rnn2 = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
-                               dropout=dropout_rate, batch_first=True, bidirectional=True)
+            # self.rnn2 = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
+            #                    dropout=dropout_rate, batch_first=True, bidirectional=True)
         else:
             raise ValueError("--model_type not set right!")
 
@@ -61,7 +60,7 @@ class ModelAttRNN(nn.Module):
         self.fc1 = nn.Linear(self.hidden_size * 2 * 2, self.num_classes)  # 2 for bidirection, another 2 for 2 strands
 
         self._att3 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
-        self._att3_2 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
+        # self._att3_2 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
 
         self.softmax = nn.Softmax(1)
 
@@ -119,6 +118,9 @@ class ModelAttRNN(nn.Module):
         out1, n_states1 = self.rnn(out1, self.init_hidden(out1.size(0),
                                                           self.num_layers,
                                                           self.hidden_size))  # (N, L, nhid*2)
+        # out2, n_states2 = self.rnn2(out2, self.init_hidden(out2.size(0),
+        #                                                    self.num_layers,
+        #                                                    self.hidden_size))  # (N, L, nhid*2)
         out2, n_states2 = self.rnn(out2, self.init_hidden(out2.size(0),
                                                           self.num_layers,
                                                           self.hidden_size))  # (N, L, nhid*2)
@@ -134,7 +136,8 @@ class ModelAttRNN(nn.Module):
         h_n2 = n_states2[0] if self.rnn_cell == "lstm" else n_states2
         h_n2 = h_n2.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
         h_n2 = h_n2.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
-        out2, att_weights2 = self._att3_2(h_n2, out2)
+        # out2, att_weights2 = self._att3_2(h_n2, out2)
+        out2, att_weights2 = self._att3(h_n2, out2)
 
         out = torch.cat((out1, out2), 1)
 

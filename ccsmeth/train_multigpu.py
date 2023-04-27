@@ -133,7 +133,7 @@ def train_worker(local_rank, global_world_size, args):
     model = model.cuda(local_rank)
     # DistributedDataParallel
     model = DDP(model, device_ids=[local_rank], output_device=local_rank,
-                find_unused_parameters=True)
+                find_unused_parameters=False)
 
     # 2. define dataloader
     print("training_process-{} reading data..".format(os.getpid()))
