@@ -320,7 +320,7 @@ ALIGN:
 
 #### 3. call modifications
 
-Use `CUDA_VISIBLE_DEVICES=${cuda_number} ccsmeth call_mods [options]` to call modifications with specified GPUs (_e.g._, `CUDA_VISIBLE_DEVICES=0` or `CUDA_VISIBLE_DEVICES=0,1`).
+Use `CUDA_VISIBLE_DEVICES=${cuda_numbers} ccsmeth call_mods [options]` to call modifications with specified GPUs (_e.g._, `CUDA_VISIBLE_DEVICES=0`, `CUDA_VISIBLE_DEVICES=0,1`, or `CUDA_VISIBLE_DEVICES=0,1,2`, etc).
 
 ```shell
 ccsmeth call_mods -h
@@ -457,17 +457,17 @@ usage: ccsmeth call_freqb [-h] [--threads THREADS] --input_bam INPUT_BAM --ref
                           REF [--contigs CONTIGS] [--chunk_len CHUNK_LEN]
                           --output OUTPUT [--bed] [--sort] [--gzip]
                           [--modtype {5mC}] [--call_mode {count,aggregate}]
-                          [--prob_cf PROB_CF] [--hap_tag HAP_TAG]
-                          [--mapq MAPQ] [--identity IDENTITY]
-                          [--no_supplementary] [--motifs MOTIFS]
-                          [--mod_loc MOD_LOC] [--no_comb] [--refsites_only]
-                          [--refsites_all] [--no_hap] [--base_clip BASE_CLIP]
-                          [--aggre_model AGGRE_MODEL]
+                          [--prob_cf PROB_CF] [--no_amb_cov]
+                          [--hap_tag HAP_TAG] [--mapq MAPQ]
+                          [--identity IDENTITY] [--no_supplementary]
+                          [--motifs MOTIFS] [--mod_loc MOD_LOC] [--no_comb]
+                          [--refsites_only] [--refsites_all] [--no_hap]
+                          [--base_clip BASE_CLIP] [--aggre_model AGGRE_MODEL]
                           [--model_type {attbilstm,attbigru}]
                           [--seq_len SEQ_LEN] [--class_num CLASS_NUM]
                           [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN]
                           [--bin_size BIN_SIZE] [--cov_cf COV_CF]
-                          [--tseed TSEED]
+                          [--only_close] [--discrete] [--tseed TSEED]
 
 call frequency of modifications at genome level from modbam.bam file
 
@@ -497,10 +497,12 @@ CALL_FREQ:
   --modtype {5mC}       modification type, default 5mC.
   --call_mode {count,aggregate}
                         call mode: count, aggregate. default count.
-  --prob_cf PROB_CF     this is to remove ambiguous calls. if
-                        abs(prob1-prob0)>=prob_cf, then we use the call. e.g.,
-                        proc_cf=0 means use all calls. range [0, 1], default
-                        0.0.
+  --prob_cf PROB_CF     this is to remove ambiguous calls (only for count-mode
+                        now). if abs(prob1-prob0)>=prob_cf, then we use the
+                        call. e.g., proc_cf=0 means use all calls. range [0,
+                        1], default 0.0.
+  --no_amb_cov          when using prob_cf>0, DO NOT count ambiguous calls for
+                        calculating reads coverage
   --hap_tag HAP_TAG     haplotype tag, default HP
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
                         default 10
@@ -539,6 +541,8 @@ AGGREGATE_MODE:
   --bin_size BIN_SIZE   histogram bin size, default 20
   --cov_cf COV_CF       coverage cutoff, to consider if use aggregate model to
                         re-predict the modstate of the site
+  --only_close          [EXPERIMENTAL]
+  --discrete            [EXPERIMENTAL]
   --tseed TSEED         random seed for torch
 ```
 
