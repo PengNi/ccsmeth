@@ -320,7 +320,7 @@ ALIGN:
 
 #### 3. call modifications
 
-Use `CUDA_VISIBLE_DEVICES=${cuda_numbers} ccsmeth call_mods [options]` to call modifications with specified GPUs (_e.g._, `CUDA_VISIBLE_DEVICES=0`, `CUDA_VISIBLE_DEVICES=0,1`, or `CUDA_VISIBLE_DEVICES=0,1,2`, etc).
+Use `CUDA_VISIBLE_DEVICES=${cuda_numbers} ccsmeth call_mods [options]` to call modifications with specified GPUs (_e.g._, `CUDA_VISIBLE_DEVICES=0`, `CUDA_VISIBLE_DEVICES=0,2`, or `CUDA_VISIBLE_DEVICES=0,1,3`, etc).
 
 ```shell
 ccsmeth call_mods -h
@@ -426,9 +426,9 @@ EXTRACTION ALIGN_MODE:
   --ref REF             path to genome reference to be aligned, in fasta/fa
                         format.
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
-                        default 10
-  --identity IDENTITY   identity cutoff for selecting alignment items, default
-                        0.70
+                        default 1
+  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0, 1.0], 
+                        default 0.0
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no
@@ -505,9 +505,9 @@ CALL_FREQ:
                         calculating reads coverage
   --hap_tag HAP_TAG     haplotype tag, default HP
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
-                        default 10
-  --identity IDENTITY   identity cutoff for selecting alignment items, default
-                        0.70
+                        default 1
+  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0, 1.0], 
+                        default 0.0
   --no_supplementary    not use supplementary alignment
   --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
                         motifs splited by comma (no space allowed in the input
@@ -693,9 +693,9 @@ EXTRACTION ALIGN_MODE:
   --ref REF             path to genome reference to be aligned, in fasta/fa
                         format.
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
-                        default 10
-  --identity IDENTITY   identity cutoff for selecting alignment items, default
-                        0.70
+                        default 1
+  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0, 1.0], 
+                        default 0.0
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no

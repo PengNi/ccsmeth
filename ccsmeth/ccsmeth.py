@@ -298,10 +298,10 @@ def main():
     scm_extract_ref = sub_call_mods.add_argument_group("EXTRACTION ALIGN_MODE")
     scm_extract_ref.add_argument("--ref", type=str, required=False,
                                  help="path to genome reference to be aligned, in fasta/fa format.")
-    scm_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
-                                 help="MAPping Quality cutoff for selecting alignment items, default 10")
-    scm_extract_ref.add_argument("--identity", type=float, default=0.70, required=False,
-                                 help="identity cutoff for selecting alignment items, default 0.70")
+    scm_extract_ref.add_argument("--mapq", type=int, default=1, required=False,
+                                 help="MAPping Quality cutoff for selecting alignment items, default 1")
+    scm_extract_ref.add_argument("--identity", type=float, default=0.0, required=False,
+                                 help="identity cutoff for selecting alignment items, [0.0, 1.0], default 0.0")
     scm_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                  help="not use supplementary alignment")
     scm_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
@@ -375,10 +375,10 @@ def main():
     se_extract_ref = sub_extract.add_argument_group("EXTRACTION ALIGN_MODE")
     se_extract_ref.add_argument("--ref", type=str, required=False,
                                 help="path to genome reference to be aligned, in fasta/fa format.")
-    se_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
-                                help="MAPping Quality cutoff for selecting alignment items, default 10")
-    se_extract_ref.add_argument("--identity", type=float, default=0.70, required=False,
-                                help="identity cutoff for selecting alignment items, default 0.70")
+    se_extract_ref.add_argument("--mapq", type=int, default=1, required=False,
+                                help="MAPping Quality cutoff for selecting alignment items, default 1")
+    se_extract_ref.add_argument("--identity", type=float, default=0.0, required=False,
+                                help="identity cutoff for selecting alignment items, [0.0, 1.0], default 0.0")
     se_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                 help="not use supplementary alignment")
     se_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
@@ -491,10 +491,10 @@ def main():
                                     'for calculating reads coverage')
     scfb_callfreq.add_argument("--hap_tag", type=str, action="store", required=False, default="HP",
                                help="haplotype tag, default HP")
-    scfb_callfreq.add_argument("--mapq", type=int, default=10, required=False,
-                               help="MAPping Quality cutoff for selecting alignment items, default 10")
-    scfb_callfreq.add_argument("--identity", type=float, default=0.70, required=False,
-                               help="identity cutoff for selecting alignment items, default 0.70")
+    scfb_callfreq.add_argument("--mapq", type=int, default=1, required=False,
+                               help="MAPping Quality cutoff for selecting alignment items, default 1")
+    scfb_callfreq.add_argument("--identity", type=float, default=0.0, required=False,
+                               help="identity cutoff for selecting alignment items, [0.0, 1.0], default 0.0")
     scfb_callfreq.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                help="not use supplementary alignment")
     scfb_callfreq.add_argument("--motifs", action="store", type=str,

@@ -696,10 +696,10 @@ def main():
     p_extract_ref = parser.add_argument_group("EXTRACTION ALIGN_MODE")
     p_extract_ref.add_argument("--ref", type=str, required=False,
                                help="path to genome reference to be aligned, in fasta/fa format.")
-    p_extract_ref.add_argument("--mapq", type=int, default=10, required=False,
-                               help="MAPping Quality cutoff for selecting alignment items, default 10")
-    p_extract_ref.add_argument("--identity", type=float, default=0.70, required=False,
-                               help="identity cutoff for selecting alignment items, default 0.70")
+    p_extract_ref.add_argument("--mapq", type=int, default=1, required=False,
+                               help="MAPping Quality cutoff for selecting alignment items, default 1")
+    p_extract_ref.add_argument("--identity", type=float, default=0.0, required=False,
+                               help="identity cutoff for selecting alignment items, [0.0, 1.0], default 0.0")
     p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                help="not use supplementary alignment")
     p_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
