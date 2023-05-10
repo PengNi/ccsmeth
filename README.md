@@ -93,7 +93,7 @@ conda install -c anaconda cudatoolkit=10.2
 See [models](/models):
 
   - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
-  - [_model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2.ckpt_](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2.ckpt): model of **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_** detection, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
+  - [_model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2p.ckpt_](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2p.ckpt): model of **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_** detection, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
 ## Demo data
 Check [demo](/demo) for some demo data to play with:

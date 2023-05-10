@@ -8,7 +8,9 @@ v0.3.3
 ----------
 more robust operation for MM/ML tags
 
-update the call_mods model, use shared params for both rnn and attention
+update the call_mods model (v1 to v2), use shared params for both rnn and attention
+
+update aggregate model (v2 to v2p)
 
 
 v0.3.2
