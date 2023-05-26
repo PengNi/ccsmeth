@@ -174,7 +174,7 @@ def _normalize_signals(signals, normalize_method="zscore"):
     elif normalize_method == 'min-mean':
         sshift, sscale = np.min(signals), np.mean(signals)
     elif normalize_method == 'mad':
-        sshift, sscale = np.median(signals), np.float(robust.mad(signals))
+        sshift, sscale = np.median(signals), float(robust.scale.mad(signals))
     else:
         raise ValueError("")
     if sscale == 0.0:
@@ -477,21 +477,21 @@ def _batch_feature_list2s(feature_list):
 
         fkmers.append(np.array([base2code_dna[x] for x in kmer_seq]))
         fpasss.append(np.array([kmer_pass] * len(kmer_seq)))
-        fipdms.append(np.array(kmer_ipdm, dtype=np.float))
-        fipdsds.append(np.array(kmer_ipds, dtype=np.float) if type(kmer_ipds) is not str else 0)
-        fpwms.append(np.array(kmer_pwm, dtype=np.float))
-        fpwsds.append(np.array(kmer_pws, dtype=np.float) if type(kmer_pws) is not str else 0)
-        fquals.append(np.array(kmer_qual, dtype=np.float))
-        fmaps.append(np.array(kmer_map, dtype=np.float) if type(kmer_map) is not str else 0)
+        fipdms.append(np.array(kmer_ipdm, dtype=float))
+        fipdsds.append(np.array(kmer_ipds, dtype=float) if type(kmer_ipds) is not str else 0)
+        fpwms.append(np.array(kmer_pwm, dtype=float))
+        fpwsds.append(np.array(kmer_pws, dtype=float) if type(kmer_pws) is not str else 0)
+        fquals.append(np.array(kmer_qual, dtype=float))
+        fmaps.append(np.array(kmer_map, dtype=float) if type(kmer_map) is not str else 0)
 
         rkmers.append(np.array([base2code_dna[x] for x in kmer_seq2]))
         rpasss.append(np.array([kmer_pass2] * len(kmer_seq2)))
-        ripdms.append(np.array(kmer_ipdm2, dtype=np.float))
-        ripdsds.append(np.array(kmer_ipds2, dtype=np.float) if type(kmer_ipds2) is not str else 0)
-        rpwms.append(np.array(kmer_pwm2, dtype=np.float))
-        rpwsds.append(np.array(kmer_pws2, dtype=np.float) if type(kmer_pws2) is not str else 0)
-        rquals.append(np.array(kmer_qual2, dtype=np.float))
-        rmaps.append(np.array(kmer_map2, dtype=np.float) if type(kmer_map2) is not str else 0)
+        ripdms.append(np.array(kmer_ipdm2, dtype=float))
+        ripdsds.append(np.array(kmer_ipds2, dtype=float) if type(kmer_ipds2) is not str else 0)
+        rpwms.append(np.array(kmer_pwm2, dtype=float))
+        rpwsds.append(np.array(kmer_pws2, dtype=float) if type(kmer_pws2) is not str else 0)
+        rquals.append(np.array(kmer_qual2, dtype=float))
+        rmaps.append(np.array(kmer_map2, dtype=float) if type(kmer_map2) is not str else 0)
 
         labels.append(label)
     return sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fquals, fmaps, \

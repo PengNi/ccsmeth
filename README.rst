@@ -4,6 +4,11 @@ ccsmeth
 
 Documentation
 -------------
+v0.3.4
+----------
+replace 'numpy.float' by 'float" in extract_features and call_mods modules
+
+
 v0.3.3
 ----------
 more robust operation for MM/ML tags

@@ -25,21 +25,21 @@ def parse_a_line(line):
 
     fkmer = np.array([base2code_dna[x] for x in words[5]])
     fpass = np.array([int(words[6])] * len(fkmer))
-    fipdm = np.array([float(x) for x in words[7].split(",")], dtype=np.float)
-    fipdsd = np.array([float(x) for x in words[8].split(",")], dtype=np.float) if words[8] != "." else 0
-    fpwm = np.array([float(x) for x in words[9].split(",")], dtype=np.float)
-    fpwsd = np.array([float(x) for x in words[10].split(",")], dtype=np.float) if words[10] != "." else 0
-    fqual = np.array([float(x) for x in words[11].split(",")], dtype=np.float)
-    fmap = np.array([float(x) for x in words[12].split(",")], dtype=np.float) if words[12] != "." else 0
+    fipdm = np.array([float(x) for x in words[7].split(",")], dtype=float)
+    fipdsd = np.array([float(x) for x in words[8].split(",")], dtype=float) if words[8] != "." else 0
+    fpwm = np.array([float(x) for x in words[9].split(",")], dtype=float)
+    fpwsd = np.array([float(x) for x in words[10].split(",")], dtype=float) if words[10] != "." else 0
+    fqual = np.array([float(x) for x in words[11].split(",")], dtype=float)
+    fmap = np.array([float(x) for x in words[12].split(",")], dtype=float) if words[12] != "." else 0
 
     rkmer = np.array([base2code_dna[x] for x in words[13]])
     rpass = np.array([int(words[14])] * len(rkmer))
-    ripdm = np.array([float(x) for x in words[15].split(",")], dtype=np.float)
-    ripdsd = np.array([float(x) for x in words[16].split(",")], dtype=np.float) if words[16] != "." else 0
-    rpwm = np.array([float(x) for x in words[17].split(",")], dtype=np.float)
-    rpwsd = np.array([float(x) for x in words[18].split(",")], dtype=np.float) if words[18] != "." else 0
-    rqual = np.array([float(x) for x in words[19].split(",")], dtype=np.float)
-    rmap = np.array([float(x) for x in words[20].split(",")], dtype=np.float) if words[20] != "." else 0
+    ripdm = np.array([float(x) for x in words[15].split(",")], dtype=float)
+    ripdsd = np.array([float(x) for x in words[16].split(",")], dtype=float) if words[16] != "." else 0
+    rpwm = np.array([float(x) for x in words[17].split(",")], dtype=float)
+    rpwsd = np.array([float(x) for x in words[18].split(",")], dtype=float) if words[18] != "." else 0
+    rqual = np.array([float(x) for x in words[19].split(",")], dtype=float)
+    rmap = np.array([float(x) for x in words[20].split(",")], dtype=float) if words[20] != "." else 0
 
     label = int(words[21])
 
