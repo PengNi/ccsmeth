@@ -103,7 +103,58 @@ Check [demo](/demo) for some demo data to play with:
 
 ## Quick start
 
-Use `align` mode (`align_hifi`, then `call_mods`):
+Use `denovo` mode (first `call_mods`, then `align_hifi`):
+```shell
+# 1. call hifi reads with kinetics if needed
+# should have added pbccs to $PATH or the used environment
+ccsmeth call_hifi --subreads /path/to/subreads.bam \
+  --threads 10 \
+  --output /path/to/output.hifi.bam
+
+
+# 2. call modifications
+# outputs: [--output].per_readsite.tsv, 
+#          [--output].modbam.bam
+CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
+  --input /path/to/output.hifi.bam \
+  --model_file /path/to/ccsmeth/models/model_call_mods.ckpt \
+  --output /path/to/output.hifi.call_mods \
+  --threads 10 --threads_call 2 --model_type attbigru2s \
+  --rm_per_readsite
+
+
+# 3. align hifi reads
+# should have added pbmm2 to $PATH or the used environment
+ccsmeth align_hifi \
+  --hifireads /path/to/output.hifi.call_mods.modbam.bam \
+  --ref /path/to/genome.fa \
+  --output /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
+  --threads 10
+
+
+# 4. call modification frequency
+# outputs: [--output].[--call_mode].all.bed
+# if the input bam file contains haplotags, 
+# there will be [--output].[--call_mode].[hp1/hp2].bed in outputs.
+# use '--call_mode count':
+ccsmeth call_freqb \
+  --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
+  --ref /path/to/genome.fa \
+  --output /path/to/output.hifi.call_mods.modbam.pbmm2.freq \
+  --threads 10 --sort --bed
+
+# OR, use '--call_mode aggregate':
+# NOTE: usually is more accurate than 'count' mode
+ccsmeth call_freqb \
+  --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
+  --ref /path/to/genome.fa \
+  --output /path/to/output.hifi.call_mods.modbam.pbmm2.freq \
+  --threads 10 --sort --bed \
+  --call_mode aggregate \
+  --aggre_model /path/to/ccsmeth/models/model_aggregate.ckpt
+```
+
+**OR**, use `align` mode (first `align_hifi`, then `call_mods`):
 ```shell
 # 1. call hifi reads with kinetics if needed
 # should have added pbccs to $PATH or the used environment
@@ -150,57 +201,6 @@ ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.pbmm2.call_mods.modbam.bam \
   --ref /path/to/genome.fa \
   --output /path/to/output.hifi.pbmm2.call_mods.modbam.freq \
-  --threads 10 --sort --bed \
-  --call_mode aggregate \
-  --aggre_model /path/to/ccsmeth/models/model_aggregate.ckpt
-```
-
-**OR**, use `denovo` mode (`call_mods`, then `align_hifi`):
-```shell
-# 1. call hifi reads with kinetics if needed
-# should have added pbccs to $PATH or the used environment
-ccsmeth call_hifi --subreads /path/to/subreads.bam \
-  --threads 10 \
-  --output /path/to/output.hifi.bam
-
-
-# 2. call modifications
-# outputs: [--output].per_readsite.tsv, 
-#          [--output].modbam.bam
-CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
-  --input /path/to/output.hifi.bam \
-  --model_file /path/to/ccsmeth/models/model_call_mods.ckpt \
-  --output /path/to/output.hifi.call_mods \
-  --threads 10 --threads_call 2 --model_type attbigru2s \
-  --rm_per_readsite
-
-
-# 3. align hifi reads
-# should have added pbmm2 to $PATH or the used environment
-ccsmeth align_hifi \
-  --hifireads /path/to/output.hifi.call_mods.modbam.bam \
-  --ref /path/to/genome.fa \
-  --output /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
-  --threads 10
-
-
-# 4. call modification frequency
-# outputs: [--output].[--call_mode].all.bed
-# if the input bam file contains haplotags, 
-# there will be [--output].[--call_mode].[hp1/hp2].bed in outputs.
-# use '--call_mode count':
-ccsmeth call_freqb \
-  --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
-  --ref /path/to/genome.fa \
-  --output /path/to/output.hifi.call_mods.modbam.pbmm2.freq \
-  --threads 10 --sort --bed
-
-# OR, use '--call_mode aggregate':
-# NOTE: usually is more accurate than 'count' mode
-ccsmeth call_freqb \
-  --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
-  --ref /path/to/genome.fa \
-  --output /path/to/output.hifi.call_mods.modbam.pbmm2.freq \
   --threads 10 --sort --bed \
   --call_mode aggregate \
   --aggre_model /path/to/ccsmeth/models/model_aggregate.ckpt
