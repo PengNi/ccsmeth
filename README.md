@@ -325,6 +325,7 @@ Use `CUDA_VISIBLE_DEVICES=${cuda_numbers} ccsmeth call_mods [options]` to call m
 ```shell
 ccsmeth call_mods -h
 usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH]
+                         --output OUTPUT [--gzip] [--keep_pulse] [--no_sort]
                          --model_file MODEL_FILE
                          [--model_type {attbilstm2s,attbigru2s}]
                          [--seq_len SEQ_LEN] [--is_npass IS_NPASS]
@@ -333,11 +334,10 @@ usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH]
                          [--dropout_rate DROPOUT_RATE]
                          [--batch_size BATCH_SIZE] [--n_vocab N_VOCAB]
                          [--n_embed N_EMBED] [--layer_rnn LAYER_RNN]
-                         [--hid_rnn HID_RNN] --output OUTPUT [--gzip]
-                         [--modbam MODBAM] [--rm_per_readsite]
-                         [--mode {denovo,align}] [--holeids_e HOLEIDS_E]
-                         [--holeids_ne HOLEIDS_NE] [--motifs MOTIFS]
-                         [--mod_loc MOD_LOC] [--methy_label {1,0}]
+                         [--hid_rnn HID_RNN] [--mode {denovo,align}]
+                         [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE]
+                         [--motifs MOTIFS] [--mod_loc MOD_LOC]
+                         [--methy_label {1,0}]
                          [--norm {zscore,min-mean,min-max,mad}] [--no_decode]
                          [--loginfo LOGINFO] [--ref REF] [--mapq MAPQ]
                          [--identity IDENTITY] [--no_supplementary]
@@ -365,6 +365,18 @@ INPUT:
                         number of holes/hifi-reads in an batch to get/put in
                         queues, default 50. only used when --input is bam/sam
 
+OUTPUT:
+  --output OUTPUT, -o OUTPUT
+                        the prefix of output files to save the predicted
+                        results. output files will be
+                        [--output].per_readsite.tsv/.modbam.bam
+  --gzip                if compressing .per_readsite.tsv when --input is not
+                        in bam/sam format.
+  --keep_pulse          if keeping ipd/pw tags in .modbam.bam when --input is
+                        in bam/sam format.
+  --no_sort             don't sort .modbam.bam when --input is in bam/sam
+                        format.
+
 CALL:
   --model_file MODEL_FILE, -m MODEL_FILE
                         file path of the trained model (.ckpt)
@@ -385,16 +397,6 @@ CALL:
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 3
   --hid_rnn HID_RNN     BiRNN hidden_size, default 256
-
-OUTPUT:
-  --output OUTPUT, -o OUTPUT
-                        the prefix of output files to save the predicted
-                        results. output files will be
-                        [--output].per_readsite.tsv/.modbam.bam
-  --gzip                if compressing .per_readsite.tsv using gzip
-  --modbam MODBAM       if generating modbam file when --input is in bam/sam
-                        format. yes or no, default yes
-  --rm_per_readsite     if rm per_readsite.tsv when --mobam is set to yes
 
 EXTRACTION:
   --mode {denovo,align}
@@ -427,8 +429,8 @@ EXTRACTION ALIGN_MODE:
                         format.
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
                         default 1
-  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0, 1.0], 
-                        default 0.0
+  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0,
+                        1.0], default 0.0
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no
@@ -506,8 +508,8 @@ CALL_FREQ:
   --hap_tag HAP_TAG     haplotype tag, default HP
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
                         default 1
-  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0, 1.0], 
-                        default 0.0
+  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0,
+                        1.0], default 0.0
   --no_supplementary    not use supplementary alignment
   --motifs MOTIFS       motif seq to be extracted, default: CG. can be multi
                         motifs splited by comma (no space allowed in the input
@@ -694,8 +696,8 @@ EXTRACTION ALIGN_MODE:
                         format.
   --mapq MAPQ           MAPping Quality cutoff for selecting alignment items,
                         default 1
-  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0, 1.0], 
-                        default 0.0
+  --identity IDENTITY   identity cutoff for selecting alignment items, [0.0,
+                        1.0], default 0.0
   --no_supplementary    not use supplementary alignment
   --is_mapfea IS_MAPFEA
                         if extract mapping features, yes or no, default no

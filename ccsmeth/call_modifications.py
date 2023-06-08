@@ -418,7 +418,7 @@ def _worker_write_modbam(wreads_q, modbamfile, inputheader, threads=1):
         from copy import deepcopy
         header2 = deepcopy(inputheader)
     # try adding PG tag here
-    # MUST has the ID entry
+    # MUST have the ID entry
     header2["PG"].append({"PN": "ccsmeth", "ID": "ccsmeth", "VN": VERSION, "CL": " ".join(sys.argv)})
 
     w_bam = pysam.AlignmentFile(modbamfile, "wb", header=header2, threads=threads)
