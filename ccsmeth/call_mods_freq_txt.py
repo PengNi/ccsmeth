@@ -109,6 +109,8 @@ def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False, contig_name=
                 sitekey2stats[mod_record._site_key]._unmet += 1
             used += 1
         infile.close()
+    if count == 0:
+        raise ValueError("No modification calls found in {}..".format(mods_files))
     if contig_name is None:
         print("{:.2f}% ({} of {}) calls used..".format(used/float(count) * 100, used, count))
     else:

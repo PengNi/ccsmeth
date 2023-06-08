@@ -31,7 +31,7 @@ with open('requirements.txt', 'r') as rf:
 
 setup(
     name='ccsmeth',
-    packages=['ccsmeth'],
+    packages=['ccsmeth', 'ccsmeth.utils'],
     keywords=['methylation', 'pacbio', 'neural network'],
     version=__version__,
     url='https://github.com/PengNi/ccsmeth',

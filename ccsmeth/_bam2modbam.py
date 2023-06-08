@@ -13,11 +13,12 @@ import multiprocessing as mp
 from multiprocessing import Queue
 
 from .utils.process_utils import complement_seq
+from .utils.process_utils import max_queue_size
 
 base = "C"
 pred_base = "CG"
 
-queue_size_border = 1000
+queue_size_border = max_queue_size
 time_wait = 1
 
 

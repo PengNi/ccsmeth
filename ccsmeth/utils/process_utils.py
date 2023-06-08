@@ -44,7 +44,7 @@ CODE2CIGAR = "MIDNSHP=XB"
 CIGAR_REGEX = re.compile("(\d+)([MIDNSHP=XB])")
 CIGAR2CODE = dict([y, x] for x, y in enumerate(CODE2CIGAR))
 
-# max_queue_size = 2000
+max_queue_size = 600
 
 nproc_to_call_mods_in_cpu_mode = 2
 

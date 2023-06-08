@@ -249,12 +249,11 @@ def main():
                             help="the prefix of output files to save the predicted results. "
                                  "output files will be [--output].per_readsite.tsv/.modbam.bam")
     scm_output.add_argument("--gzip", action="store_true", default=False, required=False,
-                            help="if compressing .per_readsite.tsv using gzip")
-    scm_output.add_argument("--modbam", type=str, default="yes", required=False,
-                            help="if generating modbam file when --input is in bam/sam format. "
-                                 "yes or no, default yes")
-    scm_output.add_argument("--rm_per_readsite", action="store_true", default=False, required=False,
-                            help="if rm per_readsite.tsv when --mobam is set to yes")
+                            help="if compressing .per_readsite.tsv when --input is not in bam/sam format.")
+    scm_output.add_argument("--keep_pulse", action="store_true", default=False, required=False,
+                            help="if keeping ipd/pw tags in .modbam.bam when --input is in bam/sam format.")
+    scm_output.add_argument("--no_sort", action="store_true", default=False, required=False,
+                            help="don't sort .modbam.bam when --input is in bam/sam format.")
 
     scm_extract = sub_call_mods.add_argument_group("EXTRACTION")
     scm_extract.add_argument("--mode", type=str, default="denovo", required=False,

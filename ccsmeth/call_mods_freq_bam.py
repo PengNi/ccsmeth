@@ -91,7 +91,7 @@ def _worker_split_ref_regions(dnacontigs, region_q, args):
         for ref_chunk in ref_chunks:
             region_q.put(ref_chunk)
             pbar.update(1)
-            while region_q.qsize() > args.threads * 3:
+            while region_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
                 time.sleep(time_wait)
     region_q.put("kill")
 
@@ -604,7 +604,7 @@ def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, dnacontigs, motif
                                                                    dnacontigs, motifs_filter, args)
         if len(bed_all) > 0:
             bed_q.put((bed_all, bed_hp1, bed_hp2))
-            while bed_q.qsize() > args.threads * 3:
+            while bed_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
                 time.sleep(time_wait)
 
     bam_reader.close()

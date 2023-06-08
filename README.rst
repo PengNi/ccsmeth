@@ -4,6 +4,11 @@ ccsmeth
 
 Documentation
 -------------
+v0.4.0
+----------
+optimieze call_mods module, faster generating of modbam file
+
+
 v0.3.4
 ----------
 replace 'numpy.float' by 'float" in extract_features and call_mods modules

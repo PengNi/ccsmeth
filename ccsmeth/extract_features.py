@@ -9,6 +9,7 @@ from multiprocessing import Queue
 import gzip
 
 import pysam
+from collections import OrderedDict
 from tqdm import tqdm
 
 from .utils.process_utils import display_args
@@ -21,6 +22,7 @@ from .utils.process_utils import compute_pct_identity
 from .utils.process_utils import get_q2tloc_from_cigar
 from .utils.process_utils import str2bool
 from .utils.process_utils import index_bam_if_needed2
+from .utils.process_utils import max_queue_size
 
 # from .utils.process_utils import run_cmd
 # from .utils.process_utils import generate_samtools_index_cmd
@@ -30,8 +32,8 @@ from .utils.ref_reader import DNAReference
 from .utils.process_utils import default_ref_loc
 
 code2frames = codecv1_to_frame2()
-queue_size_border = 1000
-time_wait = 1
+# queue_size_border = max_queue_size
+time_wait = 0.2
 
 
 # check and read some inputs =============================================
@@ -145,15 +147,16 @@ def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, threads, args
         count_batch = 0
         holebatchtmp = []
         for readitem in all_reads:
-            readinfo = _get_necessary_items_of_a_alignedsegment(readitem)
-            holebatchtmp.append(readinfo)
+            readinfo_dict = readitem.to_dict()
+            holebatchtmp.append(readinfo_dict)
             count += 1
             if count % args.holes_batch == 0 or count == totalnum:
                 holebatch_q.put(holebatchtmp)
                 pbar.update(1)
                 count_batch += 1
                 holebatchtmp = []
-                while holebatch_q.qsize() > queue_size_border:
+                # while holebatch_q.qsize() > queue_size_border:
+                while holebatch_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
                     time.sleep(time_wait)
         inputreads.close()
         if count_batch != len(holebatches):
@@ -243,11 +246,11 @@ def _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases, q_to_r_mapinfo):
     return fkmer_map, rkmer_map
 
 
-def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeids_ne, dnacontigs,
+def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids_e, holeids_ne, dnacontigs,
                                              args):
     seq_name, qalign_start, qalign_end, fwd_seq, fwd_qual, ref_name, ref_start, ref_end, \
         cigar_tuples, cigar_stats, flag, mapq, is_unmapped, is_secondary, is_duplicate, is_supplementary, \
-        is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn = readinfo
+        is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn = _get_necessary_items_of_a_alignedsegment(alignedsegment_tmp)
 
     if holeids_e is not None and seq_name not in holeids_e:
         return []
@@ -391,23 +394,29 @@ def extract_features_from_double_strand_read(readinfo, motifs, holeids_e, holeid
     return feature_list
 
 
-def process_one_holebatch(holebatch, motifs, holeids_e, holeids_ne, dnacontigs, args):
+def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne, dnacontigs, args):
     feature_list = []
-    read_idx = 0
     total_num = 0
     failed_num = 0
-    for readinfo in holebatch:
-        features_one = extract_features_from_double_strand_read(readinfo,
-                                                                motifs, holeids_e, holeids_ne,
-                                                                dnacontigs,
-                                                                args)
-        if len(features_one) == 0:
+    holeidxes = []
+
+    for read_idx, readinfo in enumerate(holebatch):
+        try:
+            alignedsegment_tmp = pysam.AlignedSegment.from_dict(readinfo, input_header)
+            features_one = extract_features_from_double_strand_read(alignedsegment_tmp,
+                                                                    motifs, holeids_e, holeids_ne,
+                                                                    dnacontigs,
+                                                                    args)
+            if len(features_one) == 0:
+                failed_num += 1
+            else:
+                feature_list += features_one
+                holeidxes += [read_idx] * len(features_one)
+        except Exception as e:
+            print("Exception: ", e)
             failed_num += 1
-        else:
-            feature_list += features_one
         total_num += 1
-        read_idx += 1
-    return feature_list, total_num, failed_num
+    return holeidxes, feature_list, total_num, failed_num
 
 
 def _features_to_str(features):
@@ -445,64 +454,15 @@ def _features_to_str(features):
                       str(label)])
 
 
-def _batch_feature_list2s(feature_list):
-    sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, loc
-
-    fkmers = []
-    fpasss = []
-    fipdms = []
-    fipdsds = []
-    fpwms = []
-    fpwsds = []
-    fquals = []
-    fmaps = []
-
-    rkmers = []
-    rpasss = []
-    ripdms = []
-    ripdsds = []
-    rpwms = []
-    rpwsds = []
-    rquals = []
-    rmaps = []
-
-    labels = []
-    for featureline in feature_list:
-        chrom, abs_loc, strand, holeid, loc, \
-            kmer_seq, kmer_pass, kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_qual, kmer_map, \
-            kmer_seq2, kmer_pass2, kmer_ipdm2, kmer_ipds2, kmer_pwm2, kmer_pws2, kmer_qual2, kmer_map2, \
-            label = featureline
-
-        sampleinfo.append("\t".join(list(map(str, [chrom, abs_loc, strand, holeid, loc]))))
-
-        fkmers.append(np.array([base2code_dna[x] for x in kmer_seq]))
-        fpasss.append(np.array([kmer_pass] * len(kmer_seq)))
-        fipdms.append(np.array(kmer_ipdm, dtype=float))
-        fipdsds.append(np.array(kmer_ipds, dtype=float) if type(kmer_ipds) is not str else 0)
-        fpwms.append(np.array(kmer_pwm, dtype=float))
-        fpwsds.append(np.array(kmer_pws, dtype=float) if type(kmer_pws) is not str else 0)
-        fquals.append(np.array(kmer_qual, dtype=float))
-        fmaps.append(np.array(kmer_map, dtype=float) if type(kmer_map) is not str else 0)
-
-        rkmers.append(np.array([base2code_dna[x] for x in kmer_seq2]))
-        rpasss.append(np.array([kmer_pass2] * len(kmer_seq2)))
-        ripdms.append(np.array(kmer_ipdm2, dtype=float))
-        ripdsds.append(np.array(kmer_ipds2, dtype=float) if type(kmer_ipds2) is not str else 0)
-        rpwms.append(np.array(kmer_pwm2, dtype=float))
-        rpwsds.append(np.array(kmer_pws2, dtype=float) if type(kmer_pws2) is not str else 0)
-        rquals.append(np.array(kmer_qual2, dtype=float))
-        rmaps.append(np.array(kmer_map2, dtype=float) if type(kmer_map2) is not str else 0)
-
-        labels.append(label)
-    return sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fquals, fmaps, \
-        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rquals, rmaps, labels
-
-
-def worker_extract_features_from_holebatches(holebatch_q, features_q,
-                                             motifs, holeids_e, holeids_ne, dnacontigs, args,
-                                             is_tostr=True, is_batchlize=False):
-    assert not (is_tostr and is_batchlize)
+def worker_extract_features_from_holebatches(input_header, holebatch_q, features_q,
+                                             motifs, holeids_e, holeids_ne, dnacontigs, args):
     sys.stderr.write("extract_features process-{} starts\n".format(os.getpid()))
+    
+    if isinstance(input_header, OrderedDict) or isinstance(input_header, dict):
+        input_header2 = pysam.AlignmentHeader.from_dict(input_header)
+    else:
+        input_header2 = input_header
+    
     cnt_holesbatch = 0
     total_num_batch, failed_num_batch = 0, 0
     while True:
@@ -514,24 +474,20 @@ def worker_extract_features_from_holebatches(holebatch_q, features_q,
             holebatch_q.put("kill")
             break
         # handle one holebatch
-        feature_list, total_num, failed_num = process_one_holebatch(holebatch,
-                                                                    motifs, holeids_e, holeids_ne,
-                                                                    dnacontigs,
-                                                                    args)
+        _, feature_list, total_num, failed_num = process_one_holebatch(input_header2, holebatch,
+                                                                       motifs, holeids_e, holeids_ne,
+                                                                       dnacontigs,
+                                                                       args)
         total_num_batch += total_num
         failed_num_batch += failed_num
         if len(feature_list) > 0:
             features_batch = []
-            if is_tostr:
-                for feature in feature_list:
-                    features_batch.append(_features_to_str(feature))
-            else:
-                features_batch = feature_list
-            if not is_tostr and is_batchlize:  # if is_to_str, then ignore is_batchlize
-                features_batch = _batch_feature_list2s(features_batch)
-
+            # to str
+            for feature in feature_list:
+                features_batch.append(_features_to_str(feature))
             features_q.put(features_batch)
-            while features_q.qsize() > queue_size_border:
+            # while features_q.qsize() > queue_size_border:
+            while features_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
                 time.sleep(time_wait)
         cnt_holesbatch += 1
     sys.stderr.write("extract_features process-{} ending, proceed {} "
@@ -597,7 +553,10 @@ def extract_hifireads_features(args):
     holebatch_q = Queue()
     features_q = Queue()
 
-    # holebatches = split_inputreads_by_holebatch(inputpath, args)
+    inputreads = _open_inputfile(inputpath, args.mode, threads=args.threads)
+    input_header = inputreads.header
+    inputreads.close()
+
     p_split = mp.Process(target=worker_read_split_holebatches_to_queue,
                          args=(inputpath, holebatch_q, 2, args))
     p_split.daemon = True
@@ -611,8 +570,7 @@ def extract_hifireads_features(args):
         nproc -= 3  # 2 for reading, 1 for writing
     for _ in range(nproc):
         p = mp.Process(target=worker_extract_features_from_holebatches,
-                       args=(holebatch_q, features_q, motifs, holeids_e, holeids_ne, dnacontigs, args,
-                             True, False))
+                       args=(input_header, holebatch_q, features_q, motifs, holeids_e, holeids_ne, dnacontigs, args))
         p.daemon = True
         p.start()
         ps_extract.append(p)
