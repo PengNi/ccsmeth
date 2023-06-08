@@ -113,14 +113,13 @@ ccsmeth call_hifi --subreads /path/to/subreads.bam \
 
 
 # 2. call modifications
-# outputs: [--output].per_readsite.tsv, 
-#          [--output].modbam.bam
+# output: [--output].modbam.bam
 CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --input /path/to/output.hifi.bam \
   --model_file /path/to/ccsmeth/models/model_call_mods.ckpt \
   --output /path/to/output.hifi.call_mods \
   --threads 10 --threads_call 2 --model_type attbigru2s \
-  --rm_per_readsite
+  --mode denovo
 
 
 # 3. align hifi reads
@@ -173,15 +172,14 @@ ccsmeth align_hifi \
 
 
 # 3. call modifications
-# outputs: [--output].per_readsite.tsv, 
-#          [--output].modbam.bam
+# output: [--output].modbam.bam
 CUDA_VISIBLE_DEVICES=0 ccsmeth call_mods \
   --input /path/to/output.hifi.pbmm2.bam \
   --ref /path/to/genome.fa \
   --model_file /path/to/ccsmeth/models/model_call_mods.ckpt \
   --output /path/to/output.hifi.pbmm2.call_mods \
   --threads 10 --threads_call 2 --model_type attbigru2s \
-  --rm_per_readsite --mode align
+  --mode align
 
 
 # 4. call modification frequency
