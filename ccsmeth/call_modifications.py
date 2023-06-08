@@ -54,6 +54,8 @@ from ._bam2modbam import _convert_locs_to_mmtag
 from ._bam2modbam import _convert_probs_to_mltag
 from ._bam2modbam import _refill_tags
 
+from ._version import VERSION
+
 # add this export temporarily
 # https://github.com/pytorch/pytorch/issues/37377
 os.environ['MKL_THREADING_LAYER'] = 'GNU'
@@ -303,35 +305,7 @@ def _add_modinfo2alignedseg_batch(holebatch, holeidxes, preds_info, input_header
     return new_read_infos
 
 
-def _worker_get_modtags_to_alignedsegs(get_modtags_conn, input_header, rm_pulse):
-    print('worker_get_modtags process-{} starts'.format(os.getpid()))
-    if isinstance(input_header, OrderedDict) or isinstance(input_header, dict):
-        input_header2 = pysam.AlignmentHeader.from_dict(input_header)
-    else:
-        input_header2 = input_header
-    while True:
-        try:
-            holebatch, holeidxes, preds_info = get_modtags_conn.recv()
-        except EOFError:
-            print('worker_get_modtags process-{} ends'.format(os.getpid()))
-            break
-        new_read_infos = _add_modinfo2alignedseg_batch(holebatch, holeidxes, preds_info, input_header2, rm_pulse)
-        get_modtags_conn.send(new_read_infos)
-    # get_modtags_conn.close()
-
-
-# def start_get_modtags_threads(get_modtags_conn, input_header, rm_pulse):
-#     time.sleep(1)
-#     get_modtags_ts = []
-#     for ti, get_conn in enumerate(get_modtags_conn):
-#         get_modtags_ts.append(threading.Thread(
-#             target=_worker_get_modtags_to_alignedsegs, args=(get_conn, input_header, rm_pulse),
-#             daemon=True, name='get_modtags_{:03d}'.format(ti)))
-#         get_modtags_ts[-1].start()
-#     return get_modtags_ts
-
-
-def _call_mods_q(model_path, features_batch_q, out_info_q, recv_modtags_conn, args, device=0):
+def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, device=0):
     print('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
@@ -371,6 +345,12 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, recv_modtags_conn, ar
         model = model.cuda(device)
     model.eval()
 
+    if isinstance(input_header, OrderedDict) or isinstance(input_header, dict):
+        input_header2 = pysam.AlignmentHeader.from_dict(input_header)
+    else:
+        input_header2 = input_header
+    rm_pulse = not args.keep_pulse
+    
     batch_num_total = 0
     while True:
 
@@ -390,8 +370,7 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, recv_modtags_conn, ar
         else:
             raise ValueError("--model_type not right!")
         
-        recv_modtags_conn.send((holebatch, holeidxes, pred_info))
-        new_read_infos = recv_modtags_conn.recv()
+        new_read_infos = _add_modinfo2alignedseg_batch(holebatch, holeidxes, pred_info, input_header2, rm_pulse)
         out_info_q.put(new_read_infos)
         # while out_info_q.qsize() > queue_size_border:
         while out_info_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
@@ -433,7 +412,16 @@ def write_alignedsegment(readitem_info, output_bam):
 
 
 def _worker_write_modbam(wreads_q, modbamfile, inputheader, threads=1):
-    w_bam = pysam.AlignmentFile(modbamfile, "wb", header=inputheader, threads=threads)
+    if not (isinstance(inputheader, OrderedDict) or isinstance(inputheader, dict)):
+        header2 = inputheader.to_dict()
+    else:
+        from copy import deepcopy
+        header2 = deepcopy(inputheader)
+    # try adding PG tag here
+    # MUST has the ID entry
+    header2["PG"].append({"PN": "ccsmeth", "ID": "ccsmeth", "VN": VERSION, "CL": " ".join(sys.argv)})
+
+    w_bam = pysam.AlignmentFile(modbamfile, "wb", header=header2, threads=threads)
     cnt_w, cnt_mm = 0, 0
     while True:
         if wreads_q.empty():
@@ -548,11 +536,9 @@ def call_mods(args):
         # TODO: why the processes in ps_extract start so slowly?
         ps_extract = []
         ps_call = []
-        ps_modtags = []
         nproc_ext = nproc - nproc_dp - threads_r - threads_w
         gpulist = _get_gpus()
         gpuindex = 0
-        rm_pulse = not args.keep_pulse
         for i in range(max(nproc_ext, nproc_dp)):
             if i < nproc_ext:
                 p = mp.Process(target=worker_extract_features_with_holeinfo,
@@ -562,19 +548,12 @@ def call_mods(args):
                 p.start()
                 ps_extract.append(p)
             if i < nproc_dp:
-                get_modtags_conn, recv_modtags_conn = mp.Pipe()
                 p = mp.Process(target=_call_mods_q, args=(model_path, features_batch_q, out_info_q, 
-                                                          recv_modtags_conn, args, gpulist[gpuindex]))
+                                                          input_header, args, gpulist[gpuindex]))
                 gpuindex += 1
                 p.daemon = True
                 p.start()
                 ps_call.append(p)
-                recv_modtags_conn.close()
-
-                mt = mp.Process(target=_worker_get_modtags_to_alignedsegs, args=(get_modtags_conn, input_header, rm_pulse), 
-                                daemon=True, name='get_modtags_{:03d}'.format(i))
-                mt.start()
-                ps_modtags.append(mt)
         
         p_read.join()
 
@@ -584,8 +563,6 @@ def call_mods(args):
 
         for p in ps_call:
             p.join()
-        for mt in ps_modtags:
-            mt.join()
         out_info_q.put("kill")
 
         p_w.join()
@@ -625,11 +602,21 @@ def main():
     p_input.add_argument("--holes_batch", type=int, default=50, required=False,
                          help="number of holes/hifi-reads in an batch to get/put in queues, default 50. "
                               "only used when --input is bam/sam")
+    
+    p_output = parser.add_argument_group("OUTPUT")
+    p_output.add_argument("--output", "-o", action="store", type=str, required=True,
+                          help="the prefix of output files to save the predicted results. "
+                               "output files will be [--output].per_readsite.tsv/.modbam.bam")
+    p_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                          help="if compressing .per_readsite.tsv when --input is not in bam/sam format.")
+    p_output.add_argument("--keep_pulse", action="store_true", default=False, required=False,
+                          help="if keeping ipd/pw tags in .modbam.bam when --input is in bam/sam format.")
+    p_output.add_argument("--no_sort", action="store_true", default=False, required=False,
+                          help="don't sort .modbam.bam when --input is in bam/sam format.")
 
     p_call = parser.add_argument_group("CALL")
     p_call.add_argument("--model_file", "-m", action="store", type=str, required=True,
                         help="file path of the trained model (.ckpt)")
-
     # model param
     p_call.add_argument('--model_type', type=str, default="attbigru2s",
                         choices=["attbilstm2s", "attbigru2s"],
@@ -651,7 +638,6 @@ def main():
 
     p_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                         action="store", help="batch size, default 512")
-
     # BiRNN model param
     p_call.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (15 base kinds from iupac)")
@@ -661,17 +647,6 @@ def main():
                         required=False, help="BiRNN layer num, default 3")
     p_call.add_argument('--hid_rnn', type=int, default=256, required=False,
                         help="BiRNN hidden_size, default 256")
-
-    p_output = parser.add_argument_group("OUTPUT")
-    p_output.add_argument("--output", "-o", action="store", type=str, required=True,
-                          help="the prefix of output files to save the predicted results. "
-                               "output files will be [--output].per_readsite.tsv/.modbam.bam")
-    p_output.add_argument("--gzip", action="store_true", default=False, required=False,
-                          help="if compressing .per_readsite.tsv when --input is not in bam/sam format.")
-    p_output.add_argument("--keep_pulse", action="store_true", default=False, required=False,
-                          help="if keeping ipd/pw tags in .modbam.bam when --input is in bam/sam format.")
-    p_output.add_argument("--no_sort", action="store_true", default=False, required=False,
-                          help="don't sort .modbam.bam when --input is in bam/sam format.")
 
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--mode", type=str, default="denovo", required=False,

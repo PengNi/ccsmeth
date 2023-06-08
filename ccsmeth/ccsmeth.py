@@ -207,11 +207,21 @@ def main():
     scm_input.add_argument("--holes_batch", type=int, default=50, required=False,
                            help="number of holes/hifi-reads in an batch to get/put in queues, default 50. "
                                 "only used when --input is bam/sam")
+    
+    scm_output = sub_call_mods.add_argument_group("OUTPUT")
+    scm_output.add_argument("--output", "-o", action="store", type=str, required=True,
+                            help="the prefix of output files to save the predicted results. "
+                                 "output files will be [--output].per_readsite.tsv/.modbam.bam")
+    scm_output.add_argument("--gzip", action="store_true", default=False, required=False,
+                            help="if compressing .per_readsite.tsv when --input is not in bam/sam format.")
+    scm_output.add_argument("--keep_pulse", action="store_true", default=False, required=False,
+                            help="if keeping ipd/pw tags in .modbam.bam when --input is in bam/sam format.")
+    scm_output.add_argument("--no_sort", action="store_true", default=False, required=False,
+                            help="don't sort .modbam.bam when --input is in bam/sam format.")
 
     scm_call = sub_call_mods.add_argument_group("CALL")
     scm_call.add_argument("--model_file", "-m", action="store", type=str, required=True,
                           help="file path of the trained model (.ckpt)")
-
     # model param
     scm_call.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s"],
@@ -233,7 +243,6 @@ def main():
 
     scm_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                           action="store", help="batch size, default 512")
-
     # BiRNN model param
     scm_call.add_argument('--n_vocab', type=int, default=16, required=False,
                           help="base_seq vocab_size (15 base kinds from iupac)")
@@ -243,17 +252,6 @@ def main():
                           required=False, help="BiRNN layer num, default 3")
     scm_call.add_argument('--hid_rnn', type=int, default=256, required=False,
                           help="BiRNN hidden_size, default 256")
-
-    scm_output = sub_call_mods.add_argument_group("OUTPUT")
-    scm_output.add_argument("--output", "-o", action="store", type=str, required=True,
-                            help="the prefix of output files to save the predicted results. "
-                                 "output files will be [--output].per_readsite.tsv/.modbam.bam")
-    scm_output.add_argument("--gzip", action="store_true", default=False, required=False,
-                            help="if compressing .per_readsite.tsv when --input is not in bam/sam format.")
-    scm_output.add_argument("--keep_pulse", action="store_true", default=False, required=False,
-                            help="if keeping ipd/pw tags in .modbam.bam when --input is in bam/sam format.")
-    scm_output.add_argument("--no_sort", action="store_true", default=False, required=False,
-                            help="don't sort .modbam.bam when --input is in bam/sam format.")
 
     scm_extract = sub_call_mods.add_argument_group("EXTRACTION")
     scm_extract.add_argument("--mode", type=str, default="denovo", required=False,
