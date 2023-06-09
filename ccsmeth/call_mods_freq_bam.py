@@ -480,59 +480,67 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
     refposinfo_rev = {}
     refposes_rev = set()
     cnt_all, cnt_used = 0, 0
-    for readitem in bam_reader.fetch(contig=ref_name, start=ref_start, stop=ref_end):
-        cnt_all += 1
-        if readitem.is_unmapped or readitem.is_secondary or readitem.is_duplicate:
-            continue
-        if args.no_supplementary and readitem.is_supplementary:
-            continue
-        if readitem.mapping_quality < args.mapq:
-            continue
-        identity = compute_pct_identity(np.array(readitem.get_cigar_stats()[0]))
-        if identity < args.identity:
-            continue
+    # TODO: check if (ref_name, ref_start, ref_end) is valid in bam_reader.references
+    try:
+        for readitem in bam_reader.fetch(contig=ref_name, start=ref_start, stop=ref_end):
+            cnt_all += 1
+            if readitem.is_unmapped or readitem.is_secondary or readitem.is_duplicate:
+                continue
+            if args.no_supplementary and readitem.is_supplementary:
+                continue
+            if readitem.mapping_quality < args.mapq:
+                continue
+            identity = compute_pct_identity(np.array(readitem.get_cigar_stats()[0]))
+            if identity < args.identity:
+                continue
 
-        try:
-            hap_val = readitem.get_tag(args.hap_tag)
-            hap = int(hap_val)
-        except ValueError:
-            hap = 0
-        except KeyError:
-            hap = 0
-        is_reverse = 1 if readitem.is_reverse else 0
-        moddict = _get_moddict(readitem, modbase, modification)
-        modlocs = set(moddict.keys())
-        matches_only = False if args.refsites_all else True
-        aligned_pairs = readitem.get_aligned_pairs(matches_only=matches_only)
-        if args.base_clip > 0:
-            aligned_pairs = aligned_pairs[args.base_clip:(-args.base_clip)]
-        if is_reverse:
-            for q_pos, r_pos in aligned_pairs:
-                if r_pos is not None and ref_start <= r_pos < ref_end:
-                    if q_pos is not None and q_pos in modlocs:
-                        if r_pos not in refposes_rev:
-                            refposes_rev.add(r_pos)
-                            refposinfo_rev[r_pos] = []
-                        refposinfo_rev[r_pos].append((moddict[q_pos], hap))
-                    elif args.refsites_all and (r_pos in refmotifsites_rev):
-                        if r_pos not in refposes_rev:
-                            refposes_rev.add(r_pos)
-                            refposinfo_rev[r_pos] = []
-                        refposinfo_rev[r_pos].append((0.0, hap))
-        else:
-            for q_pos, r_pos in aligned_pairs:
-                if r_pos is not None and ref_start <= r_pos < ref_end:
-                    if q_pos is not None and q_pos in modlocs:
-                        if r_pos not in refposes:
-                            refposes.add(r_pos)
-                            refposinfo[r_pos] = []
-                        refposinfo[r_pos].append((moddict[q_pos], hap))
-                    elif args.refsites_all and (r_pos in refmotifsites):
-                        if r_pos not in refposes:
-                            refposes.add(r_pos)
-                            refposinfo[r_pos] = []
-                        refposinfo[r_pos].append((0.0, hap))
-        cnt_used += 1
+            try:
+                hap_val = readitem.get_tag(args.hap_tag)
+                hap = int(hap_val)
+            except ValueError:
+                hap = 0
+            except KeyError:
+                hap = 0
+            is_reverse = 1 if readitem.is_reverse else 0
+            moddict = _get_moddict(readitem, modbase, modification)
+            modlocs = set(moddict.keys())
+            matches_only = False if args.refsites_all else True
+            aligned_pairs = readitem.get_aligned_pairs(matches_only=matches_only)
+            if args.base_clip > 0:
+                aligned_pairs = aligned_pairs[args.base_clip:(-args.base_clip)]
+            if is_reverse:
+                for q_pos, r_pos in aligned_pairs:
+                    if r_pos is not None and ref_start <= r_pos < ref_end:
+                        if q_pos is not None and q_pos in modlocs:
+                            if r_pos not in refposes_rev:
+                                refposes_rev.add(r_pos)
+                                refposinfo_rev[r_pos] = []
+                            refposinfo_rev[r_pos].append((moddict[q_pos], hap))
+                        elif args.refsites_all and (r_pos in refmotifsites_rev):
+                            if r_pos not in refposes_rev:
+                                refposes_rev.add(r_pos)
+                                refposinfo_rev[r_pos] = []
+                            refposinfo_rev[r_pos].append((0.0, hap))
+            else:
+                for q_pos, r_pos in aligned_pairs:
+                    if r_pos is not None and ref_start <= r_pos < ref_end:
+                        if q_pos is not None and q_pos in modlocs:
+                            if r_pos not in refposes:
+                                refposes.add(r_pos)
+                                refposinfo[r_pos] = []
+                            refposinfo[r_pos].append((moddict[q_pos], hap))
+                        elif args.refsites_all and (r_pos in refmotifsites):
+                            if r_pos not in refposes:
+                                refposes.add(r_pos)
+                                refposinfo[r_pos] = []
+                            refposinfo[r_pos].append((0.0, hap))
+            cnt_used += 1
+    except ValueError:
+        sys.stderr.write("worker_gen_bed process-%d Warning: "
+                         "region %s:%d-%d is not valid in bam file\n" % (os.getpid(), ref_name, 
+                                                                         ref_start, ref_end))
+        return [], [], []
+    
     if args.motifs == "CG" and not args.no_comb:
         for rev_pos in refposes_rev:
             if rev_pos == 0:
@@ -655,11 +663,11 @@ def _worker_write_bed_result(output_prefix, bed_q, args):
             os.remove(bedfile)
             continue
         if args.sort or args.gzip:
-            sys.stderr.write('write_process-{} sorting results\n'.format(os.getpid()))
+            sys.stderr.write('write_process-{} sorting results - {}\n'.format(os.getpid(), bedfile))
             ori_bed = pybedtools.BedTool(bedfile)
             ori_bed.sort().moveto(bedfile)
         if args.gzip:
-            sys.stderr.write('write_process-{} gzipping results\n'.format(os.getpid()))
+            sys.stderr.write('write_process-{} gzipping results - {}\n'.format(os.getpid(), bedfile))
             pysam.tabix_index(bedfile, force=True,
                               preset="bed",
                               keep_original=False)

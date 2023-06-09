@@ -2,8 +2,13 @@ ccsmeth
 ========
 
 
-Documentation
+Changelog
 -------------
+v0.4.1
+----------
+handle ValueError when fetching bam items in call_freqb module
+
+
 v0.4.0
 ----------
 optimieze call_mods module, faster generating of modbam file
