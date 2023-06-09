@@ -64,7 +64,7 @@ def generate_aligner_with_options(is_minimap2, path_to_minimap2, is_bwa, path_to
     else:
         if path_to_pbmm2 is not None:
             aligner = os.path.abspath(path_to_pbmm2)
-        aligner += " align --preset HIFI -j {t} --sort ".format(t=threads)
+        aligner += " align --preset CCS -j {t} --sort ".format(t=threads)
     return aligner
 
 

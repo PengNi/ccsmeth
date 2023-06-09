@@ -17,12 +17,12 @@ from .utils.process_utils import codecv1_to_frame2
 from .utils.process_utils import get_refloc_of_methysite_in_motif
 from .utils.process_utils import get_motif_seqs
 from .utils.process_utils import complement_seq
-from .utils.process_utils import base2code_dna
+# from .utils.process_utils import base2code_dna
 from .utils.process_utils import compute_pct_identity
 from .utils.process_utils import get_q2tloc_from_cigar
 from .utils.process_utils import str2bool
 from .utils.process_utils import index_bam_if_needed2
-from .utils.process_utils import max_queue_size
+# from .utils.process_utils import max_queue_size
 
 # from .utils.process_utils import run_cmd
 # from .utils.process_utils import generate_samtools_index_cmd

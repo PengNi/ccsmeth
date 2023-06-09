@@ -36,7 +36,7 @@ from .utils.process_utils import nproc_to_call_mods_in_cpu_mode
 from .utils.process_utils import str2bool
 from .utils.process_utils import get_motif_seqs
 from .utils.process_utils import index_bam_if_needed2
-from .utils.process_utils import max_queue_size
+# from .utils.process_utils import max_queue_size
 from .utils.process_utils import complement_seq
 
 from .utils.ref_reader import DNAReference
