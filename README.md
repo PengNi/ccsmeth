@@ -30,7 +30,7 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [numpy](http://www.numpy.org/) \
        [statsmodels](https://github.com/statsmodels/statsmodels/) \
        [scikit-learn](https://scikit-learn.org/stable/) \
-       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.11.0) \
+       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.12.1) \
        [tqdm](https://github.com/tqdm/tqdm) \
        [pysam](https://pysam.readthedocs.io/en/latest/installation.html) \
        [pybedtools](https://daler.github.io/pybedtools/) \
@@ -84,9 +84,9 @@ conda install bedtools -c bioconda  # required by pybedtools->ccsmeth:call_mods
 conda install pbccs pbmm2 samtools -c bioconda
 ```
 
-Also install cudatoolkit (>=10.2) if you want use **GPU** to run ccsmeth in your GPU machine.
+Also install the cuda version of pytoch and cudatoolkit (>=10.2) if you want use **GPU** to run ccsmeth in your GPU machine. Uninstall the wrong pytorch first if you have installed it before.
 ```shell
-conda install -c anaconda cudatoolkit=10.2
+conda install pytorch::pytorch==1.12.1 cudatoolkit=10.2 -c pytorch
 ``` 
 
 ## Trained models

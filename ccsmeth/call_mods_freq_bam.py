@@ -480,7 +480,7 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
     refposinfo_rev = {}
     refposes_rev = set()
     cnt_all, cnt_used = 0, 0
-    # TODO: check if (ref_name, ref_start, ref_end) is valid in bam_reader.references
+    # check if (ref_name, ref_start, ref_end) is valid in bam_reader.references
     try:
         for readitem in bam_reader.fetch(contig=ref_name, start=ref_start, stop=ref_end):
             cnt_all += 1
