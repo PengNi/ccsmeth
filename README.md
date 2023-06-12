@@ -86,7 +86,7 @@ conda install pbccs pbmm2 samtools -c bioconda
 
 Also install the cuda version of pytoch and cudatoolkit (>=10.2) if you want use **GPU** to run ccsmeth in your GPU machine. Uninstall the wrong pytorch first if you have installed it before.
 ```shell
-conda install pytorch::pytorch==1.12.1 cudatoolkit=10.2 -c pytorch
+conda install pytorch::pytorch==1.11.0 cudatoolkit=10.2 -c pytorch
 ``` 
 
 ## Trained models

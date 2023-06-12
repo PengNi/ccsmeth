@@ -11,7 +11,7 @@ dependencies:
   - numpy=1.24.3
   - statsmodels=0.14.0
   - scikit-learn=1.2.2
-  - pytorch::pytorch=1.12.1  # add channel prefix (pytorch::) to make sure the cuda version being installed?
+  - pytorch::pytorch=1.11.0  # add channel prefix (pytorch::) to make sure the cuda version being installed?
   - pysam=0.21.0
   - tqdm=4.65.0
   - pybedtools=0.9.0

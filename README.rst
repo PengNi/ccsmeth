@@ -8,6 +8,8 @@ v0.4.1
 ----------
 handle ValueError when fetching bam items in call_freqb module
 
+change pytorch max version to 1.12.1
+
 
 v0.4.0
 ----------
