@@ -1,6 +1,5 @@
 import os
 import argparse
-import sys
 import time
 import numpy as np
 from statsmodels import robust
@@ -31,6 +30,9 @@ from .utils.ref_reader import DNAReference
 
 from .utils.process_utils import default_ref_loc
 
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
+
 code2frames = codecv1_to_frame2()
 # queue_size_border = max_queue_size
 time_wait = 0.2
@@ -59,8 +61,8 @@ def _open_inputfile(inputfile, rmode, threads=1):
             try:
                 inputreads = pysam.AlignmentFile(inputfile, 'rb', threads=threads)
             except ValueError:
-                sys.stderr.write("[WARN] The input file has no sequences defined - Please align "
-                                 "the reads to genome reference first, or use '--mode denovo'\n")
+                LOGGER.warning("The input file has no sequences defined - Please align "
+                               "the reads to genome reference first, or use '--mode denovo'")
                 return None
         else:
             inputreads = pysam.AlignmentFile(inputfile, 'rb', check_sq=False, threads=threads)
@@ -76,7 +78,7 @@ def _get_holes(holeidfile):
             words = line.strip().split("\t")
             holeid = words[0]
             holes.add(holeid)
-    sys.stderr.write("get {} holeids from {}\n".format(len(holes), holeidfile))
+    LOGGER.info("get {} holeids from {}".format(len(holes), holeidfile))
     return holes
 
 
@@ -118,7 +120,7 @@ def _get_necessary_items_of_a_alignedsegment(readitem):
 
 
 def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, threads, args):
-    sys.stderr.write("split_holebatches process-{} starts\n".format(os.getpid()))
+    LOGGER.info("split_holebatches process-{} starts".format(os.getpid()))
     inputreads = _open_inputfile(inputfile, args.mode, threads=args.threads)
     if inputreads is None:
         holebatch_q.put("kill")
@@ -135,9 +137,9 @@ def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, threads, args
     for i in np.arange(0, totalnum, args.holes_batch):
         # holebatches.append((i, (i + args.holes_batch)))
         holebatches.append(i)
-    sys.stderr.write("split_holebatches process-{} generates {} "
-                     "hole/read batches({})\n".format(os.getpid(), len(holebatches),
-                                                      args.holes_batch))
+    LOGGER.info("split_holebatches process-{} generates {} "
+                "hole/read batches({})".format(os.getpid(), len(holebatches),
+                                               args.holes_batch))
 
     with tqdm(total=len(holebatches),
               desc="batch_reader") as pbar:
@@ -160,12 +162,12 @@ def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, threads, args
                     time.sleep(time_wait)
         inputreads.close()
         if count_batch != len(holebatches):
-            sys.stderr.write("[WARN]read {} batches while it should be {} batches!".format(count_batch,
-                                                                                           len(holebatches)))
+            LOGGER.warning("read {} batches while it should be {} batches!".format(count_batch,
+                                                                                   len(holebatches)))
         if len(holebatchtmp) > 0:
-            sys.stderr.write("[WARN]There are still holes/reads that do not belong any batches!")
+            LOGGER.warning("There are still holes/reads that do not belong any batches!")
     holebatch_q.put("kill")
-    sys.stderr.write("split_holebatches process-{} finished\n".format(os.getpid()))
+    LOGGER.info("split_holebatches process-{} finished".format(os.getpid()))
 
 
 # extract features =============================================
@@ -260,29 +262,24 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
         return []
     if args.mode == "align":
         if is_unmapped or is_secondary or is_duplicate:
-            if str2bool(args.loginfo):
-                sys.stderr.write("[WARN]read-{} is unmapped/secondary/duplicate\n".format(seq_name))
+            LOGGER.debug("read-{} is unmapped/secondary/duplicate".format(seq_name))
             return []
         if args.no_supplementary and is_supplementary:
-            if str2bool(args.loginfo):
-                sys.stderr.write("[WARN]read-{} is supplementary\n".format(seq_name))
+            LOGGER.debug("read-{} is supplementary".format(seq_name))
             return []
         if mapq < args.mapq:
-            if str2bool(args.loginfo):
-                sys.stderr.write("[WARN]read-{} has low mapQ({})\n".format(seq_name, mapq))
+            LOGGER.debug("read-{} has low mapQ({})".format(seq_name, mapq))
             return []
         identity = compute_pct_identity(np.array(cigar_stats[0]))
         if identity < args.identity:
-            if str2bool(args.loginfo):
-                sys.stderr.write("[WARN]read-{} has low map identity({})\n".format(seq_name, identity))
+            LOGGER.debug("read-{} has low map identity({})".format(seq_name, identity))
             return []
 
     # extract features
     seq_seq = fwd_seq
     seq_rc = complement_seq(seq_seq)
     seq_qual = np.array(fwd_qual, dtype=int) if len(fwd_qual) > 0 else np.full(len(seq_seq), 0, dtype=np.int32)
-    if str2bool(args.loginfo):
-        sys.stderr.write("[WARN]read-{} has no base quality\n".format(seq_name))
+    LOGGER.debug("read-{} has no base quality".format(seq_name))
     seq_qual = _normalize_signals(seq_qual, args.norm)
     reverse = is_reverse
 
@@ -312,12 +309,10 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
     # pwmean_rev = np.flip(np.array(tag_rp, dtype=int))
     pwmean_rev = np.array(tag_rp, dtype=int)
     if len(ipdmean_fwd) != len(seq_seq) or len(pwmean_fwd) != len(seq_seq):
-        if str2bool(args.loginfo):
-            sys.stderr.write("[WARN]read-{} has no/uncomplated fwd ipd/pw values\n".format(seq_name))
+        LOGGER.debug("read-{} has no/uncomplated fwd ipd/pw values".format(seq_name))
         return []
     if len(ipdmean_rev) != len(seq_seq) or len(pwmean_rev) != len(seq_seq):
-        if str2bool(args.loginfo):
-            sys.stderr.write("[WARN]read-{} has no/uncomplated rev ipd/pw values\n".format(seq_name))
+        LOGGER.debug("read-{} has no/uncomplated rev ipd/pw values".format(seq_name))
         return []
     if not args.no_decode:
         ipdmean_fwd = np.array([code2frames[val] for val in ipdmean_fwd])
@@ -415,7 +410,7 @@ def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne
                 feature_list += features_one
                 holeidxes += [read_idx] * len(features_one)
         except Exception as e:
-            print("Exception: ", e)
+            LOGGER.warning("Exception: ", e)
             failed_num += 1
         total_num += 1
     return holeidxes, feature_list, total_num, failed_num
@@ -458,7 +453,7 @@ def _features_to_str(features):
 
 def worker_extract_features_from_holebatches(input_header, holebatch_q, features_q,
                                              motifs, holeids_e, holeids_ne, dnacontigs, args):
-    sys.stderr.write("extract_features process-{} starts\n".format(os.getpid()))
+    LOGGER.info("extract_features process-{} starts".format(os.getpid()))
     
     if isinstance(input_header, OrderedDict) or isinstance(input_header, dict):
         input_header2 = pysam.AlignmentHeader.from_dict(input_header)
@@ -492,18 +487,18 @@ def worker_extract_features_from_holebatches(input_header, holebatch_q, features
             while features_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
                 time.sleep(time_wait)
         cnt_holesbatch += 1
-    sys.stderr.write("extract_features process-{} ending, proceed {} "
-                     "hole_batches({}): {} holes/reads in total, "
-                     "{} skipped/failed.\n".format(os.getpid(),
-                                                   cnt_holesbatch,
-                                                   args.holes_batch,
-                                                   total_num_batch,
-                                                   failed_num_batch))
+    LOGGER.info("extract_features process-{} ending, proceed {} "
+                "hole_batches({}): {} holes/reads in total, "
+                "{} skipped/failed.".format(os.getpid(),
+                                            cnt_holesbatch,
+                                            args.holes_batch,
+                                            total_num_batch,
+                                            failed_num_batch))
 
 
 # write to file =============================================
 def _write_featurestr_to_file(write_fp, featurestr_q, is_gzip):
-    sys.stderr.write('write_process-{} starts\n'.format(os.getpid()))
+    LOGGER.info('write_process-{} starts'.format(os.getpid()))
     if is_gzip:
         if not write_fp.endswith(".gz"):
             write_fp += ".gz"
@@ -518,7 +513,7 @@ def _write_featurestr_to_file(write_fp, featurestr_q, is_gzip):
         features_str = featurestr_q.get()
         if features_str == "kill":
             wf.close()
-            sys.stderr.write('write_process-{} finished\n'.format(os.getpid()))
+            LOGGER.info('write_process-{} finished'.format(os.getpid()))
             break
         for one_features_str in features_str:
             wf.write(one_features_str + "\n")
@@ -526,7 +521,7 @@ def _write_featurestr_to_file(write_fp, featurestr_q, is_gzip):
 
 
 def extract_hifireads_features(args):
-    sys.stderr.write("[extract_features_hifi]starts\n")
+    LOGGER.info("[extract_features_hifi]starts")
     start = time.time()
 
     inputpath = check_input_file(args.input)
@@ -595,7 +590,7 @@ def extract_hifireads_features(args):
     p_w.join()
 
     endtime = time.time()
-    sys.stderr.write("[extract_features_hifi]costs {:.1f} seconds\n".format(endtime - start))
+    LOGGER.info("[extract_features_hifi]costs {:.1f} seconds".format(endtime - start))
 
 
 def main():
@@ -670,13 +665,10 @@ def main():
 
     parser.add_argument("--threads", type=int, default=5, required=False,
                         help="number of threads, default 5")
-    parser.add_argument("--loginfo", type=str, default="no", required=False,
-                        help="if printing more info of feature extraction on reads. "
-                             "yes or no, default no")
 
     args = parser.parse_args()
 
-    display_args(args, True)
+    display_args(args)
     extract_hifireads_features(args)
 
 

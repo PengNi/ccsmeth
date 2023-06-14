@@ -2,7 +2,6 @@
 import argparse
 import os
 import re
-import sys
 import time
 
 import numpy as np
@@ -27,6 +26,9 @@ from .utils.process_utils import count_line_num
 import torch.distributed as dist
 import torch.multiprocessing as mp
 from torch.nn.parallel import DistributedDataParallel as DDP
+
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
 
 # add this export temporarily
 # https://github.com/pytorch/pytorch/issues/37377
@@ -89,9 +91,9 @@ def train_worker(local_rank, global_world_size, args):
     # device = torch.device("cuda", local_rank)
     # torch.cuda.set_device(local_rank)
 
-    print("training_process-{} [init] == local rank: {}, global rank: {} ==".format(os.getpid(),
-                                                                                    local_rank,
-                                                                                    global_rank))
+    LOGGER.info("training_process-{} [init] == local rank: {}, global rank: {} ==".format(os.getpid(),
+                                                                                          local_rank,
+                                                                                          global_rank))
 
     # 1. define network
     if global_rank == 0 or args.epoch_sync:
@@ -122,7 +124,7 @@ def train_worker(local_rank, global_world_size, args):
         raise ValueError("--model_type not right!")
 
     if args.init_model is not None:
-        print("training_process-{} loading pre-trained model: {}".format(os.getpid(), args.init_model))
+        LOGGER.info("training_process-{} loading pre-trained model: {}".format(os.getpid(), args.init_model))
         para_dict = torch.load(args.init_model, map_location=torch.device('cpu'))
         model_dict = model.state_dict()
         model_dict.update(para_dict)
@@ -136,7 +138,7 @@ def train_worker(local_rank, global_world_size, args):
                 find_unused_parameters=False)
 
     # 2. define dataloader
-    print("training_process-{} reading data..".format(os.getpid()))
+    LOGGER.info("training_process-{} reading data..".format(os.getpid()))
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         train_linenum = count_line_num(args.train_file, False)
         train_offsets = generate_offsets(args.train_file)
@@ -202,7 +204,7 @@ def train_worker(local_rank, global_world_size, args):
 
     # Train the model
     total_step = len(train_loader)
-    print("training_process-{} total_step: {}".format(os.getpid(), total_step))
+    LOGGER.info("training_process-{} total_step: {}".format(os.getpid(), total_step))
     curr_best_accuracy = 0
     curr_best_accuracy_loc = 0
     curr_lowest_loss = 10000
@@ -261,14 +263,14 @@ def train_worker(local_rank, global_world_size, args):
             tlosses.append(loss.detach().item())
             if global_rank == 0 and ((i + 1) % args.step_interval == 0 or (i + 1) == total_step):
                 time_cost = time.time() - start
-                print("Epoch [{}/{}], Step [{}/{}]; "
-                      "TrainLoss: {:.4f}; Time: {:.2f}s".format(epoch + 1,
-                                                                args.max_epoch_num, i + 1,
-                                                                total_step, np.mean(tlosses),
-                                                                time_cost))
+                LOGGER.info("Epoch [{}/{}], Step [{}/{}]; "
+                            "TrainLoss: {:.4f}; Time: {:.2f}s".format(epoch + 1,
+                                                                      args.max_epoch_num, i + 1,
+                                                                      total_step, np.mean(tlosses),
+                                                                      time_cost))
                 start = time.time()
                 tlosses = []
-                sys.stdout.flush()
+                # sys.stdout.flush()
 
         model.eval()
         with torch.no_grad():
@@ -352,27 +354,27 @@ def train_worker(local_rank, global_world_size, args):
             if global_rank == 0:
                 try:
                     last_lr = scheduler.get_last_lr()
-                    print('Epoch [{}/{}]; LR: {:.4e}; '
-                          'ValidLoss: {:.4f}, '
-                          'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
-                          'Best_acc: {:.4f}; Time: {:.2f}s'
-                          .format(epoch + 1, args.max_epoch_num, last_lr,
-                                  v_meanloss, v_accuracy, v_precision, v_recall,
-                                  curr_best_accuracy, time_cost))
+                    LOGGER.info('Epoch [{}/{}]; LR: {:.4e}; '
+                                'ValidLoss: {:.4f}, '
+                                'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                                'Best_acc: {:.4f}; Time: {:.2f}s'
+                                .format(epoch + 1, args.max_epoch_num, last_lr,
+                                        v_meanloss, v_accuracy, v_precision, v_recall,
+                                        curr_best_accuracy, time_cost))
                 except Exception:
-                    print('Epoch [{}/{}]; '
-                          'ValidLoss: {:.4f}, '
-                          'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
-                          'Best_acc: {:.4f}; Time: {:.2f}s'
-                          .format(epoch + 1, args.max_epoch_num,
-                                  v_meanloss, v_accuracy, v_precision, v_recall,
-                                  curr_best_accuracy, time_cost))
+                    LOGGER.info('Epoch [{}/{}]; '
+                                'ValidLoss: {:.4f}, '
+                                'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                                'Best_acc: {:.4f}; Time: {:.2f}s'
+                                .format(epoch + 1, args.max_epoch_num,
+                                        v_meanloss, v_accuracy, v_precision, v_recall,
+                                        curr_best_accuracy, time_cost))
 
-                sys.stdout.flush()
+                # sys.stdout.flush()
         model.train()
 
         if no_best_model and epoch >= args.min_epoch_num - 1:
-            print("training_process-{} early stop!".format(os.getpid()))
+            LOGGER.info("training_process-{} early stop!".format(os.getpid()))
             break
 
         if args.epoch_sync:
@@ -387,8 +389,8 @@ def train_worker(local_rank, global_world_size, args):
             scheduler.step()
 
     if global_rank == 0:
-        print("best model is in epoch {} (Acc: {})".format(curr_best_accuracy_loc,
-                                                           curr_best_accuracy))
+        LOGGER.info("best model is in epoch {} (Acc: {})".format(curr_best_accuracy_loc,
+                                                                 curr_best_accuracy))
     clear_linecache()
     cleanup()
 
@@ -399,14 +401,14 @@ def train(args):
         torch.cuda.manual_seed(args.tseed)
 
     if use_cuda:
-        print("GPU is available!")
+        LOGGER.info("GPU is available!")
     else:
         raise RuntimeError("No GPU is available!")
 
     if not dist.is_available():
         raise RuntimeError("torch.distributed is not available!")
 
-    print("[main]train_multigpu starts..")
+    LOGGER.info("[main]train_multigpu starts..")
     total_start = time.time()
 
     if torch.cuda.device_count() < args.ngpus_per_node:
@@ -418,7 +420,7 @@ def train(args):
 
     endtime = time.time()
     clear_linecache()
-    print("[main]train_multigpu costs {} seconds".format(endtime - total_start))
+    LOGGER.info("[main]train_multigpu costs {} seconds".format(endtime - total_start))
 
 
 def main():
@@ -510,7 +512,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("[main] start..")
+    LOGGER.info("[main] start..")
     total_start = time.time()
 
     display_args(args)
@@ -518,7 +520,7 @@ def main():
     train(args)
 
     endtime = time.time()
-    print("[main] costs {} seconds".format(endtime - total_start))
+    LOGGER.info("[main] costs {} seconds".format(endtime - total_start))
 
 
 if __name__ == '__main__':

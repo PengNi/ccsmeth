@@ -28,6 +28,9 @@ from .utils.process_utils import get_refloc_of_methysite_in_motif
 
 from numpy.lib.stride_tricks import sliding_window_view
 
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
+
 time_wait = 1
 key_sep = "||"
 
@@ -64,7 +67,7 @@ def _get_reference_chunks(dnacontigs, contig_str, chunk_len=300000, motifs="CG")
             ref_chunks.append((contig, istart, iend))
     # adjust start, end if motifs=='CG'
     if motifs == "CG":
-        sys.stderr.write("adjust regions for CG motif\n")
+        LOGGER.info("adjust regions for CG motif")
         for idx in range(1, len(ref_chunks)):
             pre_ref, pre_s, pre_e = ref_chunks[idx-1]
             cur_ref, cur_s, cur_e = ref_chunks[idx]
@@ -82,10 +85,10 @@ def _get_reference_chunks(dnacontigs, contig_str, chunk_len=300000, motifs="CG")
 
 
 def _worker_split_ref_regions(dnacontigs, region_q, args):
-    sys.stderr.write("worker_split_regions process-{} starts\n".format(os.getpid()))
+    LOGGER.info("worker_split_regions process-{} starts".format(os.getpid()))
     ref_chunks = _get_reference_chunks(dnacontigs, args.contigs, args.chunk_len, args.motifs)
-    sys.stderr.write("worker_split_regions process-{} generates {} regions\n".format(os.getpid(),
-                                                                                     len(ref_chunks)))
+    LOGGER.info("worker_split_regions process-{} generates {} regions".format(os.getpid(),
+                                                                              len(ref_chunks)))
     with tqdm(total=len(ref_chunks),
               desc="region_reader") as pbar:
         for ref_chunk in ref_chunks:
@@ -159,11 +162,11 @@ def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
                 moddict[mod_pos] = _cal_mod_prob(mltag[idx])
             return moddict
         except IndexError:
-            sys.stderr.write("[WARN] read {}: MM tag length does not match length of modbases "
-                             "in read!\n".format(readitem.query_name))
+            LOGGER.warning("read {}: MM tag length does not match length of modbases "
+                           "in read!".format(readitem.query_name))
             return {}
         except AssertionError:
-            sys.stderr.write("[WARN] read {}: MM tag length != ML tag length!\n".format(readitem.query_name))
+            LOGGER.warning("read {}: MM tag length != ML tag length!".format(readitem.query_name))
             return {}
 
 
@@ -536,9 +539,9 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
                             refposinfo[r_pos].append((0.0, hap))
             cnt_used += 1
     except ValueError:
-        sys.stderr.write("worker_gen_bed process-%d Warning: "
-                         "region %s:%d-%d is not valid in bam file\n" % (os.getpid(), ref_name, 
-                                                                         ref_start, ref_end))
+        LOGGER.warning("worker_gen_bed process-%d: "
+                       "region %s:%d-%d is not valid in bam file" % (os.getpid(), ref_name, 
+                                                                     ref_start, ref_end))
         return [], [], []
     
     if args.motifs == "CG" and not args.no_comb:
@@ -592,7 +595,7 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
 
 
 def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, dnacontigs, motifs_filter, args):
-    sys.stderr.write("worker_gen_bed process-{} starts\n".format(os.getpid()))
+    LOGGER.info("worker_gen_bed process-{} starts".format(os.getpid()))
     try:
         bam_reader = pysam.AlignmentFile(inputbam, 'rb')
     except ValueError:
@@ -616,8 +619,8 @@ def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, dnacontigs, motif
                 time.sleep(time_wait)
 
     bam_reader.close()
-    sys.stderr.write("worker_gen_bed process-{} ending, proceed {} regions\n".format(os.getpid(),
-                                                                                     cnt_regions))
+    LOGGER.info("worker_gen_bed process-{} ending, proceed {} regions".format(os.getpid(),
+                                                                              cnt_regions))
 
 
 def _write_one_line(beditem, wf, is_bed):
@@ -632,7 +635,7 @@ def _write_one_line(beditem, wf, is_bed):
 
 
 def _worker_write_bed_result(output_prefix, bed_q, args):
-    sys.stderr.write('write_process-{} starts\n'.format(os.getpid()))
+    LOGGER.info('write_process-{} starts'.format(os.getpid()))
 
     fext = "bed" if args.bed else "freq.txt"
     op_all = output_prefix + ".{}.all.{}".format(args.call_mode, fext)
@@ -663,19 +666,19 @@ def _worker_write_bed_result(output_prefix, bed_q, args):
             os.remove(bedfile)
             continue
         if args.sort or args.gzip:
-            sys.stderr.write('write_process-{} sorting results - {}\n'.format(os.getpid(), bedfile))
+            LOGGER.info('write_process-{} sorting results - {}'.format(os.getpid(), bedfile))
             ori_bed = pybedtools.BedTool(bedfile)
             ori_bed.sort().moveto(bedfile)
         if args.gzip:
-            sys.stderr.write('write_process-{} gzipping results - {}\n'.format(os.getpid(), bedfile))
+            LOGGER.info('write_process-{} gzipping results - {}'.format(os.getpid(), bedfile))
             pysam.tabix_index(bedfile, force=True,
                               preset="bed",
                               keep_original=False)
-    sys.stderr.write('write_process-{} finished\n'.format(os.getpid()))
+    LOGGER.info('write_process-{} finished'.format(os.getpid()))
 
 
 def call_mods_frequency_from_bamfile(args):
-    sys.stderr.write("[main]call_freq_bam starts..\n")
+    LOGGER.info("[main]call_freq_bam starts..")
     start = time.time()
 
     if args.call_mode == "aggregate" and not os.path.exists(args.aggre_model):
@@ -696,9 +699,9 @@ def call_mods_frequency_from_bamfile(args):
     motifs_filter = None
     if args.refsites_only or args.refsites_all:
         motifs_filter = motifs
-        sys.stderr.write("[###] --refsites_only (or/and --refsites_all) is set as True, "
-                         "gonna keep only motifs({}) sites of genome reference in the "
-                         "results\n".format(motifs_filter))
+        LOGGER.info("[###] --refsites_only (or/and --refsites_all) is set as True, "
+                    "gonna keep only motifs({}) sites of genome reference in the "
+                    "results".format(motifs_filter))
 
     nproc = args.threads
     if nproc < 3:
@@ -730,7 +733,7 @@ def call_mods_frequency_from_bamfile(args):
     bed_q.put("kill")
     p_w.join()
 
-    sys.stderr.write("[main]call_freq_bam costs %.1f seconds..\n" % (time.time() - start))
+    LOGGER.info("[main]call_freq_bam costs %.1f seconds.." % (time.time() - start))
 
 
 def main():

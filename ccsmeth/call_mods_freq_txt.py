@@ -19,6 +19,9 @@ import uuid
 from .utils.process_utils import default_ref_loc
 from .utils.process_utils import complement_seq
 
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
+
 time_wait = 1
 key_sep = "||"
 
@@ -112,9 +115,9 @@ def calculate_mods_frequency(mods_files, prob_cf, rm_1strand=False, contig_name=
     if count == 0:
         raise ValueError("No modification calls found in {}..".format(mods_files))
     if contig_name is None:
-        print("{:.2f}% ({} of {}) calls used..".format(used/float(count) * 100, used, count))
+        LOGGER.info("{:.2f}% ({} of {}) calls used..".format(used/float(count) * 100, used, count))
     else:
-        print("{:.2f}% ({} of {}) calls used for {}..".format(used / float(count) * 100, used, count, contig_name))
+        LOGGER.info("{:.2f}% ({} of {}) calls used for {}..".format(used / float(count) * 100, used, count, contig_name))
     return sitekey2stats
 
 
@@ -181,7 +184,7 @@ def write_sitekey2stats(sitekey2stats, result_file, is_sort, is_bed, is_gzip,
                                                                                  rmet + 0.000001,
                                                                                  sitestats._kmer))
         else:
-            print("{} {} has no coverage..".format(chrom, pos))
+            LOGGER.info("{} {} has no coverage..".format(chrom, pos))
     wf.flush()
     wf.close()
 
@@ -239,7 +242,7 @@ def _split_file_by_contignames(mods_files, wprefix, contigs):
 def _call_and_write_modsfreq_process(wprefix, prob_cf, result_file, issort, isbed, rm_1strand, isgzip,
                                      motifs, modloc, dnacontigs,
                                      contigs_q, resfiles_q):
-    print("process-{} -- starts".format(os.getpid()))
+    LOGGER.info("process-{} -- starts".format(os.getpid()))
     while True:
         if contigs_q.empty():
             time.sleep(time_wait)
@@ -247,23 +250,23 @@ def _call_and_write_modsfreq_process(wprefix, prob_cf, result_file, issort, isbe
         if contig_name == "kill":
             contigs_q.put("kill")
             break
-        print("process-{} for contig-{} -- reading the input files..".format(os.getpid(), contig_name))
+        LOGGER.info("process-{} for contig-{} -- reading the input files..".format(os.getpid(), contig_name))
         input_file = _get_contigfile_name(wprefix, contig_name)
         if not os.path.isfile(input_file):
-            print("process-{} for contig-{} -- the input file does not exist..".format(os.getpid(), contig_name))
+            LOGGER.warning("process-{} for contig-{} -- the input file does not exist..".format(os.getpid(), contig_name))
             continue
         if is_file_empty(input_file):
-            print("process-{} for contig-{} -- the input file is empty..".format(os.getpid(), contig_name))
+            LOGGER.warning("process-{} for contig-{} -- the input file is empty..".format(os.getpid(), contig_name))
         else:
             sites_stats = calculate_mods_frequency(input_file, prob_cf, rm_1strand, contig_name)
-            print("process-{} for contig-{} -- writing the result..".format(os.getpid(), contig_name))
+            LOGGER.info("process-{} for contig-{} -- writing the result..".format(os.getpid(), contig_name))
             fname, fext = os.path.splitext(result_file)
             c_result_file = fname + "." + contig_name + "." + str(uuid.uuid1()) + fext
             write_sitekey2stats(sites_stats, c_result_file, issort, isbed, isgzip,
                                 motifs, modloc, dnacontigs)
             resfiles_q.put(c_result_file)
         os.remove(input_file)
-    print("process-{} -- ends".format(os.getpid()))
+    LOGGER.info("process-{} -- ends".format(os.getpid()))
 
 
 def _concat_contig_results(contig_files, result_file, is_gzip=False):
@@ -282,7 +285,7 @@ def _concat_contig_results(contig_files, result_file, is_gzip=False):
 
 
 def call_mods_frequency_to_file(args):
-    print("[main]call_freq starts..")
+    LOGGER.info("[main]call_freq starts..")
     start = time.time()
 
     input_paths = args.input_path
@@ -308,8 +311,8 @@ def call_mods_frequency_to_file(args):
         dnacontigs = DNAReference(args.ref).getcontigs()
         motifs = get_motif_seqs(args.motifs)
         modloc = args.mod_loc
-        print("[###] --refsites_only is set as True, gonna keep only motifs({}) sites of genome reference "
-              "in the results".format(motifs))
+        LOGGER.info("[###] --refsites_only is set as True, gonna keep only motifs({}) sites of genome reference "
+                    "in the results".format(motifs))
 
     mods_files = []
     for ipath in input_paths:
@@ -324,7 +327,7 @@ def call_mods_frequency_to_file(args):
             mods_files.append(input_path)
         else:
             raise ValueError("--input_path is not a file or a directory!")
-    print("get {} input file(s)..".format(len(mods_files)))
+    LOGGER.info("get {} input file(s)..".format(len(mods_files)))
 
     contigs = None
     if args.contigs is not None:
@@ -339,17 +342,17 @@ def call_mods_frequency_to_file(args):
             contigs = sorted(list(set(args.contigs.strip().split(","))))
 
     if contigs is None:
-        print("read the input files..")
+        LOGGER.info("read the input files..")
         sites_stats = calculate_mods_frequency(mods_files, prob_cf, rm_1strand)
-        print("write the result..")
+        LOGGER.info("write the result..")
         write_sitekey2stats(sites_stats, result_file, issort, isbed, is_gzip,
                             motifs, modloc, dnacontigs)
     else:
-        print("start processing {} contigs..".format(len(contigs)))
+        LOGGER.info("start processing {} contigs..".format(len(contigs)))
         wprefix = os.path.dirname(os.path.abspath(result_file)) + "/tmp." + str(uuid.uuid1())
-        print("generate input files for each contig..")
+        LOGGER.info("generate input files for each contig..")
         _split_file_by_contignames(mods_files, wprefix, contigs)
-        print("read the input files of each contig..")
+        LOGGER.info("read the input files of each contig..")
         contigs_q = Queue()
         for contig in contigs:
             contigs_q.put(contig)
@@ -376,10 +379,10 @@ def call_mods_frequency_to_file(args):
         try:
             assert len(contigs) == len(resfiles_cs)
         except AssertionError:
-            print("!!!Please check the result files -- seems not all inputed contigs have result!!!")
-        print("combine results of {} contigs..".format(len(resfiles_cs)))
+            LOGGER.warning("!!!Please check the result files -- seems not all inputed contigs have result!!!")
+        LOGGER.info("combine results of {} contigs..".format(len(resfiles_cs)))
         _concat_contig_results(resfiles_cs, result_file, is_gzip)
-    print("[main]call_freq costs %.1f seconds.." % (time.time() - start))
+    LOGGER.info("[main]call_freq costs %.1f seconds.." % (time.time() - start))
 
 
 def main():

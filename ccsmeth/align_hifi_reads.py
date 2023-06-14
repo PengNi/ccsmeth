@@ -1,6 +1,5 @@
 import os
 import argparse
-import sys
 import time
 
 from .utils.process_utils import run_cmd
@@ -12,6 +11,8 @@ from .utils.process_utils import generate_samtools_view_cmd
 from .utils.process_utils import generate_samtools_index_cmd
 from .utils.process_utils import generate_samtools_sort_cmd
 
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
 
 here = os.path.abspath(os.path.dirname(__file__))
 sam2fq_exec = "python " + here + "/utils/sam2fastq_std.py"
@@ -69,7 +70,7 @@ def generate_aligner_with_options(is_minimap2, path_to_minimap2, is_bwa, path_to
 
 
 def align_hifi_reads_to_genome(args):
-    sys.stderr.write("[align_hifi_reads]start..\n")
+    LOGGER.info("[align_hifi_reads]start..")
     start = time.time()
     inputpath = check_input_file(args.hifireads)
     outputpath = check_output_file(args.output, inputpath, args.minimap2, args.bwa)
@@ -136,18 +137,18 @@ def align_hifi_reads_to_genome(args):
         if post_align_cmds != "":
             align_cmds = " | ".join([align_cmds, post_align_cmds])
 
-    sys.stderr.write("cmds: {}\n".format(align_cmds))
+    LOGGER.info("cmds: {}".format(align_cmds))
     stdinfo, returncode = run_cmd(align_cmds)
     stdout, stderr = stdinfo
     if returncode:
-        sys.stderr.write("failed..\n")
+        LOGGER.warning("failed..")
     else:
-        sys.stderr.write("succeeded..\n")
-    sys.stderr.write("==stdout:\n{}\n".format(str(stdout, 'utf-8')))
-    sys.stderr.write("==stderr:\n{}\n".format(str(stderr, 'utf-8')))
+        LOGGER.info("succeeded..")
+    LOGGER.info("==stdout:\n{}".format(str(stdout, 'utf-8')))
+    LOGGER.info("==stderr:\n{}".format(str(stderr, 'utf-8')))
 
     endtime = time.time()
-    sys.stderr.write("[align_hifi_reads]costs {:.1f} seconds\n".format(endtime - start))
+    LOGGER.info("[align_hifi_reads]costs {:.1f} seconds".format(endtime - start))
 
 
 def main():
@@ -197,7 +198,7 @@ def main():
 
     args = parser.parse_args()
 
-    display_args(args, True)
+    display_args(args)
     align_hifi_reads_to_genome(args)
 
 

@@ -56,6 +56,9 @@ from ._bam2modbam import _refill_tags
 
 from ._version import VERSION
 
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
+
 # add this export temporarily
 # https://github.com/pytorch/pytorch/issues/37377
 os.environ['MKL_THREADING_LAYER'] = 'GNU'
@@ -120,7 +123,7 @@ def _batch_feature_list2s(feature_list):
 
 def worker_extract_features_with_holeinfo(input_header, holebatch_q, features_q,
                                           motifs, holeids_e, holeids_ne, dnacontigs, args):
-    sys.stderr.write("extract_features process-{} starts\n".format(os.getpid()))
+    LOGGER.info("extract_features process-{} starts".format(os.getpid()))
 
     if isinstance(input_header, OrderedDict) or isinstance(input_header, dict):
         input_header2 = pysam.AlignmentHeader.from_dict(input_header)
@@ -152,13 +155,13 @@ def worker_extract_features_with_holeinfo(input_header, holebatch_q, features_q,
             while features_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
                 time.sleep(time_wait)
         cnt_holesbatch += 1
-    sys.stderr.write("extract_features process-{} ending, proceed {} "
-                     "hole_batches({}): {} holes/reads in total, "
-                     "{} skipped/failed.\n".format(os.getpid(),
-                                                   cnt_holesbatch,
-                                                   args.holes_batch,
-                                                   total_num_batch,
-                                                   failed_num_batch))
+    LOGGER.info("extract_features process-{} ending, proceed {} "
+                "hole_batches({}): {} holes/reads in total, "
+                "{} skipped/failed.".format(os.getpid(),
+                                            cnt_holesbatch,
+                                            args.holes_batch,
+                                            total_num_batch,
+                                            failed_num_batch))
 
 
 # call mods =============================================================
@@ -255,7 +258,7 @@ def _add_modinfo2alignedseg(read_info, pred_info, input_header, rm_pulse):
     except AssertionError:
         # sys.stderr.write("AssertionError, skip this alignment.\n"
         #       "\tDetails: {}, {}, {}\n".format(seq_name, locs, probs))
-        sys.stderr.write("AssertionError, skip this alignment-{}.\n".format(seq_name))
+        LOGGER.info("AssertionError, skip this alignment-{}.".format(seq_name))
     new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse)
     return (seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, tlen,
             seq_seq, seq_qual, new_tags, mm_flag)
@@ -306,7 +309,7 @@ def _add_modinfo2alignedseg_batch(holebatch, holeidxes, preds_info, input_header
 
 
 def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, device=0):
-    print('call_mods process-{} starts'.format(os.getpid()))
+    LOGGER.info('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
@@ -326,8 +329,7 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
         model_dict = model.state_dict()
         model_dict.update(para_dict)
         model.load_state_dict(model_dict)
-        if str2bool(args.loginfo):
-            print('call_mods process-{} loads model param successfully'.format(os.getpid()))
+        LOGGER.debug('call_mods process-{} loads model param successfully'.format(os.getpid()))
         del model_dict
     except RuntimeError:
         # for DDP model convertion (key: module.embed.weight -> embed.weight)
@@ -336,10 +338,9 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
         for param_tensor in para_dict.keys():
             para_dict_new[param_tensor[7:]] = para_dict[param_tensor]
         model.load_state_dict(para_dict_new)
-        if str2bool(args.loginfo):
-            print('call_mods process-{} loads model param successfully-1'.format(os.getpid()))
+        LOGGER.debug('call_mods process-{} loads model param successfully-1'.format(os.getpid()))
         del para_dict_new
-    sys.stdout.flush()
+    # sys.stdout.flush()
 
     if use_cuda:
         model = model.cuda(device)
@@ -379,8 +380,8 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
         # print("call_mods process-{} reads 1 batch, features_batch_q:{}, "
         #       "pred_info_q: {}".format(os.getpid(), features_batch_q.qsize(), pred_info_q.qsize()))
         batch_num_total += batch_num
-    print('call_mods process-{} ending, proceed {} batches({})'.format(os.getpid(), batch_num_total,
-                                                                       args.batch_size))
+    LOGGER.info('call_mods process-{} ending, proceed {} batches({})'.format(os.getpid(), batch_num_total,
+                                                                             args.batch_size))
 
 
 # write modbam =============================================================
@@ -430,8 +431,7 @@ def _worker_write_modbam(wreads_q, modbamfile, inputheader, threads=1):
         wreads_batch = wreads_q.get()
         if wreads_batch == "kill":
             w_bam.close()
-            sys.stderr.write("wrote {} reads, in which {} were added mm tags\n".format(cnt_w,
-                                                                                       cnt_mm))
+            LOGGER.info("wrote {} reads, in which {} were added mm tags".format(cnt_w, cnt_mm))
             break
         for walignseg in wreads_batch:
             mm_flag = walignseg[-1]
@@ -450,9 +450,9 @@ def _get_gpus():
 
 
 def call_mods(args):
-    print("[main]call_mods starts..")
+    LOGGER.info("[main]call_mods starts..")
     start = time.time()
-    print("cuda availability: {}".format(use_cuda))
+    LOGGER.info("cuda availability: {}".format(use_cuda))
 
     torch.manual_seed(args.tseed)
     if use_cuda:
@@ -479,7 +479,7 @@ def call_mods(args):
             raise ValueError("--seq_len must be odd")
 
         if str2bool(args.is_map) and not str2bool(args.is_mapfea):
-            print("as --is_map is True, setting --is_mapfea as True")
+            LOGGER.info("as --is_map is True, setting --is_mapfea as True")
             args.is_mapfea = "yes"
 
         index_bam_if_needed2(input_path, args.threads)
@@ -508,7 +508,7 @@ def call_mods(args):
             if nproc_dp > nproc_to_call_mods_in_cpu_mode:
                 nproc_dp = nproc_to_call_mods_in_cpu_mode
         if nproc <= nproc_dp + 4:
-            print("--threads must be > --threads_call + 4!!")
+            LOGGER.warning("--threads must be > --threads_call + 4!!")
             nproc = nproc_dp + 4 + 1  # 2 for reading, 2 for writing, 1 for extracting
             threads_r, threads_w = 2, 2
         else:
@@ -569,26 +569,26 @@ def call_mods(args):
 
         if not args.no_sort:
             post_time_start = time.time()
-            print("[post_process] bam_sort_index starts..")
+            LOGGER.info("[post_process] bam_sort_index starts..")
             try:
-                sys.stderr.write("sorting modbam file..\n")
+                LOGGER.info("sorting modbam file..")
                 modbam_sorted = os.path.splitext(out_modbam)[0] + ".sorted.bam"
                 pysam.sort("-o", modbam_sorted, "-@", str(args.threads), out_modbam)
                 os.rename(modbam_sorted, out_modbam)
             except Exception:
-                sys.stderr.write("failed sorting modbam file..\n")
+                LOGGER.warning("failed sorting modbam file..")
             try:
-                sys.stderr.write("indexing modbam file..\n")
+                LOGGER.info("indexing modbam file..")
                 pysam.index("-@", str(args.threads), out_modbam)
             except Exception:
-                sys.stderr.write("failed indexing modbam file..\n")
-            print("[post_process] bam_sort_index costs %.2f seconds.." % (time.time() - post_time_start))
+                LOGGER.warning("failed indexing modbam file..")
+            LOGGER.info("[post_process] bam_sort_index costs %.2f seconds.." % (time.time() - post_time_start))
     else:
         from ._call_modifications_txt import call_mods_txt
         out_per_readsite = args.output + ".per_readsite.tsv"
         call_mods_txt(input_path, holeids_e, holeids_ne, out_per_readsite, model_path, args)
 
-    print("[main]call_mods costs %.2f seconds.." % (time.time() - start))
+    LOGGER.info("[main]call_mods costs %.2f seconds.." % (time.time() - start))
 
 
 def main():
@@ -684,9 +684,6 @@ def main():
     #                        help="full path to the executable binary samtools file. "
     #                             "If not specified, it is assumed that samtools is in "
     #                             "the PATH.")
-    p_extract.add_argument("--loginfo", type=str, default="no", required=False,
-                           help="if printing more info of feature extraction on reads. "
-                                "yes or no, default no")
 
     p_extract_ref = parser.add_argument_group("EXTRACTION ALIGN_MODE")
     p_extract_ref.add_argument("--ref", type=str, required=False,

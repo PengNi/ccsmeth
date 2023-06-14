@@ -12,14 +12,14 @@ from ._version import VERSION
 def main_call_hifi(args):
     from .call_hifi_reads import ccs_call_hifi_reads
 
-    display_args(args, True)
+    display_args(args)
     ccs_call_hifi_reads(args)
 
 
 def main_align_hifi(args):
     from .align_hifi_reads import align_hifi_reads_to_genome
 
-    display_args(args, True)
+    display_args(args)
     align_hifi_reads_to_genome(args)
 
 
@@ -47,7 +47,7 @@ def main_call_freqb(args):
 def main_extract(args):
     from .extract_features import extract_hifireads_features
 
-    display_args(args, True)
+    display_args(args)
     extract_hifireads_features(args)
 
 
@@ -63,12 +63,6 @@ def main_trainm(args):
 
     display_args(args)
     train(args)
-
-
-# def main_denoise(args):
-#     from .denoise import denoise
-#     display_args(args)
-#     denoise(args)
 
 
 def main():
@@ -289,9 +283,6 @@ def main():
     #                          help="full path to the executable binary samtools file. "
     #                               "If not specified, it is assumed that samtools is in "
     #                               "the PATH.")
-    scm_extract.add_argument("--loginfo", type=str, default="no", required=False,
-                             help="if printing more info of feature extraction on reads. "
-                                  "yes or no, default no")
 
     scm_extract_ref = sub_call_mods.add_argument_group("EXTRACTION ALIGN_MODE")
     scm_extract_ref.add_argument("--ref", type=str, required=False,
@@ -387,9 +378,6 @@ def main():
 
     sub_extract.add_argument("--threads", type=int, default=5, required=False,
                              help="number of threads, default 5")
-    sub_extract.add_argument("--loginfo", type=str, default="no", required=False,
-                             help="if printing more info of feature extraction on reads. "
-                                  "yes or no, default no")
 
     sub_extract.set_defaults(func=main_extract)
 

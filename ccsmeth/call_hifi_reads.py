@@ -1,6 +1,5 @@
 import os
 import argparse
-import sys
 import time
 
 from .utils.process_utils import run_cmd
@@ -8,6 +7,9 @@ from .utils.process_utils import display_args
 from .utils.process_utils import ccs_exec
 from .utils.process_utils import generate_samtools_view_cmd
 from .utils.process_utils import generate_samtools_index_cmd
+
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
 
 
 def check_input_file(inputfile):
@@ -47,7 +49,7 @@ def generate_ccscmd_with_options(args):
 
 
 def ccs_call_hifi_reads(args):
-    sys.stderr.write("[call_hifi_reads]starts\n")
+    LOGGER.info("[call_hifi_reads]starts")
     start = time.time()
     inputpath = check_input_file(args.subreads)
     if not os.path.exists(inputpath):
@@ -72,18 +74,18 @@ def ccs_call_hifi_reads(args):
     else:
         raise ValueError("--output/-o must be in bam/sam format!")
 
-    sys.stderr.write("cmds: {}\n".format(ccs_cmds))
+    LOGGER.info("cmds: {}".format(ccs_cmds))
     stdinfo, returncode = run_cmd(ccs_cmds)
     stdout, stderr = stdinfo
     if returncode:
-        sys.stderr.write("failed\n")
+        LOGGER.warning("failed")
     else:
-        sys.stderr.write("succeeded\n")
-    sys.stderr.write("==stdout:\n{}\n".format(str(stdout, 'utf-8')))
-    sys.stderr.write("==stderr:\n{}\n".format(str(stderr, 'utf-8')))
+        LOGGER.info("succeeded")
+    LOGGER.info("==stdout:\n{}".format(str(stdout, 'utf-8')))
+    LOGGER.info("==stderr:\n{}".format(str(stderr, 'utf-8')))
 
     endtime = time.time()
-    sys.stderr.write("[call_hifi_reads]costs {:.1f} seconds\n".format(endtime - start))
+    LOGGER.info("[call_hifi_reads]costs {:.1f} seconds".format(endtime - start))
 
 
 def main():
@@ -126,7 +128,7 @@ def main():
 
     args = parser.parse_args()
 
-    display_args(args, True)
+    display_args(args)
     ccs_call_hifi_reads(args)
 
 

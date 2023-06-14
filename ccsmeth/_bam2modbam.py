@@ -3,7 +3,6 @@ import argparse
 import pysam
 import re
 import math
-import sys
 import time
 import tabix
 import pybedtools
@@ -14,6 +13,9 @@ from multiprocessing import Queue
 
 from .utils.process_utils import complement_seq
 from .utils.process_utils import max_queue_size
+
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
 
 base = "C"
 pred_base = "CG"
@@ -138,7 +140,7 @@ def _worker_reader(bamfile, batch_size, rreads_q, threads=1):
     if len(reads_batch) > 0:
         rreads_q.put(reads_batch)
     rreads_q.put("kill")
-    sys.stderr.write("read {} reads from input file\n".format(cnt_all))
+    LOGGER.info("read {} reads from input file".format(cnt_all))
 
 
 def _convert_locstr(locstr):
@@ -253,7 +255,7 @@ def _worker_process_reads_batch(rreads_q, wreads_q, tabix_file, rm_pulse=True):
                 except AssertionError:
                     # sys.stderr.write("AssertionError, skip this alignment.\n"
                     #       "\tDetails: {}, {}, {}\n".format(seq_name, locs, probs))
-                    sys.stderr.write("AssertionError, skip this alignment-{}.\n".format(seq_name))
+                    LOGGER.warning("AssertionError, skip this alignment-{}.".format(seq_name))
                     continue
             new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse)
             wreads_tmp.append((seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, tlen,
@@ -303,8 +305,7 @@ def _worker_write_modbam(wreads_q, modbamfile, inputbamfile, threads=1):
         wreads_batch = wreads_q.get()
         if wreads_batch == "kill":
             w_bam.close()
-            sys.stderr.write("write {} reads, in which {} were added mm tags\n".format(cnt_w,
-                                                                                       cnt_mm))
+            LOGGER.info("write {} reads, in which {} were added mm tags".format(cnt_w, cnt_mm))
             break
         for walignseg in wreads_batch:
             mm_flag = walignseg[-1]
@@ -316,14 +317,14 @@ def _worker_write_modbam(wreads_q, modbamfile, inputbamfile, threads=1):
 def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
                           rm_pulse=True, threads=3,
                           reads_batch=100, mode="align"):
-    sys.stderr.write("[generate_modbam_file]starts\n")
-    sys.stderr.flush()
+    LOGGER.info("[generate_modbam_file]starts")
+    # sys.stderr.flush()
     start = time.time()
 
-    sys.stderr.write("generating per_read mod_calls..\n")
+    LOGGER.info("generating per_read mod_calls..")
     per_read_file = _generate_sorted_per_read_calls(per_readsite, None)
 
-    sys.stderr.write("add per_read mod_calls to bam file..\n")
+    LOGGER.info("add per_read mod_calls to bam file..")
     rreads_q = Queue()
     wreads_q = Queue()
 
@@ -366,17 +367,17 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
 
     if modbamfile.endswith(".bam"):
         try:
-            sys.stderr.write("sorting modbam file..\n")
+            LOGGER.info("sorting modbam file..")
             modbam_sorted = os.path.splitext(modbamfile)[0] + ".sorted.bam"
             pysam.sort("-o", modbam_sorted, "-@", str(threads), modbamfile)
             os.rename(modbam_sorted, modbamfile)
         except Exception:
-            sys.stderr.write("failed sorting modbam file..\n")
+            LOGGER.warning("failed sorting modbam file..")
         try:
-            sys.stderr.write("indexing modbam file..\n")
+            LOGGER.info("indexing modbam file..")
             pysam.index("-@", str(threads), modbamfile)
         except Exception:
-            sys.stderr.write("failed indexing modbam file..\n")
+            LOGGER.warning("failed indexing modbam file..")
 
     if os.path.exists(per_read_file):
         os.remove(per_read_file)
@@ -384,7 +385,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
         os.remove(per_read_file + ".tbi")
 
     endtime = time.time()
-    sys.stderr.write("[generate_modbam_file]costs {:.1f} seconds\n".format(endtime - start))
+    LOGGER.info("[generate_modbam_file]costs {:.1f} seconds".format(endtime - start))
 
 
 def main():

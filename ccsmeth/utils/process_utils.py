@@ -6,6 +6,8 @@ import sys
 import re
 import pysam
 
+from .logging import mylogger
+LOGGER = mylogger(__name__)
 
 basepairs = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A', 'N': 'N',
              'W': 'W', 'S': 'S', 'M': 'K', 'K': 'M', 'R': 'Y',
@@ -75,7 +77,7 @@ def _alphabet(letter, dbasepairs):
     return 'N'
 
 
-def complement_seq(base_seq, seq_type="DNA"):
+def complement_seq(base_seq, seq_type="DNA") -> str:
     rbase_seq = base_seq[::-1]
     comseq = ''
     try:
@@ -86,12 +88,12 @@ def complement_seq(base_seq, seq_type="DNA"):
         else:
             raise ValueError("the seq_type must be DNA or RNA")
     except Exception:
-        print('something wrong in the dna/rna sequence.')
+        LOGGER.warning('something wrong in the dna/rna sequence.')
     return comseq
 
 
 # motifs ======================================================================
-def get_refloc_of_methysite_in_motif(seqstr, motifset, methyloc_in_motif=0):
+def get_refloc_of_methysite_in_motif(seqstr, motifset, methyloc_in_motif=0) -> list:
     """
 
     :param seqstr:
@@ -199,7 +201,7 @@ def get_q2tloc_from_cigar(r_cigar_tuple, strand, seq_len):
 
 
 # arg display ========================================================================
-def display_args(args, is_stderr=False):
+def display_args(args, is_stderr=True):
     def print_outputstr(outstr):
         if is_stderr:
             sys.stderr.write(outstr + "\n")
@@ -272,7 +274,7 @@ def generate_samtools_sort_cmd(path_to_samtools, outputfile, threads=10):
 
 def index_bam_if_needed2(inputfile, threads):
     if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
-        sys.stderr.write("indexing bam file-{}\n".format(inputfile))
+        LOGGER.info("indexing bam file-{}\n".format(inputfile))
         pysam.index("-@", str(threads), inputfile)
 
 
@@ -306,7 +308,7 @@ def read_one_shuffle_info(filepath, shuffle_lines_num, total_lines_num, checked_
                 count += 1
             else:
                 break
-        print('done reading file {}'.format(filepath))
+        LOGGER.info('done reading file {}'.format(filepath))
         return lines_info
 
 
@@ -323,7 +325,7 @@ def write_to_one_file_append(features_info, wfilepath):
     with open(wfilepath, 'a') as wf:
         for i in range(0, len(features_info)):
             wf.write(features_info[i] + '\n')
-    print('done writing features info to {}'.format(wfilepath))
+    LOGGER.info('done writing features info to {}'.format(wfilepath))
 
 
 def concat_two_files(file1, file2, concated_fp, shuffle_lines_num=2000000,
@@ -358,7 +360,7 @@ def concat_two_files(file1, file2, concated_fp, shuffle_lines_num=2000000,
         del file2_info
         del samples_info
         gc.collect()
-    print('done concating files to: {}'.format(concated_fp))
+    LOGGER.info('done concating files to: {}'.format(concated_fp))
 # =================================================================
 
 

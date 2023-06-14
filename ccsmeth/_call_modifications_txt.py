@@ -5,7 +5,6 @@ prob_0, prob_1, called_label, seq
 """
 
 import os
-import sys
 
 import numpy as np
 import torch
@@ -38,6 +37,9 @@ from .utils.process_utils import max_queue_size
 from .utils.constants_torch import FloatTensor
 from .utils.constants_torch import use_cuda
 
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
+
 # add this export temporarily
 # https://github.com/pytorch/pytorch/issues/37377
 os.environ['MKL_THREADING_LAYER'] = 'GNU'
@@ -68,14 +70,14 @@ def _count_holenum(features_file):
 
 
 def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=50):
-    print("read_features process-{} starts".format(os.getpid()))
+    LOGGER.info("read_features process-{} starts".format(os.getpid()))
     h_num_total = _count_holenum(features_file)
     hbatch_num = h_num_total // holes_batch
     if h_num_total % holes_batch > 0:
         hbatch_num += 1
-    print("read_features process-{} - generate {} hole/read batches({})\n".format(os.getpid(),
-                                                                                  hbatch_num,
-                                                                                  holes_batch))
+    LOGGER.info("read_features process-{} - generate {} hole/read batches({})".format(os.getpid(),
+                                                                                      hbatch_num,
+                                                                                      holes_batch))
 
     h_num = 0
     hbatch_num_got = 0
@@ -111,14 +113,14 @@ def _read_features_file_to_str(features_file, featurestrs_batch_q, holes_batch=5
             hbatch_num_got += 1
         assert hbatch_num_got == hbatch_num
     featurestrs_batch_q.put("kill")
-    print("read_features process-{} ending, read {} reads/holes batches({})".format(os.getpid(),
-                                                                                    hbatch_num_got,
-                                                                                    holes_batch))
+    LOGGER.info("read_features process-{} ending, read {} reads/holes batches({})".format(os.getpid(),
+                                                                                          hbatch_num_got,
+                                                                                          holes_batch))
 
 
 def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q, seq_len,
                                      holeids_e, holeids_ne):
-    print("format_features process-{} starts".format(os.getpid()))
+    LOGGER.info("format_features process-{} starts".format(os.getpid()))
     b_num = 0
     while True:
         if featurestrs_batch_q.empty():
@@ -197,7 +199,7 @@ def _format_features_from_strbatch2s(featurestrs_batch_q, features_batch_q, seq_
                               rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rquals, rmaps, labels))
         while features_batch_q.qsize() > queue_size_border:
             time.sleep(time_wait)
-    print("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
+    LOGGER.info("format_features process-{} ending, read {} batches".format(os.getpid(), b_num))
 
 
 # call mods =============================================================
@@ -267,7 +269,7 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
 
 
 def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
-    print('call_mods process-{} starts'.format(os.getpid()))
+    LOGGER.info('call_mods process-{} starts'.format(os.getpid()))
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
@@ -287,8 +289,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
         model_dict = model.state_dict()
         model_dict.update(para_dict)
         model.load_state_dict(model_dict)
-        if str2bool(args.loginfo):
-            print('call_mods process-{} loads model param successfully'.format(os.getpid()))
+        LOGGER.debug('call_mods process-{} loads model param successfully'.format(os.getpid()))
         del model_dict
     except RuntimeError:
         # for DDP model convertion (key: module.embed.weight -> embed.weight)
@@ -298,10 +299,9 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
         for param_tensor in para_dict.keys():
             para_dict_new[param_tensor[7:]] = para_dict[param_tensor]
         model.load_state_dict(para_dict_new)
-        if str2bool(args.loginfo):
-            print('call_mods process-{} loads model param successfully-1'.format(os.getpid()))
+        LOGGER.debug('call_mods process-{} loads model param successfully-1'.format(os.getpid()))
         del para_dict_new
-    sys.stdout.flush()
+    # sys.stdout.flush()
 
     if use_cuda:
         model = model.cuda(device)
@@ -331,12 +331,12 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
         # print("call_mods process-{} reads 1 batch, features_batch_q:{}, "
         #       "pred_str_q: {}".format(os.getpid(), features_batch_q.qsize(), pred_str_q.qsize()))
         batch_num_total += batch_num
-    print('call_mods process-{} ending, proceed {} batches({})'.format(os.getpid(), batch_num_total,
-                                                                       args.batch_size))
+    LOGGER.info('call_mods process-{} ending, proceed {} batches({})'.format(os.getpid(), batch_num_total,
+                                                                             args.batch_size))
 
 
 def _write_predstr_to_file(write_fp, predstr_q, is_gzip):
-    print('write_process-{} starts'.format(os.getpid()))
+    LOGGER.info('write_process-{} starts'.format(os.getpid()))
     if is_gzip:
         if not write_fp.endswith(".gz"):
             write_fp += ".gz"
@@ -351,7 +351,7 @@ def _write_predstr_to_file(write_fp, predstr_q, is_gzip):
         pred_str = predstr_q.get()
         if pred_str == "kill":
             wf.close()
-            print('write_process-{} finished'.format(os.getpid()))
+            LOGGER.info('write_process-{} finished'.format(os.getpid()))
             break
         for one_pred_str in pred_str:
             wf.write(one_pred_str + "\n")
@@ -384,7 +384,7 @@ def call_mods_txt(input_path, holeids_e, holeids_ne,
         if nproc_dp > nproc_to_call_mods_in_cpu_mode:
             nproc_dp = nproc_to_call_mods_in_cpu_mode
     if nproc < nproc_dp + 2:
-        print("--threads must be > --threads_call + 2!!")
+        LOGGER.warning("--threads must be > --threads_call + 2!!")
         nproc = nproc_dp + 2 + 1  # 1 for reading, 1 for writing, 1 for extracting
     nproc_cnvt = nproc - nproc_dp - 2
 

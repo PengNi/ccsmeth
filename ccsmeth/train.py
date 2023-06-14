@@ -2,7 +2,6 @@
 import argparse
 import os
 import re
-import sys
 import time
 
 import numpy as np
@@ -22,6 +21,9 @@ from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
 from .utils.process_utils import str2bool
 
+from .utils.logging import mylogger
+LOGGER = mylogger(__name__)
+
 device = "cuda" if use_cuda else "cpu"
 
 
@@ -31,13 +33,13 @@ def train(args):
     if use_cuda:
         torch.cuda.manual_seed(args.tseed)
 
-    print("[main]train starts..")
+    LOGGER.info("[main]train starts..")
     if use_cuda:
-        print("GPU is available!")
+        LOGGER.info("GPU is available!")
     else:
-        print("GPU is not available!")
+        LOGGER.info("GPU is not available!")
 
-    print("reading data..")
+    LOGGER.info("reading data..")
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         if args.dl_offsets:
             if args.dl_num_workers > 1:
@@ -90,7 +92,7 @@ def train(args):
         raise ValueError("--model_type not right!")
 
     if args.init_model is not None:
-        print("loading pre-trained model: {}".format(args.init_model))
+        LOGGER.info("loading pre-trained model: {}".format(args.init_model))
         para_dict = torch.load(args.init_model, map_location=torch.device('cpu'))
         # para_dict = torch.load(model_path, map_location=torch.device(device))
         model_dict = model.state_dict()
@@ -144,7 +146,7 @@ def train(args):
 
     # Train the model
     total_step = len(train_loader)
-    print("total_step: {}".format(total_step))
+    LOGGER.info("total_step: {}".format(total_step))
     curr_best_accuracy = 0
     curr_best_accuracy_loc = 0
     curr_best_accuracy_epoches = []
@@ -267,25 +269,25 @@ def train(args):
                     time_cost = time.time() - start
                     try:
                         last_lr = scheduler.get_last_lr()
-                        print('Epoch [{}/{}], Step [{}/{}]; LR: {:.4e}; TrainLoss: {:.4f}; '
-                              'ValidLoss: {:.4f}, '
-                              'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
-                              'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
-                              .format(epoch + 1, args.max_epoch_num, i + 1, total_step, last_lr,
-                                      np.mean(tlosses), v_meanloss, v_accuracy, v_precision, v_recall,
-                                      curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
+                        LOGGER.info('Epoch [{}/{}], Step [{}/{}]; LR: {:.4e}; TrainLoss: {:.4f}; '
+                                    'ValidLoss: {:.4f}, '
+                                    'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                                    'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
+                                    .format(epoch + 1, args.max_epoch_num, i + 1, total_step, last_lr,
+                                            np.mean(tlosses), v_meanloss, v_accuracy, v_precision, v_recall,
+                                            curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
                     except Exception:
-                        print('Epoch [{}/{}], Step [{}/{}]; TrainLoss: {:.4f}; '
-                              'ValidLoss: {:.4f}, '
-                              'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
-                              'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
-                              .format(epoch + 1, args.max_epoch_num, i + 1, total_step,
-                                      np.mean(tlosses), v_meanloss, v_accuracy, v_precision, v_recall,
-                                      curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
+                        LOGGER.info('Epoch [{}/{}], Step [{}/{}]; TrainLoss: {:.4f}; '
+                                    'ValidLoss: {:.4f}, '
+                                    'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                                    'CurrE_best_acc: {:.4f}, Best_acc: {:.4f}; Time: {:.2f}s'
+                                    .format(epoch + 1, args.max_epoch_num, i + 1, total_step,
+                                            np.mean(tlosses), v_meanloss, v_accuracy, v_precision, v_recall,
+                                            curr_best_accuracy_epoch, curr_best_accuracy, time_cost))
 
                     tlosses = []
                     start = time.time()
-                    sys.stdout.flush()
+                    # sys.stdout.flush()
                 model.train()
 
         if args.lr_scheduler == "ReduceLROnPlateau":
@@ -303,17 +305,17 @@ def train(args):
 
         curr_best_accuracy_epoches.append(curr_best_accuracy_epoch)
         if no_best_model and epoch >= args.min_epoch_num - 1:
-            print("early stop!")
+            LOGGER.info("early stop!")
             break
     endtime = time.time()
     clear_linecache()
     if args.dl_offsets:
         train_dataset.close()
         valid_dataset.close()
-    print("[main]train costs {} seconds, "
-          "best accuracy: {} (epoch {})".format(endtime - total_start,
-                                                curr_best_accuracy,
-                                                curr_best_accuracy_loc))
+    LOGGER.info("[main]train costs {} seconds, "
+                "best accuracy: {} (epoch {})".format(endtime - total_start,
+                                                      curr_best_accuracy,
+                                                      curr_best_accuracy_loc))
 
 
 def main():
@@ -394,7 +396,7 @@ def main():
 
     args = parser.parse_args()
 
-    print("[main] start..")
+    LOGGER.info("[main] start..")
     total_start = time.time()
 
     display_args(args)
@@ -402,7 +404,7 @@ def main():
     train(args)
 
     endtime = time.time()
-    print("[main] costs {} seconds".format(endtime - total_start))
+    LOGGER.info("[main] costs {} seconds".format(endtime - total_start))
 
 
 if __name__ == '__main__':
