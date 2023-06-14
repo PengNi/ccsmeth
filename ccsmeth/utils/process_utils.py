@@ -205,8 +205,10 @@ def display_args(args, is_stderr=True):
     def print_outputstr(outstr):
         if is_stderr:
             sys.stderr.write(outstr + "\n")
+            sys.stderr.flush()
         else:
             print(outstr)
+            sys.stdout.flush()
     arg_vars = vars(args)
     outputstr = "# ===============================================\n## parameters: "
     print_outputstr(outputstr)

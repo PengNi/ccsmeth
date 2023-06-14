@@ -28,17 +28,16 @@ def mylogger(name='', ch=True, fh=False, levelname='INFO'):
 
     logger = logging.getLogger(name)
     logger.setLevel(loglevel)
-    formatter = logging.Formatter(log_formatter)
     # handler
     if ch:
         ch = logging.StreamHandler()
         ch.setLevel(loglevel)
-        ch.setFormatter(formatter)
+        ch.setFormatter(log_formatter)
         logger.addHandler(ch)
     if fh:
         fh = logging.FileHandler(LOG_FN, mode='w')
         fh.setLevel(loglevel)
-        fh.setFormatter(formatter)
+        fh.setFormatter(log_formatter)
         logger.addHandler(fh)
     return logger
 

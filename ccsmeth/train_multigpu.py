@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 import argparse
 import os
+import sys
 import re
 import time
 
@@ -78,7 +79,6 @@ def checkpoint(model, gpu, model_save_path):
 
 # https://github.com/BIGBALLON/distribuuuu/blob/master/tutorial/mnmc_ddp_mp.py
 def train_worker(local_rank, global_world_size, args):
-
     global_rank = args.node_rank * args.ngpus_per_node + local_rank
 
     dist.init_process_group(
@@ -91,9 +91,9 @@ def train_worker(local_rank, global_world_size, args):
     # device = torch.device("cuda", local_rank)
     # torch.cuda.set_device(local_rank)
 
-    LOGGER.info("training_process-{} [init] == local rank: {}, global rank: {} ==".format(os.getpid(),
-                                                                                          local_rank,
-                                                                                          global_rank))
+    sys.stderr.write("training_process-{} [init] == local rank: {}, global rank: {} ==\n".format(os.getpid(),
+                                                                                                local_rank,
+                                                                                                global_rank))
 
     # 1. define network
     if global_rank == 0 or args.epoch_sync:
@@ -124,7 +124,7 @@ def train_worker(local_rank, global_world_size, args):
         raise ValueError("--model_type not right!")
 
     if args.init_model is not None:
-        LOGGER.info("training_process-{} loading pre-trained model: {}".format(os.getpid(), args.init_model))
+        sys.stderr.write("training_process-{} loading pre-trained model: {}\n".format(os.getpid(), args.init_model))
         para_dict = torch.load(args.init_model, map_location=torch.device('cpu'))
         model_dict = model.state_dict()
         model_dict.update(para_dict)
@@ -138,7 +138,7 @@ def train_worker(local_rank, global_world_size, args):
                 find_unused_parameters=False)
 
     # 2. define dataloader
-    LOGGER.info("training_process-{} reading data..".format(os.getpid()))
+    sys.stderr.write("training_process-{} reading data..\n".format(os.getpid()))
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         train_linenum = count_line_num(args.train_file, False)
         train_offsets = generate_offsets(args.train_file)
@@ -204,7 +204,7 @@ def train_worker(local_rank, global_world_size, args):
 
     # Train the model
     total_step = len(train_loader)
-    LOGGER.info("training_process-{} total_step: {}".format(os.getpid(), total_step))
+    sys.stderr.write("training_process-{} total_step: {}\n".format(os.getpid(), total_step))
     curr_best_accuracy = 0
     curr_best_accuracy_loc = 0
     curr_lowest_loss = 10000
@@ -263,14 +263,14 @@ def train_worker(local_rank, global_world_size, args):
             tlosses.append(loss.detach().item())
             if global_rank == 0 and ((i + 1) % args.step_interval == 0 or (i + 1) == total_step):
                 time_cost = time.time() - start
-                LOGGER.info("Epoch [{}/{}], Step [{}/{}]; "
-                            "TrainLoss: {:.4f}; Time: {:.2f}s".format(epoch + 1,
-                                                                      args.max_epoch_num, i + 1,
-                                                                      total_step, np.mean(tlosses),
-                                                                      time_cost))
+                sys.stderr.write("Epoch [{}/{}], Step [{}/{}]; "
+                                 "TrainLoss: {:.4f}; Time: {:.2f}s\n".format(epoch + 1,
+                                                                             args.max_epoch_num, i + 1,
+                                                                             total_step, np.mean(tlosses),
+                                                                             time_cost))
+                sys.stderr.flush()
                 start = time.time()
                 tlosses = []
-                # sys.stdout.flush()
 
         model.eval()
         with torch.no_grad():
@@ -354,27 +354,27 @@ def train_worker(local_rank, global_world_size, args):
             if global_rank == 0:
                 try:
                     last_lr = scheduler.get_last_lr()
-                    LOGGER.info('Epoch [{}/{}]; LR: {:.4e}; '
-                                'ValidLoss: {:.4f}, '
-                                'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
-                                'Best_acc: {:.4f}; Time: {:.2f}s'
-                                .format(epoch + 1, args.max_epoch_num, last_lr,
-                                        v_meanloss, v_accuracy, v_precision, v_recall,
-                                        curr_best_accuracy, time_cost))
+                    sys.stderr.write('Epoch [{}/{}]; LR: {:.4e}; '
+                                     'ValidLoss: {:.4f}, '
+                                     'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                                     'Best_acc: {:.4f}; Time: {:.2f}s\n'
+                                     .format(epoch + 1, args.max_epoch_num, last_lr,
+                                             v_meanloss, v_accuracy, v_precision, v_recall,
+                                             curr_best_accuracy, time_cost))
                 except Exception:
-                    LOGGER.info('Epoch [{}/{}]; '
-                                'ValidLoss: {:.4f}, '
-                                'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
-                                'Best_acc: {:.4f}; Time: {:.2f}s'
-                                .format(epoch + 1, args.max_epoch_num,
-                                        v_meanloss, v_accuracy, v_precision, v_recall,
-                                        curr_best_accuracy, time_cost))
+                    sys.stderr.write('Epoch [{}/{}]; '
+                                    'ValidLoss: {:.4f}, '
+                                    'Acc: {:.4f}, Prec: {:.4f}, Reca: {:.4f}, '
+                                    'Best_acc: {:.4f}; Time: {:.2f}s\n'
+                                    .format(epoch + 1, args.max_epoch_num,
+                                            v_meanloss, v_accuracy, v_precision, v_recall,
+                                            curr_best_accuracy, time_cost))
 
-                # sys.stdout.flush()
+                sys.stderr.flush()
         model.train()
 
         if no_best_model and epoch >= args.min_epoch_num - 1:
-            LOGGER.info("training_process-{} early stop!".format(os.getpid()))
+            sys.stderr.write("training_process-{} early stop!\n".format(os.getpid()))
             break
 
         if args.epoch_sync:
@@ -389,13 +389,16 @@ def train_worker(local_rank, global_world_size, args):
             scheduler.step()
 
     if global_rank == 0:
-        LOGGER.info("best model is in epoch {} (Acc: {})".format(curr_best_accuracy_loc,
-                                                                 curr_best_accuracy))
+        sys.stderr.write("best model is in epoch {} (Acc: {})\n".format(curr_best_accuracy_loc,
+                                                                        curr_best_accuracy))
     clear_linecache()
     cleanup()
 
 
 def train(args):
+    LOGGER.info("[main]train_multigpu starts")
+    total_start = time.time()
+
     torch.manual_seed(args.tseed)
     if use_cuda:
         torch.cuda.manual_seed(args.tseed)
@@ -408,9 +411,6 @@ def train(args):
     if not dist.is_available():
         raise RuntimeError("torch.distributed is not available!")
 
-    LOGGER.info("[main]train_multigpu starts..")
-    total_start = time.time()
-
     if torch.cuda.device_count() < args.ngpus_per_node:
         raise RuntimeError("There are not enough gpus, has {}, request {}.".format(torch.cuda.device_count(),
                                                                                    args.ngpus_per_node))
@@ -420,7 +420,7 @@ def train(args):
 
     endtime = time.time()
     clear_linecache()
-    LOGGER.info("[main]train_multigpu costs {} seconds".format(endtime - total_start))
+    LOGGER.info("[main]train_multigpu costs {:.1f} seconds".format(endtime - total_start))
 
 
 def main():
@@ -511,16 +511,9 @@ def main():
                               help="if sync model params of gpu0 to other local gpus after per epoch")
 
     args = parser.parse_args()
-
-    LOGGER.info("[main] start..")
-    total_start = time.time()
-
+    
     display_args(args)
-
     train(args)
-
-    endtime = time.time()
-    LOGGER.info("[main] costs {} seconds".format(endtime - total_start))
 
 
 if __name__ == '__main__':

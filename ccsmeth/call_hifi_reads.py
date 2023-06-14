@@ -49,7 +49,7 @@ def generate_ccscmd_with_options(args):
 
 
 def ccs_call_hifi_reads(args):
-    LOGGER.info("[call_hifi_reads]starts")
+    LOGGER.info("[main]call_hifi_reads starts")
     start = time.time()
     inputpath = check_input_file(args.subreads)
     if not os.path.exists(inputpath):
@@ -81,11 +81,11 @@ def ccs_call_hifi_reads(args):
         LOGGER.warning("failed")
     else:
         LOGGER.info("succeeded")
-    LOGGER.info("==stdout:\n{}".format(str(stdout, 'utf-8')))
-    LOGGER.info("==stderr:\n{}".format(str(stderr, 'utf-8')))
+    LOGGER.info("stdout:\n{}".format(str(stdout, 'utf-8')))
+    LOGGER.info("stderr:\n{}".format(str(stderr, 'utf-8')))
 
     endtime = time.time()
-    LOGGER.info("[call_hifi_reads]costs {:.1f} seconds".format(endtime - start))
+    LOGGER.info("[main]call_hifi_reads costs {:.1f} seconds".format(endtime - start))
 
 
 def main():

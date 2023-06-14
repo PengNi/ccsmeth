@@ -450,7 +450,7 @@ def _get_gpus():
 
 
 def call_mods(args):
-    LOGGER.info("[main]call_mods starts..")
+    LOGGER.info("[main]call_mods starts")
     start = time.time()
     LOGGER.info("cuda availability: {}".format(use_cuda))
 
@@ -569,7 +569,7 @@ def call_mods(args):
 
         if not args.no_sort:
             post_time_start = time.time()
-            LOGGER.info("[post_process] bam_sort_index starts..")
+            LOGGER.info("[post_process] bam_sort_index starts")
             try:
                 LOGGER.info("sorting modbam file..")
                 modbam_sorted = os.path.splitext(out_modbam)[0] + ".sorted.bam"
@@ -582,13 +582,13 @@ def call_mods(args):
                 pysam.index("-@", str(args.threads), out_modbam)
             except Exception:
                 LOGGER.warning("failed indexing modbam file..")
-            LOGGER.info("[post_process] bam_sort_index costs %.2f seconds.." % (time.time() - post_time_start))
+            LOGGER.info("[post_process] bam_sort_index costs %.2f seconds" % (time.time() - post_time_start))
     else:
         from ._call_modifications_txt import call_mods_txt
         out_per_readsite = args.output + ".per_readsite.tsv"
         call_mods_txt(input_path, holeids_e, holeids_ne, out_per_readsite, model_path, args)
 
-    LOGGER.info("[main]call_mods costs %.2f seconds.." % (time.time() - start))
+    LOGGER.info("[main]call_mods costs %.2f seconds" % (time.time() - start))
 
 
 def main():

@@ -70,7 +70,7 @@ def generate_aligner_with_options(is_minimap2, path_to_minimap2, is_bwa, path_to
 
 
 def align_hifi_reads_to_genome(args):
-    LOGGER.info("[align_hifi_reads]start..")
+    LOGGER.info("[main]align_hifi_reads starts")
     start = time.time()
     inputpath = check_input_file(args.hifireads)
     outputpath = check_output_file(args.output, inputpath, args.minimap2, args.bwa)
@@ -144,11 +144,11 @@ def align_hifi_reads_to_genome(args):
         LOGGER.warning("failed..")
     else:
         LOGGER.info("succeeded..")
-    LOGGER.info("==stdout:\n{}".format(str(stdout, 'utf-8')))
-    LOGGER.info("==stderr:\n{}".format(str(stderr, 'utf-8')))
+    LOGGER.info("stdout:\n{}".format(str(stdout, 'utf-8')))
+    LOGGER.info("stderr:\n{}".format(str(stderr, 'utf-8')))
 
     endtime = time.time()
-    LOGGER.info("[align_hifi_reads]costs {:.1f} seconds".format(endtime - start))
+    LOGGER.info("[main]align_hifi_reads costs {:.1f} seconds".format(endtime - start))
 
 
 def main():

@@ -678,7 +678,7 @@ def _worker_write_bed_result(output_prefix, bed_q, args):
 
 
 def call_mods_frequency_from_bamfile(args):
-    LOGGER.info("[main]call_freq_bam starts..")
+    LOGGER.info("[main]call_freq_bam starts")
     start = time.time()
 
     if args.call_mode == "aggregate" and not os.path.exists(args.aggre_model):
@@ -733,7 +733,7 @@ def call_mods_frequency_from_bamfile(args):
     bed_q.put("kill")
     p_w.join()
 
-    LOGGER.info("[main]call_freq_bam costs %.1f seconds.." % (time.time() - start))
+    LOGGER.info("[main]call_freq_bam costs %.1f seconds" % (time.time() - start))
 
 
 def main():

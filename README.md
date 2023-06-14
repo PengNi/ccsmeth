@@ -336,8 +336,8 @@ usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH]
                          [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE]
                          [--motifs MOTIFS] [--mod_loc MOD_LOC]
                          [--methy_label {1,0}]
-                         [--norm {zscore,min-mean,min-max,mad}] [--no_decode]
-                         [--loginfo LOGINFO] [--ref REF] [--mapq MAPQ]
+                         [--norm {zscore,min-mean,min-max,mad,none}]
+                         [--no_decode] [--ref REF] [--mapq MAPQ]
                          [--identity IDENTITY] [--no_supplementary]
                          [--is_mapfea IS_MAPFEA]
                          [--skip_unmapped SKIP_UNMAPPED] [--threads THREADS]
@@ -415,12 +415,11 @@ EXTRACTION:
                         default 0
   --methy_label {1,0}   the label of the interested modified bases, this is
                         for training. 0 or 1, default 1
-  --norm {zscore,min-mean,min-max,mad}
+  --norm {zscore,min-mean,min-max,mad,none}
                         method for normalizing ipd/pw in subread level.
-                        zscore, min-mean, min-max or mad, default zscore
+                        zscore, min-mean, min-max, mad, or none. default
+                        zscore
   --no_decode           not use CodecV1 to decode ipd/pw
-  --loginfo LOGINFO     if printing more info of feature extraction on reads.
-                        yes or no, default no
 
 EXTRACTION ALIGN_MODE:
   --ref REF             path to genome reference to be aligned, in fasta/fa
@@ -635,19 +634,17 @@ usage: ccsmeth extract [-h] --input INPUT [--holeids_e HOLEIDS_E]
                        [--mode {denovo,align}] [--seq_len SEQ_LEN]
                        [--motifs MOTIFS] [--mod_loc MOD_LOC]
                        [--methy_label {1,0}]
-                       [--norm {zscore,min-mean,min-max,mad}] [--no_decode]
-                       [--holes_batch HOLES_BATCH] [--ref REF] [--mapq MAPQ]
-                       [--identity IDENTITY] [--no_supplementary]
-                       [--is_mapfea IS_MAPFEA] [--skip_unmapped SKIP_UNMAPPED]
-                       [--threads THREADS] [--loginfo LOGINFO]
+                       [--norm {zscore,min-mean,min-max,mad,none}]
+                       [--no_decode] [--holes_batch HOLES_BATCH] [--ref REF]
+                       [--mapq MAPQ] [--identity IDENTITY]
+                       [--no_supplementary] [--is_mapfea IS_MAPFEA]
+                       [--skip_unmapped SKIP_UNMAPPED] [--threads THREADS]
 
 extract features from hifi reads.
 
 optional arguments:
   -h, --help            show this help message and exit
   --threads THREADS     number of threads, default 5
-  --loginfo LOGINFO     if printing more info of feature extraction on reads.
-                        yes or no, default no
 
 INPUT:
   --input INPUT, -i INPUT
@@ -681,9 +678,10 @@ EXTRACTION:
                         default 0
   --methy_label {1,0}   the label of the interested modified bases, this is
                         for training. 0 or 1, default 1
-  --norm {zscore,min-mean,min-max,mad}
+  --norm {zscore,min-mean,min-max,mad,none}
                         method for normalizing ipd/pw in subread level.
-                        zscore, min-mean, min-max or mad, default zscore
+                        zscore, min-mean, min-max, mad, or none. default
+                        zscore
   --no_decode           not use CodecV1 to decode ipd/pw
   --holes_batch HOLES_BATCH
                         number of holes/hifi-reads in an batch to get/put in

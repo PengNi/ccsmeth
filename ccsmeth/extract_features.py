@@ -521,7 +521,7 @@ def _write_featurestr_to_file(write_fp, featurestr_q, is_gzip):
 
 
 def extract_hifireads_features(args):
-    LOGGER.info("[extract_features_hifi]starts")
+    LOGGER.info("[main]extract_features_hifi starts")
     start = time.time()
 
     inputpath = check_input_file(args.input)
@@ -590,7 +590,7 @@ def extract_hifireads_features(args):
     p_w.join()
 
     endtime = time.time()
-    LOGGER.info("[extract_features_hifi]costs {:.1f} seconds".format(endtime - start))
+    LOGGER.info("[main]extract_features_hifi costs {:.1f} seconds".format(endtime - start))
 
 
 def main():

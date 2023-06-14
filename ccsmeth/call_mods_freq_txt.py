@@ -285,7 +285,7 @@ def _concat_contig_results(contig_files, result_file, is_gzip=False):
 
 
 def call_mods_frequency_to_file(args):
-    LOGGER.info("[main]call_freq starts..")
+    LOGGER.info("[main]call_freq starts")
     start = time.time()
 
     input_paths = args.input_path
@@ -382,7 +382,7 @@ def call_mods_frequency_to_file(args):
             LOGGER.warning("!!!Please check the result files -- seems not all inputed contigs have result!!!")
         LOGGER.info("combine results of {} contigs..".format(len(resfiles_cs)))
         _concat_contig_results(resfiles_cs, result_file, is_gzip)
-    LOGGER.info("[main]call_freq costs %.1f seconds.." % (time.time() - start))
+    LOGGER.info("[main]call_freq costs %.1f seconds" % (time.time() - start))
 
 
 def main():

@@ -33,7 +33,7 @@ def train(args):
     if use_cuda:
         torch.cuda.manual_seed(args.tseed)
 
-    LOGGER.info("[main]train starts..")
+    LOGGER.info("[main]train starts")
     if use_cuda:
         LOGGER.info("GPU is available!")
     else:
@@ -312,7 +312,7 @@ def train(args):
     if args.dl_offsets:
         train_dataset.close()
         valid_dataset.close()
-    LOGGER.info("[main]train costs {} seconds, "
+    LOGGER.info("[main]train costs {:.1f} seconds, "
                 "best accuracy: {} (epoch {})".format(endtime - total_start,
                                                       curr_best_accuracy,
                                                       curr_best_accuracy_loc))
@@ -396,15 +396,8 @@ def main():
 
     args = parser.parse_args()
 
-    LOGGER.info("[main] start..")
-    total_start = time.time()
-
     display_args(args)
-
     train(args)
-
-    endtime = time.time()
-    LOGGER.info("[main] costs {} seconds".format(endtime - total_start))
 
 
 if __name__ == '__main__':
