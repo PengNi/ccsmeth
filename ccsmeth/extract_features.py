@@ -410,7 +410,7 @@ def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne
                 feature_list += features_one
                 holeidxes += [read_idx] * len(features_one)
         except Exception as e:
-            LOGGER.warning("Exception: ", e)
+            LOGGER.warning("{}: {} in read:{}".format(type(e).__name__, e, readinfo['name']))
             failed_num += 1
         total_num += 1
     return holeidxes, feature_list, total_num, failed_num

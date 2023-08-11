@@ -17,6 +17,7 @@
 - [Quick start](#Quick-start)
 - [Usage](#Usage)
 - [Acknowledgements](#Acknowledgements)
+- [TODO](#TODO)
 
 ## Installation
 ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pytorch.org/).
@@ -792,3 +793,6 @@ See also `ccsmeth trainm -h` for multi-gpu distributed training.
 - We thank Tse *et al.*, The Chinese University of Hong Kong (CUHK) Department of Chemical Pathology, for sharing their code and data, as reported in [Proc Natl Acad Sci USA 2021; 118(5): e2019768118](https://doi.org/10.1073/pnas.2019768118). We made use of their data and code for evaluation and comparison.
 - We thank Akbari _et al._, as part of the code for haplotyping were taken from [NanoMethPhase](https://github.com/vahidAK/NanoMethPhase) of Akbari _et al._
 - The way to organize features for aggregate model is referenced from [pb-CpG-tools](https://github.com/PacificBiosciences/pb-CpG-tools).
+
+## TODO
+- [ ] Check if the kinetics values (IPD and PW) are encoded or not in the bam file automatically, disable the `--no_decode` arg.

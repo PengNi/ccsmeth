@@ -4,6 +4,11 @@ ccsmeth
 
 Changelog
 -------------
+v0.4.2
+----------
+bug fixes
+
+
 v0.4.1
 ----------
 handle ValueError when fetching bam items in call_freqb module
