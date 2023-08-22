@@ -4,7 +4,7 @@
 [![GitHub-License](https://img.shields.io/github/license/PengNi/ccsmeth)](https://github.com/PengNi/ccsmeth/blob/master/LICENSE)
 
 [![PyPI-version](https://img.shields.io/pypi/v/ccsmeth)](https://pypi.org/project/ccsmeth/)
-[![PyPI-Downloads](https://pepy.tech/badge/ccsmeth)](https://pepy.tech/project/ccsmeth/)
+[![PyPI-Downloads](https://static.pepy.tech/badge/ccsmeth)](https://pepy.tech/project/ccsmeth/)
 &emsp;[![Conda-version](https://img.shields.io/conda/vn/bioconda/ccsmeth)](https://anaconda.org/bioconda/ccsmeth)
 [![Conda-Downloads](https://img.shields.io/conda/dn/bioconda/ccsmeth)](https://anaconda.org/bioconda/ccsmeth)
 
