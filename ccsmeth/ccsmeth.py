@@ -226,8 +226,8 @@ def main():
                           help="len of kmer. default 21")
     scm_call.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
-    scm_call.add_argument('--is_qual', type=str, default="no", required=False,
-                          help="if using base_quality features, yes or no, default no")
+    scm_call.add_argument('--is_sn', type=str, default="no", required=False,
+                          help="if using signal-to-noise-ratio features, yes or no, default no")
     scm_call.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     scm_call.add_argument('--is_stds', type=str, default="no", required=False,
@@ -555,8 +555,8 @@ def main():
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
-    st_train.add_argument('--is_qual', type=str, default="no", required=False,
-                          help="if using base_quality features, yes or no, default no")
+    st_train.add_argument('--is_sn', type=str, default="no", required=False,
+                          help="if using signal-to-noise-ratio features, yes or no, default no")
     st_train.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     st_train.add_argument('--is_stds', type=str, default="no", required=False,
@@ -632,8 +632,8 @@ def main():
                            help="len of kmer. default 21")
     stm_train.add_argument('--is_npass', type=str, default="yes", required=False,
                            help="if using num_pass features, yes or no, default yes")
-    stm_train.add_argument('--is_qual', type=str, default="no", required=False,
-                           help="if using base_quality features, yes or no, default no")
+    stm_train.add_argument('--is_sn', type=str, default="no", required=False,
+                           help="if using signal-to-noise-ratio features, yes or no, default no")
     stm_train.add_argument('--is_map', type=str, default="no", required=False,
                            help="if using mapping features, yes or no, default no")
     stm_train.add_argument('--is_stds', type=str, default="no", required=False,
@@ -700,95 +700,6 @@ def main():
                                help="if sync model params of gpu0 to other local gpus after per epoch")
 
     sub_trainm.set_defaults(func=main_trainm)
-
-    # # sub_denoise =====================================================================================
-    # sd_input = sub_denoise.add_argument_group("INPUT")
-    # sd_input.add_argument('--train_file', type=str, required=True, help="file containing (combined positive and "
-    #                                                                     "negative) samples for training. better been "
-    #                                                                     "balanced in kmer level.")
-    # sd_input.add_argument('--job_id', type=str, required=False, default="djob", help="job uid")
-    #
-    # sd_denoise = sub_denoise.add_argument_group("DENOISE")
-    # sd_denoise.add_argument('--is_filter_fn', type=str, default="yes", required=False,
-    #                         help="is filter false negative samples, 'yes' or 'no', default yes")
-    # sd_denoise.add_argument('--iterations', type=int, default=10, required=False)
-    # sd_denoise.add_argument('--rounds', type=int, default=3, required=False)
-    # sd_denoise.add_argument("--score_cf", type=float, default=0.2,
-    #                         required=False,
-    #                         help="score cutoff to keep high quality (which prob>=score_cf) positive samples. "
-    #                              "(0, 0.5], default 0.2")
-    # sd_denoise.add_argument("--kept_ratio", type=float, default=0.99,
-    #                         required=False,
-    #                         help="kept ratio of samples, to end denoise process. default 0.99")
-    # sd_denoise.add_argument("--fst_iter_prob", action="store_true", default=False,
-    #                         help="if output probs of samples after 1st iteration")
-    #
-    # sd_train = sub_denoise.add_argument_group("TRAIN MODEL_HYPER")
-    # # model param
-    # sd_train.add_argument('--model_type', type=str, default="attbigru2s",
-    #                       choices=["attbilstm2s", "attbigru2s"],
-    #                       required=False,
-    #                       help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-    #                            "default: attbigru2s")
-    # sd_train.add_argument('--seq_len', type=int, default=21, required=False,
-    #                       help="len of kmer. default 21")
-    # sd_train.add_argument('--is_npass', type=str, default="yes", required=False,
-    #                       help="if using num_pass features, yes or no, default yes")
-    # sd_train.add_argument('--is_qual', type=str, default="no", required=False,
-    #                       help="if using base_quality features, yes or no, default no")
-    # sd_train.add_argument('--is_map', type=str, default="no", required=False,
-    #                       help="if using mapping features, yes or no, default no")
-    # sd_train.add_argument('--is_stds', type=str, default="no", required=False,
-    #                       help="if using std features, yes or no, default no")
-    # sd_train.add_argument('--class_num', type=int, default=2, required=False)
-    # sd_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
-    #
-    # # BiRNN model param
-    # sd_train.add_argument('--n_vocab', type=int, default=16, required=False,
-    #                       help="base_seq vocab_size (15 base kinds from iupac)")
-    # sd_train.add_argument('--n_embed', type=int, default=4, required=False,
-    #                       help="base_seq embedding_size")
-    # sd_train.add_argument('--layer_rnn', type=int, default=3,
-    #                       required=False, help="BiRNN layer num, default 3")
-    # sd_train.add_argument('--hid_rnn', type=int, default=256, required=False,
-    #                       help="BiRNN hidden_size, default 256")
-    #
-    # sd_training = sub_denoise.add_argument_group("TRAINING")
-    # # model training
-    # sd_training.add_argument('--optim_type', type=str, default="Adam", choices=["Adam", "RMSprop", "SGD",
-    #                                                                             "Ranger"],
-    #                          required=False, help="type of optimizer to use, 'Adam' or 'SGD' or 'RMSprop' "
-    #                                               "or 'Ranger', default Adam")
-    # sd_training.add_argument('--batch_size', type=int, default=512, required=False)
-    # # sd_training.add_argument('--lr_scheduler', type=str, default='StepLR', required=False,
-    # #                          choices=["StepLR", "ReduceLROnPlateau"],
-    # #                          help="StepLR or ReduceLROnPlateau, default StepLR")
-    # sd_training.add_argument('--lr', type=float, default=0.001, required=False,
-    #                          help="default 0.001")
-    # sd_training.add_argument('--lr_decay', type=float, default=0.1, required=False,
-    #                          help="default 0.1")
-    # sd_training.add_argument('--lr_decay_step', type=int, default=1, required=False,
-    #                          help="effective in StepLR. default 1")
-    # # sd_training.add_argument('--lr_patience', type=int, default=0, required=False,
-    # #                          help="effective in ReduceLROnPlateau. default 0")
-    # # sd_training.add_argument('--lr_mode_strategy', type=str, default="last", required=False,
-    # #                          choices=["last", "mean", "max"],
-    # #                          help="effective in ReduceLROnPlateau. last, mean, or max, default last")
-    # sd_training.add_argument("--epoch_num", action="store", default=2, type=int,
-    #                          required=False, help="epoch num, default 2")
-    # sd_training.add_argument('--pos_weight', type=float, default=1.0, required=False)
-    # sd_training.add_argument('--step_interval', type=int, default=500, required=False)
-    # sd_training.add_argument('--dl_num_workers', type=int, default=0, required=False,
-    #                          help="default 0")
-    # sd_training.add_argument('--dl_offsets', action="store_true", default=False, required=False,
-    #                          help="use file offsets loader")
-    #
-    # sd_training.add_argument('--init_model', type=str, default=None, required=False,
-    #                          help="file path of pre-trained model parameters to load before training")
-    # sd_training.add_argument('--tseed', type=int, default=1234,
-    #                          help='random seed for pytorch')
-    #
-    # sub_denoise.set_defaults(func=main_denoise)
 
     args = parser.parse_args()
     if hasattr(args, 'func'):

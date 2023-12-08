@@ -14,8 +14,8 @@ class ModelAttRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
                  vocab_size=16, embedding_size=4,
-                 is_qual=True, is_map=False, is_stds=False, is_npass=False,
-                 model_type="attbilstm2s",
+                 is_npass=True, is_sn=False, is_map=False, is_stds=False, 
+                 model_type="attbigru2s",
                  device=0):
         super(ModelAttRNN, self).__init__()
         self.model_type = model_type
@@ -30,7 +30,7 @@ class ModelAttRNN(nn.Module):
 
         self.is_stds = is_stds
         self.is_npass = is_npass
-        self.is_qual = is_qual
+        self.is_sn = is_sn
         self.is_map = is_map
         self.feas_ccs = 2
         if self.is_stds:
@@ -79,8 +79,8 @@ class ModelAttRNN(nn.Module):
             return h0, c0
         return h0
 
-    def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, quals, maps,
-                kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, quals2, maps2):
+    def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, sns, maps,
+                kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, sns2, maps2):
         kmer_embed = self.embed(kmer.long())
 
         ipd_means = torch.reshape(ipd_means, (-1, self.seq_len, 1)).float()
@@ -104,11 +104,11 @@ class ModelAttRNN(nn.Module):
             ipd_stds2 = torch.reshape(ipd_stds2, (-1, self.seq_len, 1)).float()
             pw_stds2 = torch.reshape(pw_stds2, (-1, self.seq_len, 1)).float()
             out2 = torch.cat((out2, ipd_stds2, pw_stds2), 2)  # (N, L, C)
-        if self.is_qual:
-            quals = torch.reshape(quals, (-1, self.seq_len, 1)).float()
-            out1 = torch.cat((out1, quals), 2)  # (N, L, C)
-            quals2 = torch.reshape(quals2, (-1, self.seq_len, 1)).float()
-            out2 = torch.cat((out2, quals2), 2)  # (N, L, C)
+        if self.is_sn:
+            sns = torch.reshape(sns, (-1, self.seq_len, 1)).float()
+            out1 = torch.cat((out1, sns), 2)  # (N, L, C)
+            sns2 = torch.reshape(sns2, (-1, self.seq_len, 1)).float()
+            out2 = torch.cat((out2, sns2), 2)  # (N, L, C)
         if self.is_map:
             maps = torch.reshape(maps, (-1, self.seq_len, 1)).float()
             out1 = torch.cat((out1, maps), 2)  # (N, L, C)

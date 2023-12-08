@@ -114,7 +114,7 @@ def train_worker(local_rank, global_world_size, args):
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
-                            is_qual=str2bool(args.is_qual),
+                            is_sn=str2bool(args.is_sn),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
                             is_npass=str2bool(args.is_npass),
@@ -219,8 +219,8 @@ def train_worker(local_rank, global_world_size, args):
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
             if args.model_type in {"attbigru2s", "attbilstm2s"}:
-                _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap, \
-                    rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap, \
+                _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, \
+                    rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap, \
                     labels = sfeatures
                 # TODO: non_blocking=True or False?
                 fkmer = fkmer.cuda(local_rank, non_blocking=True)
@@ -229,7 +229,7 @@ def train_worker(local_rank, global_world_size, args):
                 fipdsd = fipdsd.cuda(local_rank, non_blocking=True)
                 fpwm = fpwm.cuda(local_rank, non_blocking=True)
                 fpwsd = fpwsd.cuda(local_rank, non_blocking=True)
-                fqual = fqual.cuda(local_rank, non_blocking=True)
+                fsn = fsn.cuda(local_rank, non_blocking=True)
                 fmap = fmap.cuda(local_rank, non_blocking=True)
 
                 rkmer = rkmer.cuda(local_rank, non_blocking=True)
@@ -238,13 +238,13 @@ def train_worker(local_rank, global_world_size, args):
                 ripdsd = ripdsd.cuda(local_rank, non_blocking=True)
                 rpwm = rpwm.cuda(local_rank, non_blocking=True)
                 rpwsd = rpwsd.cuda(local_rank, non_blocking=True)
-                rqual = rqual.cuda(local_rank, non_blocking=True)
+                rsn = rsn.cuda(local_rank, non_blocking=True)
                 rmap = rmap.cuda(local_rank, non_blocking=True)
 
                 labels = labels.cuda(local_rank, non_blocking=True)
                 # Forward pass
-                outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap,
-                                        rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap)
+                outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap,
+                                        rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap)
                 loss = criterion(outputs, labels)
             else:
                 raise ValueError("--model_type is not right!")
@@ -278,8 +278,8 @@ def train_worker(local_rank, global_world_size, args):
             v_meanloss = 10000
             for vi, vsfeatures in enumerate(valid_loader):
                 if args.model_type in {"attbigru2s", "attbilstm2s"}:
-                    _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap, \
-                        vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap, \
+                    _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap, \
+                        vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrsn, vrmap, \
                         vlabels = vsfeatures
                     vfkmer = vfkmer.cuda(local_rank, non_blocking=True)
                     vfpass = vfpass.cuda(local_rank, non_blocking=True)
@@ -287,7 +287,7 @@ def train_worker(local_rank, global_world_size, args):
                     vfipdsd = vfipdsd.cuda(local_rank, non_blocking=True)
                     vfpwm = vfpwm.cuda(local_rank, non_blocking=True)
                     vfpwsd = vfpwsd.cuda(local_rank, non_blocking=True)
-                    vfqual = vfqual.cuda(local_rank, non_blocking=True)
+                    vfsn = vfsn.cuda(local_rank, non_blocking=True)
                     vfmap = vfmap.cuda(local_rank, non_blocking=True)
 
                     vrkmer = vrkmer.cuda(local_rank, non_blocking=True)
@@ -296,15 +296,15 @@ def train_worker(local_rank, global_world_size, args):
                     vripdsd = vripdsd.cuda(local_rank, non_blocking=True)
                     vrpwm = vrpwm.cuda(local_rank, non_blocking=True)
                     vrpwsd = vrpwsd.cuda(local_rank, non_blocking=True)
-                    vrqual = vrqual.cuda(local_rank, non_blocking=True)
+                    vrsn = vrsn.cuda(local_rank, non_blocking=True)
                     vrmap = vrmap.cuda(local_rank, non_blocking=True)
 
                     vlabels = vlabels.cuda(local_rank, non_blocking=True)
                     # Forward pass
                     voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm,
-                                              vfpwsd, vfqual, vfmap,
+                                              vfpwsd, vfsn, vfmap,
                                               vrkmer, vrpass, vripdm, vripdsd, vrpwm,
-                                              vrpwsd, vrqual, vrmap)
+                                              vrpwsd, vrsn, vrmap)
                     vloss = criterion(voutputs, vlabels)
                 else:
                     raise ValueError("--model_type is not right!")
@@ -443,8 +443,8 @@ def main():
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
-    st_train.add_argument('--is_qual', type=str, default="no", required=False,
-                          help="if using base_quality features, yes or no, default no")
+    st_train.add_argument('--is_sn', type=str, default="no", required=False,
+                          help="if using signal-to-noise-ratio features, yes or no, default no")
     st_train.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     st_train.add_argument('--is_stds', type=str, default="no", required=False,

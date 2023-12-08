@@ -30,6 +30,8 @@ from .utils.ref_reader import DNAReference
 
 from .utils.process_utils import default_ref_loc
 
+from .utils.process_utils import SEQ_ENCODE
+
 from .utils.logging import mylogger
 LOGGER = mylogger(__name__)
 
@@ -88,7 +90,8 @@ def _get_necessary_items_of_a_alignedsegment(readitem):
     qalign_start = readitem.query_alignment_start
     qalign_end = readitem.query_alignment_end
     fwd_seq = readitem.get_forward_sequence()
-    fwd_qual = readitem.get_forward_qualities()
+    # fwd_qual = readitem.get_forward_qualities()
+    fwd_qual = []  # disable quality
     ref_name = readitem.reference_name
     ref_start = readitem.reference_start
     ref_end = readitem.reference_end
@@ -114,9 +117,13 @@ def _get_necessary_items_of_a_alignedsegment(readitem):
         tag_rn = readitem.get_tag("rn")
     except KeyError:
         tag_fn = tag_rn = 0
+    try:
+        tag_sn = readitem.get_tag("sn")
+    except KeyError:
+        tag_sn = []
     return seq_name, qalign_start, qalign_end, fwd_seq, fwd_qual, ref_name, ref_start, ref_end, \
         cigar_tuples, cigar_stats, flag, mapq, is_unmapped, is_secondary, is_duplicate, is_supplementary, \
-        is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn
+        is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn, tag_sn
 
 
 def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, threads, args):
@@ -252,9 +259,10 @@ def _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases, q_to_r_mapinfo):
 
 def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids_e, holeids_ne, dnacontigs,
                                              args):
-    seq_name, qalign_start, qalign_end, fwd_seq, fwd_qual, ref_name, ref_start, ref_end, \
-        cigar_tuples, cigar_stats, flag, mapq, is_unmapped, is_secondary, is_duplicate, is_supplementary, \
-        is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn = _get_necessary_items_of_a_alignedsegment(alignedsegment_tmp)
+    seq_name, qalign_start, qalign_end, fwd_seq, _, ref_name, ref_start, ref_end, \
+        cigar_tuples, cigar_stats, _, mapq, is_unmapped, is_secondary, is_duplicate, is_supplementary, \
+        is_reverse, tag_fi, tag_ri, tag_fp, tag_rp, tag_fn, tag_rn, tag_sn \
+        = _get_necessary_items_of_a_alignedsegment(alignedsegment_tmp)
 
     if holeids_e is not None and seq_name not in holeids_e:
         return []
@@ -278,9 +286,9 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
     # extract features
     seq_seq = fwd_seq
     seq_rc = complement_seq(seq_seq)
-    seq_qual = np.array(fwd_qual, dtype=int) if len(fwd_qual) > 0 else np.full(len(seq_seq), 0, dtype=np.int32)
-    LOGGER.debug("read-{} has no base quality".format(seq_name))
-    seq_qual = _normalize_signals(seq_qual, args.norm)
+    # seq_qual = np.array(fwd_qual, dtype=int) if len(fwd_qual) > 0 else np.full(len(seq_seq), 0, dtype=np.int32)
+    # LOGGER.debug("read-{} has no base quality".format(seq_name))
+    # seq_qual = _normalize_signals(seq_qual, args.norm)
     reverse = is_reverse
 
     # change seq_start/seq_end if is_reverse
@@ -327,6 +335,8 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
     npass_fwd = tag_fn
     npass_rev = tag_rn
 
+    snratio = np.array(tag_sn, dtype=float)
+
     # WARN: motifs needs to be symmetric seq, like CG/GATC
     motif_len = len(motifs[0])
     rev_offset_loc = (motif_len - 1 - args.mod_loc) - args.mod_loc
@@ -342,14 +352,16 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
             fkmer_isd = "."
             fkmer_pm = pwmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
             fkmer_psd = "."
-            fkmer_qual = seq_qual[(loc - num_bases):(loc + num_bases + 1)]
+            # fkmer_qual = seq_qual[(loc - num_bases):(loc + num_bases + 1)]
+            fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float)
 
             rkmer_seq = seq_rc[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
             rkmer_im = ipdmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
             rkmer_isd = "."
             rkmer_pm = pwmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
             rkmer_psd = "."
-            rkmer_qual = np.flip(seq_qual[(rev_loc - num_bases):(rev_loc + num_bases + 1)])
+            # rkmer_qual = np.flip(seq_qual[(rev_loc - num_bases):(rev_loc + num_bases + 1)])
+            rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float)
 
             if q_to_r_poss is not None:
                 chrom = ref_name
@@ -384,9 +396,9 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
                 rkmer_map = "."
             feature_list.append([chrom, chrom_pos, strand, seq_name, loc,
                                  fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd,
-                                 fkmer_qual, fkmer_map,
+                                 fkmer_sn, fkmer_map,
                                  rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd,
-                                 rkmer_qual, rkmer_map,
+                                 rkmer_sn, rkmer_map,
                                  args.methy_label])
     return feature_list
 
@@ -399,7 +411,7 @@ def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne
 
     for read_idx, readinfo in enumerate(holebatch):
         try:
-            alignedsegment_tmp = pysam.AlignedSegment.from_dict(readinfo, input_header)
+            alignedsegment_tmp = pysam.AlignedSegment.from_dict(readinfo, input_header)  # not necessary?
             features_one = extract_features_from_double_strand_read(alignedsegment_tmp,
                                                                     motifs, holeids_e, holeids_ne,
                                                                     dnacontigs,
@@ -424,30 +436,30 @@ def _features_to_str(features):
     """
     chrom, chrom_pos, strand, seq_name, loc, \
         fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd, \
-        fkmer_qual, fkmer_map, \
+        fkmer_sn, fkmer_map, \
         rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd, \
-        rkmer_qual, rkmer_map, \
+        rkmer_sn, rkmer_map, \
         label = features
 
     fkmer_im_str = ",".join([str(x) for x in fkmer_im])
     fkmer_isd_str = ",".join([str(x) for x in fkmer_isd]) if type(fkmer_isd) is not str else "."
     fkmer_pm_str = ",".join([str(x) for x in fkmer_pm])
     fkmer_psd_str = ",".join([str(x) for x in fkmer_psd]) if type(fkmer_psd) is not str else "."
-    fkmer_qual_str = ",".join([str(x) for x in fkmer_qual])
+    fkmer_sn_str = ",".join([str(x) for x in fkmer_sn])
     fkmer_map_str = ",".join([str(x) for x in fkmer_map]) if type(fkmer_map) is not str else "."
 
     rkmer_im_str = ",".join([str(x) for x in rkmer_im])
     rkmer_isd_str = ",".join([str(x) for x in rkmer_isd]) if type(rkmer_isd) is not str else "."
     rkmer_pm_str = ",".join([str(x) for x in rkmer_pm])
     rkmer_psd_str = ",".join([str(x) for x in rkmer_psd]) if type(rkmer_psd) is not str else "."
-    rkmer_qual_str = ",".join([str(x) for x in rkmer_qual])
+    rkmer_sn_str = ",".join([str(x) for x in rkmer_sn])
     rkmer_map_str = ",".join([str(x) for x in rkmer_map]) if type(rkmer_map) is not str else "."
 
     return "\t".join([chrom, str(chrom_pos), strand, seq_name, str(loc),
                       fkmer_seq, str(npass_fwd), fkmer_im_str, fkmer_isd_str, fkmer_pm_str, fkmer_psd_str,
-                      fkmer_qual_str, fkmer_map_str,
+                      fkmer_sn_str, fkmer_map_str,
                       rkmer_seq, str(npass_rev), rkmer_im_str, rkmer_isd_str, rkmer_pm_str, rkmer_psd_str,
-                      rkmer_qual_str, rkmer_map_str,
+                      rkmer_sn_str, rkmer_map_str,
                       str(label)])
 
 

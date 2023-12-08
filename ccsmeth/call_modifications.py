@@ -77,7 +77,7 @@ def _batch_feature_list2s(feature_list):
     fipdsds = []
     fpwms = []
     fpwsds = []
-    fquals = []
+    fsns = []
     fmaps = []
 
     rkmers = []
@@ -86,14 +86,14 @@ def _batch_feature_list2s(feature_list):
     ripdsds = []
     rpwms = []
     rpwsds = []
-    rquals = []
+    rsns = []
     rmaps = []
 
     labels = []
     for featureline in feature_list:
         chrom, abs_loc, strand, holeid, loc, \
-            kmer_seq, kmer_pass, kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_qual, kmer_map, \
-            kmer_seq2, kmer_pass2, kmer_ipdm2, kmer_ipds2, kmer_pwm2, kmer_pws2, kmer_qual2, kmer_map2, \
+            kmer_seq, kmer_pass, kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_sn, kmer_map, \
+            kmer_seq2, kmer_pass2, kmer_ipdm2, kmer_ipds2, kmer_pwm2, kmer_pws2, kmer_sn2, kmer_map2, \
             label = featureline
 
         sampleinfo.append("\t".join(list(map(str, [chrom, abs_loc, strand, holeid, loc]))))
@@ -104,7 +104,7 @@ def _batch_feature_list2s(feature_list):
         fipdsds.append(np.array(kmer_ipds, dtype=float) if type(kmer_ipds) is not str else 0)
         fpwms.append(np.array(kmer_pwm, dtype=float))
         fpwsds.append(np.array(kmer_pws, dtype=float) if type(kmer_pws) is not str else 0)
-        fquals.append(np.array(kmer_qual, dtype=float))
+        fsns.append(np.array(kmer_sn, dtype=float))
         fmaps.append(np.array(kmer_map, dtype=float) if type(kmer_map) is not str else 0)
 
         rkmers.append(np.array([base2code_dna[x] for x in kmer_seq2]))
@@ -113,12 +113,12 @@ def _batch_feature_list2s(feature_list):
         ripdsds.append(np.array(kmer_ipds2, dtype=float) if type(kmer_ipds2) is not str else 0)
         rpwms.append(np.array(kmer_pwm2, dtype=float))
         rpwsds.append(np.array(kmer_pws2, dtype=float) if type(kmer_pws2) is not str else 0)
-        rquals.append(np.array(kmer_qual2, dtype=float))
+        rsns.append(np.array(kmer_sn2, dtype=float))
         rmaps.append(np.array(kmer_map2, dtype=float) if type(kmer_map2) is not str else 0)
 
         labels.append(label)
-    return sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fquals, fmaps, \
-        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rquals, rmaps, labels
+    return sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fsns, fmaps, \
+        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rsns, rmaps, labels
 
 
 def worker_extract_features_with_holeinfo(input_header, holebatch_q, features_q,
@@ -166,8 +166,8 @@ def worker_extract_features_with_holeinfo(input_header, holebatch_q, features_q,
 
 # call mods =============================================================
 def _call_mods2s(features_batch, model, batch_size, device=0):
-    sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fquals, fmaps, \
-        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rquals, rmaps, labels = features_batch
+    sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fsns, fmaps, \
+        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rsns, rmaps, labels = features_batch
     labels = np.reshape(labels, (len(labels)))
 
     pred_info = []
@@ -182,7 +182,7 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
         b_fipdsds = np.array(fipdsds[batch_s:batch_e])
         b_fpwms = np.array(fpwms[batch_s:batch_e])
         b_fpwsds = np.array(fpwsds[batch_s:batch_e])
-        b_fquals = np.array(fquals[batch_s:batch_e])
+        b_fsns = np.array(fsns[batch_s:batch_e])
         b_fmaps = np.array(fmaps[batch_s:batch_e])
 
         b_rkmers = np.array(rkmers[batch_s:batch_e])
@@ -191,7 +191,7 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
         b_ripdsds = np.array(ripdsds[batch_s:batch_e])
         b_rpwms = np.array(rpwms[batch_s:batch_e])
         b_rpwsds = np.array(rpwsds[batch_s:batch_e])
-        b_rquals = np.array(rquals[batch_s:batch_e])
+        b_rsns = np.array(rsns[batch_s:batch_e])
         b_rmaps = np.array(rmaps[batch_s:batch_e])
 
         # b_labels = np.array(labels[batch_s:batch_e])
@@ -199,11 +199,11 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
             voutputs, vlogits = model(FloatTensor(b_fkmers, device), FloatTensor(b_fpasss, device),
                                       FloatTensor(b_fipdms, device), FloatTensor(b_fipdsds, device),
                                       FloatTensor(b_fpwms, device), FloatTensor(b_fpwsds, device),
-                                      FloatTensor(b_fquals, device), FloatTensor(b_fmaps, device),
+                                      FloatTensor(b_fsns, device), FloatTensor(b_fmaps, device),
                                       FloatTensor(b_rkmers, device), FloatTensor(b_rpasss, device),
                                       FloatTensor(b_ripdms, device), FloatTensor(b_ripdsds, device),
                                       FloatTensor(b_rpwms, device), FloatTensor(b_rpwsds, device),
-                                      FloatTensor(b_rquals, device), FloatTensor(b_rmaps, device))
+                                      FloatTensor(b_rsns, device), FloatTensor(b_rmaps, device))
             _, vpredicted = torch.max(vlogits.data, 1)
             if use_cuda:
                 vlogits = vlogits.cpu()
@@ -314,7 +314,7 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
-                            is_qual=str2bool(args.is_qual),
+                            is_sn=str2bool(args.is_sn),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
                             is_npass=str2bool(args.is_npass),
@@ -627,8 +627,8 @@ def main():
                         help="len of kmer. default 21")
     p_call.add_argument('--is_npass', type=str, default="yes", required=False,
                         help="if using num_pass features, yes or no, default yes")
-    p_call.add_argument('--is_qual', type=str, default="no", required=False,
-                        help="if using base_quality features, yes or no, default no")
+    p_call.add_argument('--is_sn', type=str, default="no", required=False,
+                        help="if using signal-to-noise-ratio features, yes or no, default no")
     p_call.add_argument('--is_map', type=str, default="no", required=False,
                         help="if using mapping features, yes or no, default no")
     p_call.add_argument('--is_stds', type=str, default="no", required=False,

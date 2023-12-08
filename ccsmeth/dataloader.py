@@ -15,9 +15,9 @@ def clear_linecache():
 def parse_a_line(line):
     # chrom, chrom_pos, strand, seq_name, loc,
     #     fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd,
-    #     fkmer_qual, fkmer_map,
+    #     fkmer_sn, fkmer_map,
     #     rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd,
-    #     rkmer_qual, rkmer_map,
+    #     rkmer_sn, rkmer_map,
     #     methy_label
     words = line.strip().split("\t")
 
@@ -29,7 +29,7 @@ def parse_a_line(line):
     fipdsd = np.array([float(x) for x in words[8].split(",")], dtype=float) if words[8] != "." else 0
     fpwm = np.array([float(x) for x in words[9].split(",")], dtype=float)
     fpwsd = np.array([float(x) for x in words[10].split(",")], dtype=float) if words[10] != "." else 0
-    fqual = np.array([float(x) for x in words[11].split(",")], dtype=float)
+    fsn = np.array([float(x) for x in words[11].split(",")], dtype=float)
     fmap = np.array([float(x) for x in words[12].split(",")], dtype=float) if words[12] != "." else 0
 
     rkmer = np.array([base2code_dna[x] for x in words[13]])
@@ -38,13 +38,13 @@ def parse_a_line(line):
     ripdsd = np.array([float(x) for x in words[16].split(",")], dtype=float) if words[16] != "." else 0
     rpwm = np.array([float(x) for x in words[17].split(",")], dtype=float)
     rpwsd = np.array([float(x) for x in words[18].split(",")], dtype=float) if words[18] != "." else 0
-    rqual = np.array([float(x) for x in words[19].split(",")], dtype=float)
+    rsn = np.array([float(x) for x in words[19].split(",")], dtype=float)
     rmap = np.array([float(x) for x in words[20].split(",")], dtype=float) if words[20] != "." else 0
 
     label = int(words[21])
 
-    return sampleinfo, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap, \
-        rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap, label
+    return sampleinfo, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, \
+        rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap, label
 
 
 class FeaData(Dataset):

@@ -82,7 +82,7 @@ def train(args):
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
                             args.n_vocab, args.n_embed,
-                            is_qual=str2bool(args.is_qual),
+                            is_sn=str2bool(args.is_sn),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
                             is_npass=str2bool(args.is_npass),
@@ -159,8 +159,8 @@ def train(args):
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
             if args.model_type in {"attbigru2s", "attbilstm2s"}:
-                _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap, \
-                    rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap, \
+                _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, \
+                    rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap, \
                     labels = sfeatures
                 if use_cuda:
                     fkmer = fkmer.to(device)
@@ -169,7 +169,7 @@ def train(args):
                     fipdsd = fipdsd.to(device)
                     fpwm = fpwm.to(device)
                     fpwsd = fpwsd.to(device)
-                    fqual = fqual.to(device)
+                    fsn = fsn.to(device)
                     fmap = fmap.to(device)
 
                     rkmer = rkmer.to(device)
@@ -178,13 +178,13 @@ def train(args):
                     ripdsd = ripdsd.to(device)
                     rpwm = rpwm.to(device)
                     rpwsd = rpwsd.to(device)
-                    rqual = rqual.to(device)
+                    rsn = rsn.to(device)
                     rmap = rmap.to(device)
 
                     labels = labels.to(device)
                 # Forward pass
-                outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fqual, fmap,
-                                        rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rqual, rmap)
+                outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap,
+                                        rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap)
                 loss = criterion(outputs, labels)
                 tlosses.append(loss.detach().item())
             else:
@@ -202,8 +202,8 @@ def train(args):
                     vlosses, vlabels_total, vpredicted_total = [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
                         if args.model_type in {"attbigru2s", "attbilstm2s"}:
-                            _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfqual, vfmap, \
-                                vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrqual, vrmap, \
+                            _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap, \
+                                vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrsn, vrmap, \
                                 vlabels = vsfeatures
                             if use_cuda:
                                 vfkmer = vfkmer.to(device)
@@ -212,7 +212,7 @@ def train(args):
                                 vfipdsd = vfipdsd.to(device)
                                 vfpwm = vfpwm.to(device)
                                 vfpwsd = vfpwsd.to(device)
-                                vfqual = vfqual.to(device)
+                                vfsn = vfsn.to(device)
                                 vfmap = vfmap.to(device)
 
                                 vrkmer = vrkmer.to(device)
@@ -221,15 +221,15 @@ def train(args):
                                 vripdsd = vripdsd.to(device)
                                 vrpwm = vrpwm.to(device)
                                 vrpwsd = vrpwsd.to(device)
-                                vrqual = vrqual.to(device)
+                                vrsn = vrsn.to(device)
                                 vrmap = vrmap.to(device)
 
                                 vlabels = vlabels.to(device)
                             # Forward pass
                             voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm,
-                                                      vfpwsd, vfqual, vfmap,
+                                                      vfpwsd, vfsn, vfmap,
                                                       vrkmer, vrpass, vripdm, vripdsd, vrpwm,
-                                                      vrpwsd, vrqual, vrmap)
+                                                      vrpwsd, vrsn, vrmap)
                             vloss = criterion(voutputs, vlabels)
                         else:
                             raise ValueError("--model_type is not right!")
@@ -338,8 +338,8 @@ def main():
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
-    st_train.add_argument('--is_qual', type=str, default="no", required=False,
-                          help="if using base_quality features, yes or no, default no")
+    st_train.add_argument('--is_sn', type=str, default="no", required=False,
+                          help="if using signal-to-noise-ratio features, yes or no, default no")
     st_train.add_argument('--is_map', type=str, default="no", required=False,
                           help="if using mapping features, yes or no, default no")
     st_train.add_argument('--is_stds', type=str, default="no", required=False,
