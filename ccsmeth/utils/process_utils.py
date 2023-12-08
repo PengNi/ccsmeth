@@ -46,6 +46,9 @@ CODE2CIGAR = "MIDNSHP=XB"
 CIGAR_REGEX = re.compile("(\d+)([MIDNSHP=XB])")
 CIGAR2CODE = dict([y, x] for x, y in enumerate(CODE2CIGAR))
 
+SEQ_ORDER = "ACGT"
+SEQ_ENCODE = dict([y, x] for x, y in enumerate(SEQ_ORDER))
+
 max_queue_size = 600
 
 nproc_to_call_mods_in_cpu_mode = 2
@@ -275,9 +278,14 @@ def generate_samtools_sort_cmd(path_to_samtools, outputfile, threads=10):
 
 
 def index_bam_if_needed2(inputfile, threads):
-    if str(inputfile).endswith(".bam") and not os.path.exists(inputfile + ".bai"):
+    if str(inputfile).endswith(".bam") \
+            and not os.path.exists(inputfile + ".bai") \
+            and not os.path.exists(inputfile + ".csi"):
         LOGGER.info("indexing bam file-{}\n".format(inputfile))
-        pysam.index("-@", str(threads), inputfile)
+        try:
+            pysam.index("-@", str(threads), inputfile)
+        except pysam.utils.SamtoolsError:
+            pysam.index("-@", str(threads), inputfile, "-c")
 
 
 # =================================================================
