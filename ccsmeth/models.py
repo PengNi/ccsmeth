@@ -37,7 +37,7 @@ class ModelAttRNN(nn.Module):
             self.feas_ccs += 2
         if self.is_npass:
             self.feas_ccs += 1
-        if self.is_qual:
+        if self.is_sn:
             self.feas_ccs += 1
         if self.is_map:
             self.feas_ccs += 1

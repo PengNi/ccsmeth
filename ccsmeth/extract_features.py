@@ -304,7 +304,7 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
     if args.mode == "align":
         strand_code = -1 if reverse else 1
         q_to_r_poss = get_q2tloc_from_cigar(cigar_tuples, strand_code, (seq_end - seq_start))
-        if str2bool(args.is_mapfea):
+        if str2bool(args.is_map):
             refseq = dnacontigs[ref_name][ref_start:ref_end]
             if reverse:
                 refseq = complement_seq(refseq)
@@ -335,7 +335,7 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
     npass_fwd = tag_fn
     npass_rev = tag_rn
 
-    snratio = np.array(tag_sn, dtype=float)
+    snratio = np.around(np.array(tag_sn, dtype=float), decimals=6) if str2bool(args.is_sn) else None
 
     # WARN: motifs needs to be symmetric seq, like CG/GATC
     motif_len = len(motifs[0])
@@ -353,7 +353,7 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
             fkmer_pm = pwmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
             fkmer_psd = "."
             # fkmer_qual = seq_qual[(loc - num_bases):(loc + num_bases + 1)]
-            fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float)
+            fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
 
             rkmer_seq = seq_rc[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
             rkmer_im = ipdmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
@@ -361,7 +361,7 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
             rkmer_pm = pwmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
             rkmer_psd = "."
             # rkmer_qual = np.flip(seq_qual[(rev_loc - num_bases):(rev_loc + num_bases + 1)])
-            rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float)
+            rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
 
             if q_to_r_poss is not None:
                 chrom = ref_name
@@ -379,13 +379,13 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
                         else:
                             chrom_pos = q_to_r_poss[offset_idx] + ref_start
 
-                    if str2bool(args.is_mapfea):
+                    if str2bool(args.is_map):
                         fkmer_map, rkmer_map = _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases,
                                                                     q_to_r_mapinfo)
                 else:
                     if str2bool(args.skip_unmapped):  # skip soft clip region
                         continue
-                    if str2bool(args.is_mapfea):
+                    if str2bool(args.is_map):
                         fkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
                         rkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
             else:
@@ -445,14 +445,14 @@ def _features_to_str(features):
     fkmer_isd_str = ",".join([str(x) for x in fkmer_isd]) if type(fkmer_isd) is not str else "."
     fkmer_pm_str = ",".join([str(x) for x in fkmer_pm])
     fkmer_psd_str = ",".join([str(x) for x in fkmer_psd]) if type(fkmer_psd) is not str else "."
-    fkmer_sn_str = ",".join([str(x) for x in fkmer_sn])
+    fkmer_sn_str = ",".join([str(x) for x in fkmer_sn]) if type(fkmer_sn) is not str else "."
     fkmer_map_str = ",".join([str(x) for x in fkmer_map]) if type(fkmer_map) is not str else "."
 
     rkmer_im_str = ",".join([str(x) for x in rkmer_im])
     rkmer_isd_str = ",".join([str(x) for x in rkmer_isd]) if type(rkmer_isd) is not str else "."
     rkmer_pm_str = ",".join([str(x) for x in rkmer_pm])
     rkmer_psd_str = ",".join([str(x) for x in rkmer_psd]) if type(rkmer_psd) is not str else "."
-    rkmer_sn_str = ",".join([str(x) for x in rkmer_sn])
+    rkmer_sn_str = ",".join([str(x) for x in rkmer_sn]) if type(rkmer_sn) is not str else "."
     rkmer_map_str = ",".join([str(x) for x in rkmer_map]) if type(rkmer_map) is not str else "."
 
     return "\t".join([chrom, str(chrom_pos), strand, seq_name, str(loc),
@@ -660,6 +660,10 @@ def main():
     #                             "the PATH.")
     p_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                            help="number of holes/hifi-reads in an batch to get/put in queues, default 50")
+    p_extract.add_argument("--is_sn", type=str, default="no", required=False,
+                           help="if extracting signal-to-noise features, yes or no, default no")
+    p_extract.add_argument("--is_map", type=str, default="no", required=False,
+                           help="if extracting mapping features, yes or no, default no. only works in ALIGN-MODE")
 
     p_extract_ref = parser.add_argument_group("EXTRACTION ALIGN_MODE")
     p_extract_ref.add_argument("--ref", type=str, required=False,
@@ -670,8 +674,6 @@ def main():
                                help="identity cutoff for selecting alignment items, [0.0, 1.0], default 0.0")
     p_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                help="not use supplementary alignment")
-    p_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
-                               help="if extract mapping features, yes or no, default no")
     p_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
                                help="if skipping unmapped sites in reads, yes or no, default yes")
 

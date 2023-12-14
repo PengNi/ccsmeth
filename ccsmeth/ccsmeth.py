@@ -226,12 +226,17 @@ def main():
                           help="len of kmer. default 21")
     scm_call.add_argument('--is_npass', type=str, default="yes", required=False,
                           help="if using num_pass features, yes or no, default yes")
-    scm_call.add_argument('--is_sn', type=str, default="no", required=False,
-                          help="if using signal-to-noise-ratio features, yes or no, default no")
-    scm_call.add_argument('--is_map', type=str, default="no", required=False,
-                          help="if using mapping features, yes or no, default no")
     scm_call.add_argument('--is_stds', type=str, default="no", required=False,
                           help="if using std features, yes or no, default no")
+    
+    scm_call.add_argument('--is_sn', type=str, default="no", required=False,
+                          help="if using signal-to-noise-ratio features, yes or no, default no. "
+                               "Effects both MODEL input and feature EXTRACTION")
+    scm_call.add_argument('--is_map', type=str, default="no", required=False,
+                          help="if using mapping features, yes or no, default no. "
+                               "Effects both MODEL input and feature EXTRACTION, "
+                               "only works in EXTRACTION-ALIGN-MODE")
+
     scm_call.add_argument('--class_num', type=int, default=2, required=False)
     scm_call.add_argument('--dropout_rate', type=float, default=0, required=False)
 
@@ -293,8 +298,6 @@ def main():
                                  help="identity cutoff for selecting alignment items, [0.0, 1.0], default 0.0")
     scm_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                  help="not use supplementary alignment")
-    scm_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
-                                 help="if extract mapping features, yes or no, default no")
     scm_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
                                  help="if skipping unmapped sites in reads, yes or no, default yes")
 
@@ -361,6 +364,10 @@ def main():
     #                              "the PATH.")
     se_extract.add_argument("--holes_batch", type=int, default=50, required=False,
                             help="number of holes/hifi-reads in an batch to get/put in queues, default 50")
+    se_extract.add_argument("--is_sn", type=str, default="no", required=False,
+                            help="if extracting signal-to-noise features, yes or no, default no")
+    se_extract.add_argument("--is_map", type=str, default="no", required=False,
+                            help="if extracting mapping features, yes or no, default no. only works in ALIGN-MODE")
 
     se_extract_ref = sub_extract.add_argument_group("EXTRACTION ALIGN_MODE")
     se_extract_ref.add_argument("--ref", type=str, required=False,
@@ -371,8 +378,6 @@ def main():
                                 help="identity cutoff for selecting alignment items, [0.0, 1.0], default 0.0")
     se_extract_ref.add_argument("--no_supplementary", action="store_true", default=False, required=False,
                                 help="not use supplementary alignment")
-    se_extract_ref.add_argument("--is_mapfea", type=str, default="no", required=False,
-                                help="if extract mapping features, yes or no, default no")
     se_extract_ref.add_argument("--skip_unmapped", type=str, default="yes", required=False,
                                 help="if skipping unmapped sites in reads, yes or no, default yes")
 

@@ -29,7 +29,7 @@ def parse_a_line(line):
     fipdsd = np.array([float(x) for x in words[8].split(",")], dtype=float) if words[8] != "." else 0
     fpwm = np.array([float(x) for x in words[9].split(",")], dtype=float)
     fpwsd = np.array([float(x) for x in words[10].split(",")], dtype=float) if words[10] != "." else 0
-    fsn = np.array([float(x) for x in words[11].split(",")], dtype=float)
+    fsn = np.array([float(x) for x in words[11].split(",")], dtype=float) if words[11] != "." else 0
     fmap = np.array([float(x) for x in words[12].split(",")], dtype=float) if words[12] != "." else 0
 
     rkmer = np.array([base2code_dna[x] for x in words[13]])
@@ -38,7 +38,7 @@ def parse_a_line(line):
     ripdsd = np.array([float(x) for x in words[16].split(",")], dtype=float) if words[16] != "." else 0
     rpwm = np.array([float(x) for x in words[17].split(",")], dtype=float)
     rpwsd = np.array([float(x) for x in words[18].split(",")], dtype=float) if words[18] != "." else 0
-    rsn = np.array([float(x) for x in words[19].split(",")], dtype=float)
+    rsn = np.array([float(x) for x in words[19].split(",")], dtype=float) if words[19] != "." else 0
     rmap = np.array([float(x) for x in words[20].split(",")], dtype=float) if words[20] != "." else 0
 
     label = int(words[21])
