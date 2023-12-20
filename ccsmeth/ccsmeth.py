@@ -552,10 +552,10 @@ def main():
     st_train = sub_train.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "default: attbigru2s")
+                               "'transencoder2s', 'transencoder2s2', default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -569,15 +569,28 @@ def main():
     st_train.add_argument('--class_num', type=int, default=2, required=False)
     st_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
-    # BiRNN model param
     st_train.add_argument('--n_vocab', type=int, default=16, required=False,
                           help="base_seq vocab_size (15 base kinds from iupac)")
     st_train.add_argument('--n_embed', type=int, default=4, required=False,
                           help="base_seq embedding_size")
-    st_train.add_argument('--layer_rnn', type=int, default=3,
+    
+    st_trainb = sub_train.add_argument_group("TRAIN MODEL_HYPER RNN")
+    # BiRNN model param
+    st_trainb.add_argument('--layer_rnn', type=int, default=3,
                           required=False, help="BiRNN layer num, default 3")
-    st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
+    st_trainb.add_argument('--hid_rnn', type=int, default=256, required=False,
                           help="BiRNN hidden_size, default 256")
+    
+    st_traint = sub_train.add_argument_group("TRAIN MODEL_HYPER TRANSFORMER")
+    # Transformer model param
+    st_traint.add_argument('--layer_trans', type=int, default=6, required=False,
+                          help="TransformerEncoder nlayers, default 6")
+    st_traint.add_argument('--nhead', type=int, default=4, required=False,
+                          help="TransformerEncoder nhead, default 4")
+    st_traint.add_argument('--d_model', type=int, default=256, required=False, 
+                          help="TransformerEncoder input feature numbers, default 256")
+    st_traint.add_argument('--dim_ff', type=int, default=512, required=False,
+                          help="TransformerEncoder dim_feedforward, default 512")
 
     st_training = sub_train.add_argument_group("TRAINING")
     # model training
@@ -626,13 +639,13 @@ def main():
     stm_input = sub_trainm.add_argument_group("OUTPUT")
     stm_input.add_argument('--model_dir', type=str, required=True)
 
-    # model param
     stm_train = sub_trainm.add_argument_group("TRAIN MODEL_HYPER")
+    # model param
     stm_train.add_argument('--model_type', type=str, default="attbigru2s",
-                           choices=["attbilstm2s", "attbigru2s"],
+                           choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
                            required=False,
                            help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                                "default: attbigru2s")
+                                "'transencoder2s', 'transencoder2s2', default: attbigru2s")
     stm_train.add_argument('--seq_len', type=int, default=21, required=False,
                            help="len of kmer. default 21")
     stm_train.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -646,15 +659,28 @@ def main():
     stm_train.add_argument('--class_num', type=int, default=2, required=False)
     stm_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
-    # BiRNN model param
     stm_train.add_argument('--n_vocab', type=int, default=16, required=False,
                            help="base_seq vocab_size (15 base kinds from iupac)")
     stm_train.add_argument('--n_embed', type=int, default=4, required=False,
                            help="base_seq embedding_size")
-    stm_train.add_argument('--layer_rnn', type=int, default=3,
+    
+    stm_trainb = sub_trainm.add_argument_group("TRAIN MODEL_HYPER RNN")
+    # BiRNN model param
+    stm_trainb.add_argument('--layer_rnn', type=int, default=3,
                            required=False, help="BiRNN layer num, default 3")
-    stm_train.add_argument('--hid_rnn', type=int, default=256, required=False,
+    stm_trainb.add_argument('--hid_rnn', type=int, default=256, required=False,
                            help="BiRNN hidden_size, default 256")
+    
+    stm_traint = sub_trainm.add_argument_group("TRAIN MODEL_HYPER TRANSFORMER")
+    # Transformer model param
+    stm_traint.add_argument('--layer_trans', type=int, default=6, required=False,
+                           help="TransformerEncoder nlayers, default 6")
+    stm_traint.add_argument('--nhead', type=int, default=4, required=False,
+                           help="TransformerEncoder nhead, default 4")
+    stm_traint.add_argument('--d_model', type=int, default=256, required=False, 
+                           help="TransformerEncoder input feature numbers, default 256")
+    stm_traint.add_argument('--dim_ff', type=int, default=512, required=False,
+                           help="TransformerEncoder dim_feedforward, default 512")
 
     # model training
     stm_training = sub_trainm.add_argument_group("TRAINING")

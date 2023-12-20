@@ -16,6 +16,8 @@ from .dataloader import FeaData2
 from .dataloader import clear_linecache
 
 from .models import ModelAttRNN
+from .models import ModelTransEnc
+from .models import ModelTransEnc2
 
 from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
@@ -40,7 +42,7 @@ def train(args):
         LOGGER.info("GPU is not available!")
 
     LOGGER.info("reading data..")
-    if args.model_type in {"attbigru2s", "attbilstm2s"}:
+    if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
         if args.dl_offsets:
             if args.dl_num_workers > 1:
                 raise ValueError("--dl_num_workers should not be >1 when --dl_offsets is True!")
@@ -88,6 +90,20 @@ def train(args):
                             is_npass=str2bool(args.is_npass),
                             model_type=args.model_type,
                             device=device)
+    elif args.model_type in {"transencoder2s"}:
+        model = ModelTransEnc(args.seq_len, args.layer_trans, args.class_num,
+                              args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
+                              args.n_vocab, args.n_embed, 
+                              is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
+                              is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
+                              model_type=args.model_type, device=device)
+    elif args.model_type in {"transencoder2s2"}:
+        model = ModelTransEnc2(args.seq_len, args.layer_trans, args.class_num,
+                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
+                               args.n_vocab, args.n_embed,
+                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
+                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
+                               model_type=args.model_type, device=device)
     else:
         raise ValueError("--model_type not right!")
 
@@ -158,7 +174,7 @@ def train(args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"attbigru2s", "attbilstm2s"}:
+            if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
                 _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, \
                     rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap, \
                     labels = sfeatures
@@ -201,7 +217,7 @@ def train(args):
                 with torch.no_grad():
                     vlosses, vlabels_total, vpredicted_total = [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"attbigru2s", "attbilstm2s"}:
+                        if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
                             _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap, \
                                 vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrsn, vrmap, \
                                 vlabels = vsfeatures
@@ -330,10 +346,10 @@ def main():
     st_train = parser.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "default: attbigru2s")
+                               "'transencoder2s', 'transencoder2s2', default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -347,15 +363,28 @@ def main():
     st_train.add_argument('--class_num', type=int, default=2, required=False)
     st_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
-    # BiRNN model param
     st_train.add_argument('--n_vocab', type=int, default=16, required=False,
                           help="base_seq vocab_size (15 base kinds from iupac)")
     st_train.add_argument('--n_embed', type=int, default=4, required=False,
                           help="base_seq embedding_size")
-    st_train.add_argument('--layer_rnn', type=int, default=3,
+    
+    st_trainb = parser.add_argument_group("TRAIN MODEL_HYPER RNN")
+    # BiRNN model param
+    st_trainb.add_argument('--layer_rnn', type=int, default=3,
                           required=False, help="BiRNN layer num, default 3")
-    st_train.add_argument('--hid_rnn', type=int, default=256, required=False,
+    st_trainb.add_argument('--hid_rnn', type=int, default=256, required=False,
                           help="BiRNN hidden_size, default 256")
+    
+    st_traint = parser.add_argument_group("TRAIN MODEL_HYPER TRANSFORMER")
+    # Transformer model param
+    st_traint.add_argument('--layer_trans', type=int, default=6, required=False,
+                          help="TransformerEncoder nlayers, default 6")
+    st_traint.add_argument('--nhead', type=int, default=4, required=False,
+                          help="TransformerEncoder nhead, default 4")
+    st_traint.add_argument('--d_model', type=int, default=256, required=False, 
+                          help="TransformerEncoder input feature numbers, default 256")
+    st_traint.add_argument('--dim_ff', type=int, default=512, required=False,
+                          help="TransformerEncoder dim_feedforward, default 512")
 
     st_training = parser.add_argument_group("TRAINING")
     # model training

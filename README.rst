@@ -8,6 +8,8 @@ v0.4.2
 ----------
 bug fixes
 
+change feature QUAL to SNratio, didn't work though
+
 
 v0.4.1
 ----------
