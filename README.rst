@@ -4,7 +4,7 @@ ccsmeth
 
 Changelog
 -------------
-v0.4.2
+v0.5.0
 ----------
 bug fixes
 

@@ -31,7 +31,7 @@ ccsmeth is built on [Python3](https://www.python.org/) and [PyTorch](https://pyt
        [numpy](http://www.numpy.org/) \
        [statsmodels](https://github.com/statsmodels/statsmodels/) \
        [scikit-learn](https://scikit-learn.org/stable/) \
-       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=1.12.1) \
+       [PyTorch](https://pytorch.org/) (version >=1.2.0, <=2.1.0) \
        [tqdm](https://github.com/tqdm/tqdm) \
        [pysam](https://pysam.readthedocs.io/en/latest/installation.html) \
        [pybedtools](https://daler.github.io/pybedtools/) \

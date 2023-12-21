@@ -364,7 +364,7 @@ def main():
     st_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
 
     st_train.add_argument('--n_vocab', type=int, default=16, required=False,
-                          help="base_seq vocab_size (15 base kinds from iupac)")
+                          help="base_seq vocab_size (16 base kinds from iupac)")
     st_train.add_argument('--n_embed', type=int, default=4, required=False,
                           help="base_seq embedding_size")
     

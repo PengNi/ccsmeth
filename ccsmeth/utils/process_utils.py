@@ -50,15 +50,13 @@ SEQ_ORDER = "ACGT"
 SEQ_ENCODE = dict([y, x] for x, y in enumerate(SEQ_ORDER))
 
 # for feature extraction/embedding
-MAX_KINETICS = 255
-MAX_PASSES = 20
-MAX_SN = 500
+MAX_KINETICS = 952  # 952 or 255?
+MAX_PASSES = 30
 MAX_MAP = 8
-MAX_KINETICS_STD = 255 # placeholder
 NEMBED_KINETICS = 8
 NEMBED_PASSES = 4
-NEMBED_SN = 4  # TODO: need to see if this is suitable
 NEMBED_MAP = 4
+NEMBED_SN = 4  # TODO: need to see if this is suitable
 NEMBED_KINETICS_STD = 8  # placeholder
 
 max_queue_size = 600

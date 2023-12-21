@@ -9,7 +9,7 @@ import torch.nn as nn
 from .utils.constants_torch import use_cuda
 from .utils.attention import Attention
 
-from .utils.process_utils import MAX_KINETICS, MAX_PASSES, MAX_SN, MAX_MAP, MAX_KINETICS_STD
+from .utils.process_utils import MAX_KINETICS, MAX_PASSES, MAX_MAP
 from .utils.process_utils import NEMBED_KINETICS, NEMBED_PASSES, NEMBED_SN, NEMBED_MAP, NEMBED_KINETICS_STD
 
 import math  # TODO: is it suitable?
@@ -202,6 +202,73 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
+class EmbedBlockPlus(nn.Module):
+    def __init__(self, d_model=4, kernel_size=3, stride=1, padding=1, bias=False):
+        super(EmbedBlockPlus, self).__init__()
+        self.d_model = d_model
+        self.conv_embed = nn.Sequential(nn.Conv1d(in_channels=d_model,
+                                                  out_channels=d_model,
+                                                  kernel_size=kernel_size,
+                                                  stride=stride,
+                                                  padding=padding,
+                                                  bias=bias),
+                                        nn.BatchNorm1d(num_features=d_model),
+                                        nn.ReLU(inplace=True),
+                                        nn.MaxPool1d(kernel_size=kernel_size,
+                                                     stride=stride,
+                                                     padding=padding))
+    def forward(self, x):  # input (N, C, L)
+        return self.conv_embed(x)
+
+
+class SrcEmbed(nn.Module):  # for src_embed, no dropout
+    def __init__(self, intpu_dim=1, d_model=4, block_plus=1, kernel_size=3, stride=1, padding=1, bias=False):
+        super(SrcEmbed, self).__init__()
+        self.d_model = d_model
+        # self.fc1 = nn.Linear(intpu_dim, d_model)
+        self.conv_embed = nn.Sequential(nn.Conv1d(in_channels=intpu_dim, 
+                                                  out_channels=self.d_model // 2,
+                                                  kernel_size=kernel_size,
+                                                  stride=stride,
+                                                  padding=padding,
+                                                  bias=bias),
+                                       nn.BatchNorm1d(num_features=self.d_model // 2),
+                                       nn.ReLU(inplace=True),
+                                       nn.MaxPool1d(kernel_size=kernel_size,
+                                                    stride=stride,
+                                                    padding=padding),
+                                       nn.Conv1d(in_channels=self.d_model // 2,
+                                                 out_channels=self.d_model,
+                                                 kernel_size=kernel_size,
+                                                 stride=stride,
+                                                 padding=padding,
+                                                 bias=bias),
+                                       nn.BatchNorm1d(num_features=self.d_model),
+                                       nn.ReLU(inplace=True),
+                                       nn.MaxPool1d(kernel_size=kernel_size,
+                                                    stride=stride,
+                                                    padding=padding))
+        self.conv_embed_plus = None
+        if block_plus >= 1:
+            layers = []
+            for i in range(block_plus):
+                layers.append(EmbedBlockPlus(d_model=self.d_model,
+                                             kernel_size=kernel_size,
+                                             stride=stride,
+                                             padding=padding,
+                                             bias=bias))
+            self.conv_embed_plus = nn.Sequential(*layers)
+    
+    def forward(self, x):  # input (N, L, C)
+        # x = self.fc1(x)
+        x = x.transpose(-1, -2)  # (N, C, L)
+        x = self.conv_embed(x)
+        if self.conv_embed_plus is not None:
+            x = self.conv_embed_plus(x)
+        x = x.transpose(-1, -2)  # (N, L, C)
+        return x
+
+
 class ModelTransEnc(nn.Module):
     """Container module with an encoder, a recurrent or transformer module, and a decoder."""
     def __init__(self, seq_len=21, num_layers=6, num_classes=2,
@@ -237,33 +304,8 @@ class ModelTransEnc(nn.Module):
             self.feas_ccs += 1
 
         self.seq_embed = nn.Embedding(nvocab, nembed)
-        self.src_embed = nn.Sequential(nn.Conv1d(in_channels=nembed+self.feas_ccs, 
-                                                 out_channels=self.d_model // 2,
-                                                 kernel_size=3,
-                                                 stride=1,
-                                                 padding=1,
-                                                 bias=False),
-                                       nn.BatchNorm1d(num_features=self.d_model // 2),
-                                       nn.ReLU(inplace=True),
-                                       nn.MaxPool1d(kernel_size=3, stride=1, padding=1),
-                                       nn.Conv1d(in_channels=self.d_model // 2,
-                                                 out_channels=self.d_model,
-                                                 kernel_size=3,
-                                                 stride=1,
-                                                 padding=1,
-                                                 bias=False),
-                                       nn.BatchNorm1d(num_features=self.d_model),
-                                       nn.ReLU(inplace=True),
-                                       nn.MaxPool1d(kernel_size=3, stride=1, padding=1),
-                                       nn.Conv1d(in_channels=self.d_model,
-                                                 out_channels=self.d_model,
-                                                 kernel_size=3,
-                                                 stride=1,
-                                                 padding=1,
-                                                 bias=False),
-                                       nn.BatchNorm1d(num_features=self.d_model),
-                                       nn.ReLU(inplace=True),
-                                       nn.MaxPool1d(kernel_size=3, stride=1, padding=1))
+        self.src_embed = SrcEmbed(nembed+self.feas_ccs, self.d_model, block_plus=1, 
+                                  kernel_size=3, stride=1, padding=1, bias=False)
         self.src_mask = None
 
         self.pos_encoder = PositionalEncoding(self.d_model, dropout_rate)
@@ -286,10 +328,10 @@ class ModelTransEnc(nn.Module):
     def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, sns, maps,
                 kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, sns2, maps2, 
                 has_mask=False):
-        kmer_embed = self.seq_embed(kmer.long())
+        kmer_embed = self.seq_embed(kmer.int())
         ipd_means = torch.reshape(ipd_means, (-1, self.seq_len, 1)).float()
         pw_means = torch.reshape(pw_means, (-1, self.seq_len, 1)).float()        
-        kmer_embed2 = self.seq_embed(kmer2.long())
+        kmer_embed2 = self.seq_embed(kmer2.int())
         ipd_means2 = torch.reshape(ipd_means2, (-1, self.seq_len, 1)).float()
         pw_means2 = torch.reshape(pw_means2, (-1, self.seq_len, 1)).float()
 
@@ -319,9 +361,7 @@ class ModelTransEnc(nn.Module):
             maps2 = torch.reshape(maps2, (-1, self.seq_len, 1)).float()
             out2 = torch.cat((out2, maps2), 2)  # (N, L, C)
 
-        out1 = out1.transpose(-1, -2)  # (N, C, L)
-        out1 = self.src_embed(out1)  # (N, C, L)
-        out1 = out1.transpose(-1, -2)  # (N, L, C)
+        out1 = self.src_embed(out1)  # (N, L, C)
         out1 = self.pos_encoder(out1)  # (N, L, C) if batch_first else (L, N, C)
         # if has_mask:
         #     device = out1.device
@@ -334,9 +374,7 @@ class ModelTransEnc(nn.Module):
         out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)  # TODO: is it suitable?  
         out1 = self.decoder(out1)  # (N, C)  # TODO: is it suitable?
 
-        out2 = out2.transpose(-1, -2)  # (N, C, L)
         out2 = self.src_embed(out2)  # (N, C, L)
-        out2 = out2.transpose(-1, -2)  # (N, L, C)
         out2 = self.pos_encoder(out2)  # (N, L, C) if batch_first else (L, N, C)
         # if has_mask:
         #     device = out2.device
@@ -390,21 +428,24 @@ class ModelTransEnc2(nn.Module):
         if self.is_stds:
             self.feas_ccs += 2
             self.nembed_all += 2 * NEMBED_KINETICS_STD
-            self.ipd_std_embed = nn.Embedding(MAX_KINETICS_STD + 1, NEMBED_KINETICS_STD)
-            self.pw_std_embed = nn.Embedding(MAX_KINETICS_STD + 1, NEMBED_KINETICS_STD)
+            self.ipd_std_embed = SrcEmbed(1, NEMBED_KINETICS_STD, block_plus=1, 
+                                          kernel_size=3, stride=1, padding=1, bias=False)
+            self.pw_std_embed = SrcEmbed(1, NEMBED_KINETICS_STD, block_plus=1,
+                                         kernel_size=3, stride=1, padding=1, bias=False)
         if self.is_npass:
             self.feas_ccs += 1
             self.nembed_all += NEMBED_PASSES
-            self.npass_embed = nn.Embedding(MAX_PASSES, NEMBED_PASSES)
+            self.npass_embed = nn.Embedding(MAX_PASSES + 1, NEMBED_PASSES)
         if self.is_sn:
             self.feas_ccs += 1
             self.nembed_all += NEMBED_SN
-            self.sn_embed = nn.Embedding(MAX_SN, NEMBED_SN)
+            self.sn_embed = SrcEmbed(1, NEMBED_SN, block_plus=0,
+                                      kernel_size=3, stride=1, padding=1, bias=False)
         if self.is_map:
             self.feas_ccs += 1
             self.nembed_all += NEMBED_MAP
             self.map_embed = nn.Embedding(MAX_MAP, NEMBED_MAP)
-        self.trans_input = nn.Linear(self.nembed_all, self.d_model, bias=False)
+        self.trans_input = nn.Linear(self.nembed_all, self.d_model, bias=False)  # TODO: is it suitable?
         self.src_mask = None
 
         self.pos_encoder = PositionalEncoding(self.d_model, dropout_rate)
@@ -427,32 +468,32 @@ class ModelTransEnc2(nn.Module):
     def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, sns, maps,
                 kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, sns2, maps2, 
                 has_mask=False):
-        kmer_embed = self.seq_embed(kmer.long())
-        ipd_means = self.ipd_embed(ipd_means)
-        pw_means = self.pw_embed(pw_means)       
-        kmer_embed2 = self.seq_embed(kmer2.long())
-        ipd_means2 = self.ipd_embed(ipd_means2)
-        pw_means2 = self.pw_embed(pw_means2)
+        kmer_embed = self.seq_embed(kmer.int())
+        ipd_means = self.ipd_embed(ipd_means.int())
+        pw_means = self.pw_embed(pw_means.int())       
+        kmer_embed2 = self.seq_embed(kmer2.int())
+        ipd_means2 = self.ipd_embed(ipd_means2.int())
+        pw_means2 = self.pw_embed(pw_means2.int())
 
         out1 = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
         out2 = torch.cat((kmer_embed2, ipd_means2, pw_means2), 2)  # (N, L, C)
 
         if self.is_npass:
-            kpass = self.npass_embed(torch.clamp(kpass, 1, MAX_PASSES))
+            kpass = self.npass_embed(torch.clamp(kpass, 1, MAX_PASSES).int())
             out1 = torch.cat((out1, kpass), 2)  # (N, L, C)
-            kpass2 = self.npass_embed(torch.clamp(kpass2, 1, MAX_PASSES))
+            kpass2 = self.npass_embed(torch.clamp(kpass2, 1, MAX_PASSES).int())
             out2 = torch.cat((out2, kpass2), 2)  # (N, L, C)
         if self.is_stds:
-            ipd_stds = self.ipd_std_embed(ipd_stds)
-            pw_stds = self.pw_std_embed(pw_stds)
+            ipd_stds = self.ipd_std_embed(torch.reshape(ipd_stds, (-1, self.seq_len, 1)).float())
+            pw_stds = self.pw_std_embed(torch.reshape(pw_stds, (-1, self.seq_len, 1)).float())
             out1 = torch.cat((out1, ipd_stds, pw_stds), 2)  # (N, L, C)
-            ipd_stds2 = self.ipd_std_embed(ipd_stds2)
-            pw_stds2 = torch.pw_std_embed(pw_stds2)
+            ipd_stds2 = self.ipd_std_embed(torch.reshape(ipd_stds2, (-1, self.seq_len, 1)).float())
+            pw_stds2 = self.pw_std_embed(torch.reshape(pw_stds2, (-1, self.seq_len, 1)).float())
             out2 = torch.cat((out2, ipd_stds2, pw_stds2), 2)  # (N, L, C)
         if self.is_sn:
-            sns = self.sn_embed(sns)
+            sns = self.sn_embed(torch.reshape(sns, (-1, self.seq_len, 1)).float())
             out1 = torch.cat((out1, sns), 2)  # (N, L, C)
-            sns2 = self.sn_embed(sns2)
+            sns2 = self.sn_embed(torch.reshape(sns2, (-1, self.seq_len, 1)).float())
             out2 = torch.cat((out2, sns2), 2)  # (N, L, C)
         if self.is_map:
             maps = self.map_embed(maps)
@@ -474,9 +515,6 @@ class ModelTransEnc2(nn.Module):
         out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)  # TODO: is it suitable?  
         out1 = self.decoder(out1)  # (N, C)  # TODO: is it suitable?
 
-        out2 = out2.transpose(-1, -2)  # (N, C, L)
-        out2 = self.src_embed(out2)  # (N, C, L)
-        out2 = out2.transpose(-1, -2)  # (N, L, C)
         out2 = self.pos_encoder(out2)  # (N, L, C) if batch_first else (L, N, C)
         # if has_mask:
         #     device = out2.device
