@@ -218,10 +218,10 @@ def main():
                           help="file path of the trained model (.ckpt)")
     # model param
     scm_call.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "default: attbigru2s")
+                               "'transencoder2s', 'transencoder2s2', default: attbigru2s")
     scm_call.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     scm_call.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -242,15 +242,28 @@ def main():
 
     scm_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                           action="store", help="batch size, default 512")
-    # BiRNN model param
     scm_call.add_argument('--n_vocab', type=int, default=16, required=False,
                           help="base_seq vocab_size (16 base kinds from iupac)")
     scm_call.add_argument('--n_embed', type=int, default=4, required=False,
                           help="base_seq embedding_size")
-    scm_call.add_argument('--layer_rnn', type=int, default=3,
-                          required=False, help="BiRNN layer num, default 3")
-    scm_call.add_argument('--hid_rnn', type=int, default=256, required=False,
-                          help="BiRNN hidden_size, default 256")
+    
+    scm_callb = sub_call_mods.add_argument_group("CALL MODEL_HYPER RNN")
+    # BiRNN model param
+    scm_callb.add_argument('--layer_rnn', type=int, default=3,
+                           required=False, help="BiRNN layer num, default 3")
+    scm_callb.add_argument('--hid_rnn', type=int, default=256, required=False,
+                           help="BiRNN hidden_size, default 256")
+    
+    scm_callt = sub_call_mods.add_argument_group("CALL MODEL_HYPER TRANSFORMER")
+    # Transformer model param
+    scm_callt.add_argument('--layer_trans', type=int, default=6, required=False,
+                           help="TransformerEncoder nlayers, default 6")
+    scm_callt.add_argument('--nhead', type=int, default=4, required=False,
+                           help="TransformerEncoder nhead, default 4")
+    scm_callt.add_argument('--d_model', type=int, default=256, required=False, 
+                           help="TransformerEncoder input feature numbers, default 256")
+    scm_callt.add_argument('--dim_ff', type=int, default=512, required=False,
+                           help="TransformerEncoder dim_feedforward, default 512")
 
     scm_extract = sub_call_mods.add_argument_group("EXTRACTION")
     scm_extract.add_argument("--mode", type=str, default="denovo", required=False,

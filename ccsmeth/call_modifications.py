@@ -29,6 +29,8 @@ import pysam
 from collections import OrderedDict
 
 from .models import ModelAttRNN
+from .models import ModelTransEnc
+from .models import ModelTransEnc2
 
 from .utils.process_utils import base2code_dna
 from .utils.process_utils import display_args
@@ -320,6 +322,20 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
                             is_npass=str2bool(args.is_npass),
                             model_type=args.model_type,
                             device=device)
+    elif args.model_type in {"transencoder2s"}:
+        model = ModelTransEnc(args.seq_len, args.layer_trans, args.class_num,
+                              args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
+                              args.n_vocab, args.n_embed, 
+                              is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
+                              is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
+                              model_type=args.model_type, device=device)
+    elif args.model_type in {"transencoder2s2"}:
+        model = ModelTransEnc2(args.seq_len, args.layer_trans, args.class_num,
+                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
+                               args.n_vocab, args.n_embed,
+                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
+                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
+                               model_type=args.model_type, device=device)
     else:
         raise ValueError("--model_type not right!")
 
@@ -365,7 +381,7 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
             break
 
         holebatch, holeidxes, features_oneholebatch = features_batch
-        if args.model_type in {"attbigru2s", "attbilstm2s"}:
+        if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
             pred_info, batch_num = _call_mods2s(features_oneholebatch, model, args.batch_size, device)
             del features_oneholebatch
         else:
@@ -619,10 +635,10 @@ def main():
                         help="file path of the trained model (.ckpt)")
     # model param
     p_call.add_argument('--model_type', type=str, default="attbigru2s",
-                        choices=["attbilstm2s", "attbigru2s"],
+                        choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
                         required=False,
                         help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                             "default: attbigru2s")
+                             "'transencoder2s', 'transencoder2s2', default: attbigru2s")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     p_call.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -643,15 +659,28 @@ def main():
 
     p_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                         action="store", help="batch size, default 512")
-    # BiRNN model param
     p_call.add_argument('--n_vocab', type=int, default=16, required=False,
                         help="base_seq vocab_size (16 base kinds from iupac)")
     p_call.add_argument('--n_embed', type=int, default=4, required=False,
                         help="base_seq embedding_size")
-    p_call.add_argument('--layer_rnn', type=int, default=3,
-                        required=False, help="BiRNN layer num, default 3")
-    p_call.add_argument('--hid_rnn', type=int, default=256, required=False,
-                        help="BiRNN hidden_size, default 256")
+    
+    p_callb = parser.add_argument_group("CALL MODEL_HYPER RNN")
+    # BiRNN model param
+    p_callb.add_argument('--layer_rnn', type=int, default=3,
+                         required=False, help="BiRNN layer num, default 3")
+    p_callb.add_argument('--hid_rnn', type=int, default=256, required=False,
+                         help="BiRNN hidden_size, default 256")
+    
+    p_callt = parser.add_argument_group("CALL MODEL_HYPER TRANSFORMER")
+    # Transformer model param
+    p_callt.add_argument('--layer_trans', type=int, default=6, required=False,
+                         help="TransformerEncoder nlayers, default 6")
+    p_callt.add_argument('--nhead', type=int, default=4, required=False,
+                         help="TransformerEncoder nhead, default 4")
+    p_callt.add_argument('--d_model', type=int, default=256, required=False, 
+                         help="TransformerEncoder input feature numbers, default 256")
+    p_callt.add_argument('--dim_ff', type=int, default=512, required=False,
+                         help="TransformerEncoder dim_feedforward, default 512")
 
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--mode", type=str, default="denovo", required=False,
