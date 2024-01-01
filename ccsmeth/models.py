@@ -9,15 +9,15 @@ import torch.nn as nn
 from .utils.constants_torch import use_cuda
 from .utils.attention import Attention
 
-from .utils.process_utils import MAX_KINETICS, MAX_PASSES, MAX_MAP
-from .utils.process_utils import NEMBED_KINETICS, NEMBED_PASSES, NEMBED_SN, NEMBED_MAP, NEMBED_KINETICS_STD
+from .utils.process_utils import N_VOCAB, MAX_KINETICS, MAX_PASSES, MAX_MAP
+from .utils.process_utils import NEMBED_BASE_RNN
+from .utils.process_utils import NEMBED_BASE, NEMBED_KINETICS, NEMBED_PASSES, NEMBED_MAP, NEMBED_SN, NEMBED_KINETICS_STD
 
 import math  # TODO: is it suitable?
 
 class ModelAttRNN(nn.Module):
     def __init__(self, seq_len=21, num_layers=3, num_classes=2,
                  dropout_rate=0.5, hidden_size=256,
-                 vocab_size=16, embedding_size=4,
                  is_npass=True, is_sn=False, is_map=False, is_stds=False, 
                  model_type="attbigru2s",
                  device=0):
@@ -29,8 +29,9 @@ class ModelAttRNN(nn.Module):
         self.num_layers = num_layers
         self.num_classes = num_classes
         self.hidden_size = hidden_size
+        self.n_embed = NEMBED_BASE_RNN
 
-        self.embed = nn.Embedding(vocab_size, embedding_size)  # for dna/rna base
+        self.embed = nn.Embedding(N_VOCAB, self.n_embed)  # for dna/rna base
 
         self.is_stds = is_stds
         self.is_npass = is_npass
@@ -47,13 +48,13 @@ class ModelAttRNN(nn.Module):
             self.feas_ccs += 1
         if self.model_type == "attbilstm2s":
             self.rnn_cell = "lstm"
-            self.rnn = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
+            self.rnn = nn.LSTM(self.n_embed + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
             # self.rnn2 = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
             #                     dropout=dropout_rate, batch_first=True, bidirectional=True)
         elif self.model_type == "attbigru2s":
             self.rnn_cell = "gru"
-            self.rnn = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
+            self.rnn = nn.GRU(self.n_embed + self.feas_ccs, self.hidden_size, self.num_layers,
                               dropout=dropout_rate, batch_first=True, bidirectional=True)
             # self.rnn2 = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
             #                    dropout=dropout_rate, batch_first=True, bidirectional=True)
@@ -85,11 +86,11 @@ class ModelAttRNN(nn.Module):
 
     def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, sns, maps,
                 kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, sns2, maps2):
-        kmer_embed = self.embed(kmer.long())
+        kmer_embed = self.embed(kmer.int())
 
         ipd_means = torch.reshape(ipd_means, (-1, self.seq_len, 1)).float()
         pw_means = torch.reshape(pw_means, (-1, self.seq_len, 1)).float()
-        kmer_embed2 = self.embed(kmer2.long())
+        kmer_embed2 = self.embed(kmer2.int())
         ipd_means2 = torch.reshape(ipd_means2, (-1, self.seq_len, 1)).float()
         pw_means2 = torch.reshape(pw_means2, (-1, self.seq_len, 1)).float()
 
@@ -273,7 +274,6 @@ class ModelTransEnc(nn.Module):
     """Container module with an encoder, a recurrent or transformer module, and a decoder."""
     def __init__(self, seq_len=21, num_layers=6, num_classes=2,
                  dropout_rate=0.5, d_model=256, nhead=4, dim_ff=512,
-                 nvocab=16, nembed=4, 
                  is_npass=True, is_sn=False, is_map=False, is_stds=False, 
                  model_type = 'transencoder2s', device=0):
         super(ModelTransEnc, self).__init__()
@@ -303,8 +303,8 @@ class ModelTransEnc(nn.Module):
         if self.is_map:
             self.feas_ccs += 1
 
-        self.seq_embed = nn.Embedding(nvocab, nembed)
-        self.src_embed = SrcEmbed(nembed+self.feas_ccs, self.d_model, block_plus=1, 
+        self.seq_embed = nn.Embedding(N_VOCAB, NEMBED_BASE)
+        self.src_embed = SrcEmbed(NEMBED_BASE+self.feas_ccs, self.d_model, block_plus=1, 
                                   kernel_size=3, stride=1, padding=1, bias=False)
         self.src_mask = None
 
@@ -312,14 +312,21 @@ class ModelTransEnc(nn.Module):
         encoder_layer = TransformerEncoderLayer(d_model=self.d_model, nhead=nhead, dim_feedforward=dim_ff, 
                                                 dropout=dropout_rate, batch_first=True)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
-        self.decoder = nn.Linear(self.seq_len * self.d_model, self.d_model)  # TODO: is it suitable?
+        # self.decoder = nn.Linear(self.seq_len * self.d_model, self.d_model)
 
-        self.relu1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(p=dropout_rate)
-        self.fc1 = nn.Linear(self.d_model * 2, self.num_classes)
+        self.classifier = nn.Sequential(nn.Linear(self.d_model * 2, self.d_model * 2),
+                                        nn.ReLU(),
+                                        nn.Dropout(p=dropout_rate),
+                                        nn.Linear(self.d_model * 2, self.num_classes))
 
         self.softmax = nn.Softmax(1)
 
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.seq_embed.weight, -initrange, initrange)
+        nn.init.zeros_(self.decoder.bias)
+        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
+    
     # def _generate_square_subsequent_mask(self, sz):
     #     mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
     #     mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
@@ -371,8 +378,9 @@ class ModelTransEnc(nn.Module):
         # else:
         #     self.src_mask = None
         out1 = self.transformer_encoder(out1, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)  # TODO: is it suitable?  
-        out1 = self.decoder(out1)  # (N, C)  # TODO: is it suitable?
+        # out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)
+        # out1 = self.decoder(out1)  # (N, C)
+        out1 = torch.mean(out1, dim=1)  # (N, C)
 
         out2 = self.src_embed(out2)  # (N, C, L)
         out2 = self.pos_encoder(out2)  # (N, L, C) if batch_first else (L, N, C)
@@ -384,14 +392,13 @@ class ModelTransEnc(nn.Module):
         # else:
         #     self.src_mask = None
         out2 = self.transformer_encoder(out2, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        out2 = out2.reshape(out2.size(0), -1)
-        out2 = self.decoder(out2)
+        # out2 = out2.reshape(out2.size(0), -1)
+        # out2 = self.decoder(out2)
+        out2 = torch.mean(out2, dim=1)  # (N, C)
 
         out = torch.cat((out1, out2), 1)
         # output logits
-        out = self.relu1(out)  # TODO: is it suitable?
-        out = self.dropout1(out)
-        out = self.fc1(out)
+        out = self.classifier(out)
         return out, self.softmax(out)
 
 
@@ -399,7 +406,6 @@ class ModelTransEnc2(nn.Module):
     """Container module with an encoder, a recurrent or transformer module, and a decoder."""
     def __init__(self, seq_len=21, num_layers=6, num_classes=2,
                  dropout_rate=0.5, d_model=256, nhead=4, dim_ff=512,
-                 nvocab=16, nembed=4, 
                  is_npass=True, is_sn=False, is_map=False, is_stds=False, 
                  model_type = 'transencoder2s2', device=0):
         super(ModelTransEnc2, self).__init__()
@@ -421,8 +427,8 @@ class ModelTransEnc2(nn.Module):
         self.is_map = is_map
 
         self.feas_ccs = 2
-        self.nembed_all = nembed + 2 * NEMBED_KINETICS
-        self.seq_embed = nn.Embedding(nvocab, nembed)
+        self.nembed_all = NEMBED_BASE + 2 * NEMBED_KINETICS
+        self.seq_embed = nn.Embedding(N_VOCAB, NEMBED_BASE)
         self.ipd_embed = nn.Embedding(MAX_KINETICS + 1, NEMBED_KINETICS)
         self.pw_embed = nn.Embedding(MAX_KINETICS + 1, NEMBED_KINETICS)
         if self.is_stds:
@@ -440,23 +446,27 @@ class ModelTransEnc2(nn.Module):
             self.feas_ccs += 1
             self.nembed_all += NEMBED_SN
             self.sn_embed = SrcEmbed(1, NEMBED_SN, block_plus=0,
-                                      kernel_size=3, stride=1, padding=1, bias=False)
+                                     kernel_size=3, stride=1, padding=1, bias=False)
         if self.is_map:
             self.feas_ccs += 1
             self.nembed_all += NEMBED_MAP
             self.map_embed = nn.Embedding(MAX_MAP, NEMBED_MAP)
-        self.trans_input = nn.Linear(self.nembed_all, self.d_model, bias=False)  # TODO: is it suitable?
+        # self.trans_input = nn.Linear(self.nembed_all, self.d_model, bias=False)
+        self.trans_input = SrcEmbed(self.nembed_all, self.d_model, block_plus=1, 
+                                    kernel_size=3, stride=1, padding=1, bias=False)
         self.src_mask = None
 
         self.pos_encoder = PositionalEncoding(self.d_model, dropout_rate)
         encoder_layer = TransformerEncoderLayer(d_model=self.d_model, nhead=nhead, dim_feedforward=dim_ff, 
                                                 dropout=dropout_rate, batch_first=True)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
-        self.decoder = nn.Linear(self.seq_len * self.d_model, self.d_model)  # TODO: is it suitable?
+        self.decoder = nn.Sequential(nn.Linear(self.seq_len, 1, bias=False),
+                                     nn.Flatten(1, 2))
 
-        self.relu1 = nn.ReLU()
-        self.dropout1 = nn.Dropout(p=dropout_rate)
-        self.fc1 = nn.Linear(self.d_model * 2, self.num_classes)
+        self.classifier = nn.Sequential(nn.Linear(self.d_model * 2, self.d_model * 2),
+                                        nn.ReLU(),
+                                        nn.Dropout(p=dropout_rate),
+                                        nn.Linear(self.d_model * 2, self.num_classes))
 
         self.softmax = nn.Softmax(1)
 
@@ -512,8 +522,9 @@ class ModelTransEnc2(nn.Module):
         # else:
         #     self.src_mask = None
         out1 = self.transformer_encoder(out1, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)  # TODO: is it suitable?  
-        out1 = self.decoder(out1)  # (N, C)  # TODO: is it suitable?
+        # out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)
+        out1 = self.decoder(out1.transpose(1, 2))  # (N, C)
+        # out1 = torch.mean(out1, dim=1)  # (N, C)
 
         out2 = self.pos_encoder(out2)  # (N, L, C) if batch_first else (L, N, C)
         # if has_mask:
@@ -524,14 +535,13 @@ class ModelTransEnc2(nn.Module):
         # else:
         #     self.src_mask = None
         out2 = self.transformer_encoder(out2, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        out2 = out2.reshape(out2.size(0), -1)
-        out2 = self.decoder(out2)
+        # out2 = out2.reshape(out2.size(0), -1)
+        out2 = self.decoder(out2.transpose(1, 2))
+        # out2 = torch.mean(out2, dim=1)  # (N, C)
 
         out = torch.cat((out1, out2), 1)
         # output logits
-        out = self.relu1(out)  # TODO: is it suitable?
-        out = self.dropout1(out)
-        out = self.fc1(out)
+        out = self.classifier(out)
         return out, self.softmax(out)
 
 

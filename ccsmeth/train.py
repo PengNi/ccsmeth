@@ -83,7 +83,6 @@ def train(args):
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
-                            args.n_vocab, args.n_embed,
                             is_sn=str2bool(args.is_sn),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
@@ -93,14 +92,12 @@ def train(args):
     elif args.model_type in {"transencoder2s"}:
         model = ModelTransEnc(args.seq_len, args.layer_trans, args.class_num,
                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
-                              args.n_vocab, args.n_embed, 
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=device)
     elif args.model_type in {"transencoder2s2"}:
         model = ModelTransEnc2(args.seq_len, args.layer_trans, args.class_num,
                                args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
-                               args.n_vocab, args.n_embed,
                                is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                                is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                                model_type=args.model_type, device=device)
@@ -362,11 +359,6 @@ def main():
                           help="if using std features, yes or no, default no")
     st_train.add_argument('--class_num', type=int, default=2, required=False)
     st_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
-
-    st_train.add_argument('--n_vocab', type=int, default=16, required=False,
-                          help="base_seq vocab_size (16 base kinds from iupac)")
-    st_train.add_argument('--n_embed', type=int, default=4, required=False,
-                          help="base_seq embedding_size")
     
     st_trainb = parser.add_argument_group("TRAIN MODEL_HYPER RNN")
     # BiRNN model param

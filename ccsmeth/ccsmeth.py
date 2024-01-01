@@ -242,10 +242,6 @@ def main():
 
     scm_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                           action="store", help="batch size, default 512")
-    scm_call.add_argument('--n_vocab', type=int, default=16, required=False,
-                          help="base_seq vocab_size (16 base kinds from iupac)")
-    scm_call.add_argument('--n_embed', type=int, default=4, required=False,
-                          help="base_seq embedding_size")
     
     scm_callb = sub_call_mods.add_argument_group("CALL MODEL_HYPER RNN")
     # BiRNN model param
@@ -581,11 +577,6 @@ def main():
                           help="if using std features, yes or no, default no")
     st_train.add_argument('--class_num', type=int, default=2, required=False)
     st_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
-
-    st_train.add_argument('--n_vocab', type=int, default=16, required=False,
-                          help="base_seq vocab_size (16 base kinds from iupac)")
-    st_train.add_argument('--n_embed', type=int, default=4, required=False,
-                          help="base_seq embedding_size")
     
     st_trainb = sub_train.add_argument_group("TRAIN MODEL_HYPER RNN")
     # BiRNN model param
@@ -671,11 +662,6 @@ def main():
                            help="if using std features, yes or no, default no")
     stm_train.add_argument('--class_num', type=int, default=2, required=False)
     stm_train.add_argument('--dropout_rate', type=float, default=0.5, required=False)
-
-    stm_train.add_argument('--n_vocab', type=int, default=16, required=False,
-                           help="base_seq vocab_size (16 base kinds from iupac)")
-    stm_train.add_argument('--n_embed', type=int, default=4, required=False,
-                           help="base_seq embedding_size")
     
     stm_trainb = sub_trainm.add_argument_group("TRAIN MODEL_HYPER RNN")
     # BiRNN model param

@@ -315,7 +315,6 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
-                            args.n_vocab, args.n_embed,
                             is_sn=str2bool(args.is_sn),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
@@ -324,15 +323,13 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
                             device=device)
     elif args.model_type in {"transencoder2s"}:
         model = ModelTransEnc(args.seq_len, args.layer_trans, args.class_num,
-                              args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
-                              args.n_vocab, args.n_embed, 
+                              args.dropout_rate, args.d_model, args.nhead, args.dim_ff,
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=device)
     elif args.model_type in {"transencoder2s2"}:
         model = ModelTransEnc2(args.seq_len, args.layer_trans, args.class_num,
-                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
-                               args.n_vocab, args.n_embed,
+                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff,
                                is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                                is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                                model_type=args.model_type, device=device)
@@ -659,10 +656,6 @@ def main():
 
     p_call.add_argument("--batch_size", "-b", default=512, type=int, required=False,
                         action="store", help="batch size, default 512")
-    p_call.add_argument('--n_vocab', type=int, default=16, required=False,
-                        help="base_seq vocab_size (16 base kinds from iupac)")
-    p_call.add_argument('--n_embed', type=int, default=4, required=False,
-                        help="base_seq embedding_size")
     
     p_callb = parser.add_argument_group("CALL MODEL_HYPER RNN")
     # BiRNN model param

@@ -10,6 +10,8 @@ bug fixes
 
 change feature QUAL to SNratio, didn't work though
 
+hid '--n_vocab' and '--n_embed' in model params
+
 
 v0.4.1
 ----------
