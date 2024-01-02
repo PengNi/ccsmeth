@@ -19,7 +19,6 @@ from .dataloader import clear_linecache
 
 from .models import ModelAttRNN
 from .models import ModelTransEnc
-from .models import ModelTransEnc2
 
 from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
@@ -127,12 +126,6 @@ def train_worker(local_rank, global_world_size, args):
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=local_rank)
-    elif args.model_type in {"transencoder2s2"}:
-        model = ModelTransEnc2(args.seq_len, args.layer_trans, args.class_num,
-                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff,
-                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
-                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
-                               model_type=args.model_type, device=local_rank)
     else:
         raise ValueError("--model_type not right!")
 
@@ -152,7 +145,7 @@ def train_worker(local_rank, global_world_size, args):
 
     # 2. define dataloader
     sys.stderr.write("training_process-{} reading data..\n".format(os.getpid()))
-    if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
+    if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
         train_linenum = count_line_num(args.train_file, False)
         train_offsets = generate_offsets(args.train_file)
         train_dataset = FeaData3(args.train_file, train_offsets, train_linenum)
@@ -231,7 +224,7 @@ def train_worker(local_rank, global_world_size, args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
+            if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
                 _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, \
                     rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap, \
                     labels = sfeatures
@@ -290,7 +283,7 @@ def train_worker(local_rank, global_world_size, args):
             vlosses, vlabels_total, vpredicted_total = [], [], []
             v_meanloss = 10000
             for vi, vsfeatures in enumerate(valid_loader):
-                if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
+                if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
                     _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap, \
                         vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrsn, vrmap, \
                         vlabels = vsfeatures
@@ -448,7 +441,7 @@ def main():
     st_train = parser.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
                                "'transencoder2s', 'transencoder2s2', default: attbigru2s")

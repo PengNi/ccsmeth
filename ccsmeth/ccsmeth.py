@@ -218,10 +218,10 @@ def main():
                           help="file path of the trained model (.ckpt)")
     # model param
     scm_call.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', 'transencoder2s2', default: attbigru2s")
+                               "'transencoder2s', default: attbigru2s")
     scm_call.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     scm_call.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -561,10 +561,10 @@ def main():
     st_train = sub_train.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', 'transencoder2s2', default: attbigru2s")
+                               "'transencoder2s', default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -646,10 +646,10 @@ def main():
     stm_train = sub_trainm.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     stm_train.add_argument('--model_type', type=str, default="attbigru2s",
-                           choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
+                           choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
                            required=False,
                            help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                                "'transencoder2s', 'transencoder2s2', default: attbigru2s")
+                                "'transencoder2s', default: attbigru2s")
     stm_train.add_argument('--seq_len', type=int, default=21, required=False,
                            help="len of kmer. default 21")
     stm_train.add_argument('--is_npass', type=str, default="yes", required=False,

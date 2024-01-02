@@ -17,7 +17,6 @@ from .dataloader import clear_linecache
 
 from .models import ModelAttRNN
 from .models import ModelTransEnc
-from .models import ModelTransEnc2
 
 from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
@@ -42,7 +41,7 @@ def train(args):
         LOGGER.info("GPU is not available!")
 
     LOGGER.info("reading data..")
-    if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
+    if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
         if args.dl_offsets:
             if args.dl_num_workers > 1:
                 raise ValueError("--dl_num_workers should not be >1 when --dl_offsets is True!")
@@ -95,12 +94,6 @@ def train(args):
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=device)
-    elif args.model_type in {"transencoder2s2"}:
-        model = ModelTransEnc2(args.seq_len, args.layer_trans, args.class_num,
-                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff, 
-                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
-                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
-                               model_type=args.model_type, device=device)
     else:
         raise ValueError("--model_type not right!")
 
@@ -171,7 +164,7 @@ def train(args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
+            if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
                 _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, \
                     rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap, \
                     labels = sfeatures
@@ -214,7 +207,7 @@ def train(args):
                 with torch.no_grad():
                     vlosses, vlabels_total, vpredicted_total = [], [], []
                     for vi, vsfeatures in enumerate(valid_loader):
-                        if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
+                        if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
                             _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap, \
                                 vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrsn, vrmap, \
                                 vlabels = vsfeatures
@@ -343,10 +336,10 @@ def main():
     st_train = parser.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', 'transencoder2s2', default: attbigru2s")
+                               "'transencoder2s', default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,

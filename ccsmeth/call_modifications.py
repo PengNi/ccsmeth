@@ -30,7 +30,6 @@ from collections import OrderedDict
 
 from .models import ModelAttRNN
 from .models import ModelTransEnc
-from .models import ModelTransEnc2
 
 from .utils.process_utils import base2code_dna
 from .utils.process_utils import display_args
@@ -327,12 +326,6 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=device)
-    elif args.model_type in {"transencoder2s2"}:
-        model = ModelTransEnc2(args.seq_len, args.layer_trans, args.class_num,
-                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff,
-                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
-                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
-                               model_type=args.model_type, device=device)
     else:
         raise ValueError("--model_type not right!")
 
@@ -378,7 +371,7 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
             break
 
         holebatch, holeidxes, features_oneholebatch = features_batch
-        if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "transencoder2s2"}:
+        if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
             pred_info, batch_num = _call_mods2s(features_oneholebatch, model, args.batch_size, device)
             del features_oneholebatch
         else:
@@ -632,10 +625,10 @@ def main():
                         help="file path of the trained model (.ckpt)")
     # model param
     p_call.add_argument('--model_type', type=str, default="attbigru2s",
-                        choices=["attbilstm2s", "attbigru2s", "transencoder2s", "transencoder2s2"],
+                        choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
                         required=False,
                         help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                             "'transencoder2s', 'transencoder2s2', default: attbigru2s")
+                             "'transencoder2s', default: attbigru2s")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")
     p_call.add_argument('--is_npass', type=str, default="yes", required=False,

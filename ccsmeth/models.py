@@ -10,7 +10,6 @@ from .utils.constants_torch import use_cuda
 from .utils.attention import Attention
 
 from .utils.process_utils import N_VOCAB, MAX_KINETICS, MAX_PASSES, MAX_MAP
-from .utils.process_utils import NEMBED_BASE_RNN
 from .utils.process_utils import NEMBED_BASE, NEMBED_KINETICS, NEMBED_PASSES, NEMBED_MAP, NEMBED_SN, NEMBED_KINETICS_STD
 
 import math  # TODO: is it suitable?
@@ -29,7 +28,7 @@ class ModelAttRNN(nn.Module):
         self.num_layers = num_layers
         self.num_classes = num_classes
         self.hidden_size = hidden_size
-        self.n_embed = NEMBED_BASE_RNN
+        self.n_embed = NEMBED_BASE
 
         self.embed = nn.Embedding(N_VOCAB, self.n_embed)  # for dna/rna base
 
@@ -261,7 +260,6 @@ class SrcEmbed(nn.Module):  # for src_embed, no dropout
             self.conv_embed_plus = nn.Sequential(*layers)
     
     def forward(self, x):  # input (N, L, C)
-        # x = self.fc1(x)
         x = x.transpose(-1, -2)  # (N, C, L)
         x = self.conv_embed(x)
         if self.conv_embed_plus is not None:
@@ -277,138 +275,6 @@ class ModelTransEnc(nn.Module):
                  is_npass=True, is_sn=False, is_map=False, is_stds=False, 
                  model_type = 'transencoder2s', device=0):
         super(ModelTransEnc, self).__init__()
-        try:
-            from torch.nn import TransformerEncoder, TransformerEncoderLayer
-        except:
-            raise ImportError('TransformerEncoder module does not exist in PyTorch 1.1 or lower.')
-        self.model_type = model_type
-        self.device = device
-
-        self.seq_len = seq_len
-        self.num_layers = num_layers
-        self.num_classes = num_classes
-        self.d_model = d_model
-
-        self.is_stds = is_stds
-        self.is_npass = is_npass
-        self.is_sn = is_sn
-        self.is_map = is_map
-        self.feas_ccs = 2
-        if self.is_stds:
-            self.feas_ccs += 2
-        if self.is_npass:
-            self.feas_ccs += 1
-        if self.is_sn:
-            self.feas_ccs += 1
-        if self.is_map:
-            self.feas_ccs += 1
-
-        self.seq_embed = nn.Embedding(N_VOCAB, NEMBED_BASE)
-        self.src_embed = SrcEmbed(NEMBED_BASE+self.feas_ccs, self.d_model, block_plus=1, 
-                                  kernel_size=3, stride=1, padding=1, bias=False)
-        self.src_mask = None
-
-        self.pos_encoder = PositionalEncoding(self.d_model, dropout_rate)
-        encoder_layer = TransformerEncoderLayer(d_model=self.d_model, nhead=nhead, dim_feedforward=dim_ff, 
-                                                dropout=dropout_rate, batch_first=True)
-        self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
-        # self.decoder = nn.Linear(self.seq_len * self.d_model, self.d_model)
-
-        self.classifier = nn.Sequential(nn.Linear(self.d_model * 2, self.d_model * 2),
-                                        nn.ReLU(),
-                                        nn.Dropout(p=dropout_rate),
-                                        nn.Linear(self.d_model * 2, self.num_classes))
-
-        self.softmax = nn.Softmax(1)
-
-    def init_weights(self):
-        initrange = 0.1
-        nn.init.uniform_(self.seq_embed.weight, -initrange, initrange)
-        nn.init.zeros_(self.decoder.bias)
-        nn.init.uniform_(self.decoder.weight, -initrange, initrange)
-    
-    # def _generate_square_subsequent_mask(self, sz):
-    #     mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
-    #     mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
-    #     return mask
-
-    def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, sns, maps,
-                kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, sns2, maps2, 
-                has_mask=False):
-        kmer_embed = self.seq_embed(kmer.int())
-        ipd_means = torch.reshape(ipd_means, (-1, self.seq_len, 1)).float()
-        pw_means = torch.reshape(pw_means, (-1, self.seq_len, 1)).float()        
-        kmer_embed2 = self.seq_embed(kmer2.int())
-        ipd_means2 = torch.reshape(ipd_means2, (-1, self.seq_len, 1)).float()
-        pw_means2 = torch.reshape(pw_means2, (-1, self.seq_len, 1)).float()
-
-        out1 = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
-        out2 = torch.cat((kmer_embed2, ipd_means2, pw_means2), 2)  # (N, L, C)
-
-        if self.is_npass:
-            kpass = torch.reshape(kpass, (-1, self.seq_len, 1)).float()
-            out1 = torch.cat((out1, kpass), 2)  # (N, L, C)
-            kpass2 = torch.reshape(kpass2, (-1, self.seq_len, 1)).float()
-            out2 = torch.cat((out2, kpass2), 2)  # (N, L, C)
-        if self.is_stds:
-            ipd_stds = torch.reshape(ipd_stds, (-1, self.seq_len, 1)).float()
-            pw_stds = torch.reshape(pw_stds, (-1, self.seq_len, 1)).float()
-            out1 = torch.cat((out1, ipd_stds, pw_stds), 2)  # (N, L, C)
-            ipd_stds2 = torch.reshape(ipd_stds2, (-1, self.seq_len, 1)).float()
-            pw_stds2 = torch.reshape(pw_stds2, (-1, self.seq_len, 1)).float()
-            out2 = torch.cat((out2, ipd_stds2, pw_stds2), 2)  # (N, L, C)
-        if self.is_sn:
-            sns = torch.reshape(sns, (-1, self.seq_len, 1)).float()
-            out1 = torch.cat((out1, sns), 2)  # (N, L, C)
-            sns2 = torch.reshape(sns2, (-1, self.seq_len, 1)).float()
-            out2 = torch.cat((out2, sns2), 2)  # (N, L, C)
-        if self.is_map:
-            maps = torch.reshape(maps, (-1, self.seq_len, 1)).float()
-            out1 = torch.cat((out1, maps), 2)  # (N, L, C)
-            maps2 = torch.reshape(maps2, (-1, self.seq_len, 1)).float()
-            out2 = torch.cat((out2, maps2), 2)  # (N, L, C)
-
-        out1 = self.src_embed(out1)  # (N, L, C)
-        out1 = self.pos_encoder(out1)  # (N, L, C) if batch_first else (L, N, C)
-        # if has_mask:
-        #     device = out1.device
-        #     if self.src_mask is None or self.src_mask.size(0) != len(out1):
-        #         mask = self._generate_square_subsequent_mask(len(out1)).to(device)
-        #         self.src_mask = mask
-        # else:
-        #     self.src_mask = None
-        out1 = self.transformer_encoder(out1, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        # out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)
-        # out1 = self.decoder(out1)  # (N, C)
-        out1 = torch.mean(out1, dim=1)  # (N, C)
-
-        out2 = self.src_embed(out2)  # (N, C, L)
-        out2 = self.pos_encoder(out2)  # (N, L, C) if batch_first else (L, N, C)
-        # if has_mask:
-        #     device = out2.device
-        #     if self.src_mask is None or self.src_mask.size(0) != len(out2):
-        #         mask = self._generate_square_subsequent_mask(len(out2)).to(device)
-        #         self.src_mask = mask
-        # else:
-        #     self.src_mask = None
-        out2 = self.transformer_encoder(out2, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        # out2 = out2.reshape(out2.size(0), -1)
-        # out2 = self.decoder(out2)
-        out2 = torch.mean(out2, dim=1)  # (N, C)
-
-        out = torch.cat((out1, out2), 1)
-        # output logits
-        out = self.classifier(out)
-        return out, self.softmax(out)
-
-
-class ModelTransEnc2(nn.Module):
-    """Container module with an encoder, a recurrent or transformer module, and a decoder."""
-    def __init__(self, seq_len=21, num_layers=6, num_classes=2,
-                 dropout_rate=0.5, d_model=256, nhead=4, dim_ff=512,
-                 is_npass=True, is_sn=False, is_map=False, is_stds=False, 
-                 model_type = 'transencoder2s2', device=0):
-        super(ModelTransEnc2, self).__init__()
         try:
             from torch.nn import TransformerEncoder, TransformerEncoderLayer
         except:
@@ -460,8 +326,8 @@ class ModelTransEnc2(nn.Module):
         encoder_layer = TransformerEncoderLayer(d_model=self.d_model, nhead=nhead, dim_feedforward=dim_ff, 
                                                 dropout=dropout_rate, batch_first=True)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
-        self.decoder = nn.Sequential(nn.Linear(self.seq_len, 1, bias=False),
-                                     nn.Flatten(1, 2))
+        # self.decoder = nn.Sequential(nn.Linear(self.seq_len, 1, bias=False),
+        #                              nn.Flatten(1, 2))
 
         self.classifier = nn.Sequential(nn.Linear(self.d_model * 2, self.d_model * 2),
                                         nn.ReLU(),
@@ -522,9 +388,8 @@ class ModelTransEnc2(nn.Module):
         # else:
         #     self.src_mask = None
         out1 = self.transformer_encoder(out1, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        # out1 = out1.reshape(out1.size(0), -1)  # (N, L*C)
-        out1 = self.decoder(out1.transpose(1, 2))  # (N, C)
-        # out1 = torch.mean(out1, dim=1)  # (N, C)
+        # out1 = self.decoder(out1.transpose(1, 2))  # (N, C)
+        out1 = torch.mean(out1, dim=1)  # (N, C)
 
         out2 = self.pos_encoder(out2)  # (N, L, C) if batch_first else (L, N, C)
         # if has_mask:
@@ -535,9 +400,8 @@ class ModelTransEnc2(nn.Module):
         # else:
         #     self.src_mask = None
         out2 = self.transformer_encoder(out2, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
-        # out2 = out2.reshape(out2.size(0), -1)
-        out2 = self.decoder(out2.transpose(1, 2))
-        # out2 = torch.mean(out2, dim=1)  # (N, C)
+        # out2 = self.decoder(out2.transpose(1, 2))
+        out2 = torch.mean(out2, dim=1)  # (N, C)
 
         out = torch.cat((out1, out2), 1)
         # output logits
