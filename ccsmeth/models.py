@@ -328,6 +328,7 @@ class ModelTransEnc(nn.Module):
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
         # self.decoder = nn.Sequential(nn.Linear(self.seq_len, 1, bias=False),
         #                              nn.Flatten(1, 2))
+        # self.decoder = Attention(self.d_model, self.d_model, self.d_model)
 
         self.classifier = nn.Sequential(nn.Linear(self.d_model * 2, self.d_model * 2),
                                         nn.ReLU(),
@@ -346,7 +347,7 @@ class ModelTransEnc(nn.Module):
                 has_mask=False):
         kmer_embed = self.seq_embed(kmer.int())
         ipd_means = self.ipd_embed(ipd_means.int())
-        pw_means = self.pw_embed(pw_means.int())       
+        pw_means = self.pw_embed(pw_means.int())
         kmer_embed2 = self.seq_embed(kmer2.int())
         ipd_means2 = self.ipd_embed(ipd_means2.int())
         pw_means2 = self.pw_embed(pw_means2.int())
@@ -389,6 +390,8 @@ class ModelTransEnc(nn.Module):
         #     self.src_mask = None
         out1 = self.transformer_encoder(out1, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
         # out1 = self.decoder(out1.transpose(1, 2))  # (N, C)
+        # out1_mean = torch.mean(out1, dim=1)  # (N, C)
+        # out1, _ = self.decoder(out1_mean.unsqueeze(1), out1)  # (N, C)
         out1 = torch.mean(out1, dim=1)  # (N, C)
 
         out2 = self.pos_encoder(out2)  # (N, L, C) if batch_first else (L, N, C)
@@ -401,6 +404,8 @@ class ModelTransEnc(nn.Module):
         #     self.src_mask = None
         out2 = self.transformer_encoder(out2, self.src_mask)  # (N, L, C) if batch_first else (L, N, C)
         # out2 = self.decoder(out2.transpose(1, 2))
+        # out2_mean = torch.mean(out2, dim=1)  # (N, C)
+        # out2, _ = self.decoder(out2_mean.unsqueeze(1), out2)  # (N, C)
         out2 = torch.mean(out2, dim=1)  # (N, C)
 
         out = torch.cat((out1, out2), 1)

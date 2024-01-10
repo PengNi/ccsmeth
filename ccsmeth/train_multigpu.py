@@ -444,7 +444,7 @@ def main():
                           choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', 'transencoder2s2', default: attbigru2s")
+                               "'transencoder2s', default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
