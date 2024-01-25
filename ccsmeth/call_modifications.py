@@ -30,6 +30,7 @@ from collections import OrderedDict
 
 from .models import ModelAttRNN
 from .models import ModelTransEnc
+from .models import ModelAttRNN2
 
 from .utils.process_utils import base2code_dna
 from .utils.process_utils import display_args
@@ -347,6 +348,12 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
         LOGGER.debug('call_mods process-{} loads model param successfully-1'.format(os.getpid()))
         del para_dict_new
     # sys.stdout.flush()
+    
+    if str2bool(args.use_compile):
+        try:
+            model = torch.compile(model)
+        except:
+            raise ImportError('torch.compile does not exist in PyTorch<2.0.')
 
     if use_cuda:
         model = model.cuda(device)
@@ -724,6 +731,8 @@ def main():
                                              "models, no more than threads/3 is suggested. default 3.")
     parser.add_argument('--tseed', type=int, default=1234,
                         help='random seed for torch')
+    parser.add_argument('--use_compile', type=str, default="no", required=False,
+                        help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
 
     args = parser.parse_args()
     display_args(args)

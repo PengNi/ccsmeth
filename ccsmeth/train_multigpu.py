@@ -19,6 +19,7 @@ from .dataloader import clear_linecache
 
 from .models import ModelAttRNN
 from .models import ModelTransEnc
+from .models import ModelAttRNN2
 
 from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
@@ -120,6 +121,15 @@ def train_worker(local_rank, global_world_size, args):
                             is_npass=str2bool(args.is_npass),
                             model_type=args.model_type,
                             device=local_rank)
+    elif args.model_type in {"attbigru2s2", "attbilstm2s2"}:
+        model = ModelAttRNN2(args.seq_len, args.layer_rnn, args.class_num,
+                             args.dropout_rate, args.hid_rnn,
+                             is_sn=str2bool(args.is_sn),
+                             is_map=str2bool(args.is_map),
+                             is_stds=str2bool(args.is_stds),
+                             is_npass=str2bool(args.is_npass),
+                             model_type=args.model_type,
+                             device=local_rank)
     elif args.model_type in {"transencoder2s"}:
         model = ModelTransEnc(args.seq_len, args.layer_trans, args.class_num,
                               args.dropout_rate, args.d_model, args.nhead, args.dim_ff,
@@ -135,6 +145,12 @@ def train_worker(local_rank, global_world_size, args):
         model_dict = model.state_dict()
         model_dict.update(para_dict)
         model.load_state_dict(model_dict)
+    
+    if str2bool(args.use_compile):
+        try:
+            model = torch.compile(model)
+        except:
+            raise ImportError('torch.compile does not exist in PyTorch<2.0.')
 
     dist.barrier()
 
@@ -145,7 +161,7 @@ def train_worker(local_rank, global_world_size, args):
 
     # 2. define dataloader
     sys.stderr.write("training_process-{} reading data..\n".format(os.getpid()))
-    if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
+    if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "attbigru2s2", "attbilstm2s2"}:
         train_linenum = count_line_num(args.train_file, False)
         train_offsets = generate_offsets(args.train_file)
         train_dataset = FeaData3(args.train_file, train_offsets, train_linenum)
@@ -224,7 +240,7 @@ def train_worker(local_rank, global_world_size, args):
         tlosses = []
         start = time.time()
         for i, sfeatures in enumerate(train_loader):
-            if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
+            if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "attbigru2s2", "attbilstm2s2"}:
                 _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, \
                     rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap, \
                     labels = sfeatures
@@ -283,7 +299,7 @@ def train_worker(local_rank, global_world_size, args):
             vlosses, vlabels_total, vpredicted_total = [], [], []
             v_meanloss = 10000
             for vi, vsfeatures in enumerate(valid_loader):
-                if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s"}:
+                if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "attbigru2s2", "attbilstm2s2"}:
                     _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap, \
                         vrkmer, vrpass, vripdm, vripdsd, vrpwm, vrpwsd, vrsn, vrmap, \
                         vlabels = vsfeatures
@@ -441,10 +457,12 @@ def main():
     st_train = parser.add_argument_group("TRAIN MODEL_HYPER")
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
+                                   "attbilstm2s2", "attbigru2s2",],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', default: attbigru2s")
+                               "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                               "default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     st_train.add_argument('--is_npass', type=str, default="yes", required=False,
@@ -511,6 +529,8 @@ def main():
                              help="file path of pre-trained model parameters to load before training")
     st_training.add_argument('--tseed', type=int, default=1234,
                              help='random seed for pytorch')
+    st_training.add_argument('--use_compile', type=str, default="no", required=False,
+                             help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
 
     st_trainingp = parser.add_argument_group("TRAINING PARALLEL")
     st_trainingp.add_argument("--nodes", default=1, type=int,
