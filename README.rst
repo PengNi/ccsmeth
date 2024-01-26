@@ -12,6 +12,8 @@ change feature QUAL to SNratio, didn't work though
 
 hid '--n_vocab' and '--n_embed' in model params
 
+add attbigru2s2/attbilstm2s2 models
+
 
 v0.4.1
 ----------

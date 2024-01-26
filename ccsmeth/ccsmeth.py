@@ -287,10 +287,10 @@ def main():
                              help="the label of the interested modified bases, this is for training."
                                   " 0 or 1, default 1")
     scm_extract.add_argument("--norm", action="store", type=str, 
-                           choices=["zscore", "min-mean", "min-max", "mad", "none"],
-                           default="zscore", required=False,
-                           help="method for normalizing ipd/pw in subread level. "
-                                "zscore, min-mean, min-max, mad, or none. default zscore")
+                             choices=["zscore", "min-mean", "min-max", "mad", "none"],
+                             default="zscore", required=False,
+                             help="method for normalizing ipd/pw in subread level. "
+                                  "zscore, min-mean, min-max, mad, or none. default zscore")
     scm_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                              help="not use CodecV1 to decode ipd/pw")
     # scm_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
@@ -363,10 +363,10 @@ def main():
                             help="the label of the interested modified bases, this is for training."
                                  " 0 or 1, default 1")
     se_extract.add_argument("--norm", action="store", type=str, 
-                           choices=["zscore", "min-mean", "min-max", "mad", "none"],
-                           default="zscore", required=False,
-                           help="method for normalizing ipd/pw in subread level. "
-                                "zscore, min-mean, min-max, mad, or none. default zscore")
+                            choices=["zscore", "min-mean", "min-max", "mad", "none"],
+                            default="zscore", required=False,
+                            help="method for normalizing ipd/pw in subread level. "
+                                 "zscore, min-mean, min-max, mad, or none. default zscore")
     se_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                             help="not use CodecV1 to decode ipd/pw")
     # se_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,

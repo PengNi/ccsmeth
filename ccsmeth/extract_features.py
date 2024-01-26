@@ -180,7 +180,8 @@ def worker_read_split_holebatches_to_queue(inputfile, holebatch_q, threads, args
 # extract features =============================================
 def _normalize_signals(signals, normalize_method="zscore"):
     if normalize_method == 'none':
-        sshift, sscale = 0.0, 1.0
+        # sshift, sscale = 0.0, 1.0
+        return np.around(signals, decimals=6)
     elif normalize_method == 'zscore':
         sshift, sscale = np.mean(signals), np.std(signals)
     elif normalize_method == 'min-max':
@@ -353,7 +354,8 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
             fkmer_pm = pwmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
             fkmer_psd = "."
             # fkmer_qual = seq_qual[(loc - num_bases):(loc + num_bases + 1)]
-            fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            # fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            fkmer_sn = snratio if str2bool(args.is_sn) else "."
 
             rkmer_seq = seq_rc[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
             rkmer_im = ipdmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
@@ -649,9 +651,9 @@ def main():
                                 " 0 or 1, default 1")
     p_extract.add_argument("--norm", action="store", type=str, 
                            choices=["zscore", "min-mean", "min-max", "mad", "none"],
-                           default="zscore", required=False,
+                           default="none", required=False,
                            help="method for normalizing ipd/pw in subread level. "
-                                "zscore, min-mean, min-max, mad, or none. default zscore")
+                                "zscore, min-mean, min-max, mad, or none. default none")
     p_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                            help="not use CodecV1 to decode ipd/pw")
     # p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,

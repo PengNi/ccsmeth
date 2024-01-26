@@ -42,21 +42,17 @@ class ModelAttRNN(nn.Module):
         if self.is_npass:
             self.feas_ccs += 1
         if self.is_sn:
-            self.feas_ccs += 1
+            self.feas_ccs += 4
         if self.is_map:
             self.feas_ccs += 1
         if self.model_type == "attbilstm2s":
             self.rnn_cell = "lstm"
             self.rnn = nn.LSTM(self.n_embed + self.feas_ccs, self.hidden_size, self.num_layers,
                                dropout=dropout_rate, batch_first=True, bidirectional=True)
-            # self.rnn2 = nn.LSTM(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
-            #                     dropout=dropout_rate, batch_first=True, bidirectional=True)
         elif self.model_type == "attbigru2s":
             self.rnn_cell = "gru"
             self.rnn = nn.GRU(self.n_embed + self.feas_ccs, self.hidden_size, self.num_layers,
                               dropout=dropout_rate, batch_first=True, bidirectional=True)
-            # self.rnn2 = nn.GRU(embedding_size + self.feas_ccs, self.hidden_size, self.num_layers,
-            #                    dropout=dropout_rate, batch_first=True, bidirectional=True)
         else:
             raise ValueError("--model_type not set right!")
 
@@ -64,12 +60,19 @@ class ModelAttRNN(nn.Module):
         self.fc1 = nn.Linear(self.hidden_size * 2 * 2, self.num_classes)  # 2 for bidirection, another 2 for 2 strands
 
         self._att3 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
-        # self._att3_2 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
 
         self.softmax = nn.Softmax(1)
 
+        self.init_weights()
+
     def get_model_type(self):
         return self.model_type
+    
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.embed.weight, -initrange, initrange)
+        nn.init.zeros_(self.fc1.bias)
+        nn.init.uniform_(self.fc1.weight, -initrange, initrange)
 
     def init_hidden(self, batch_size, num_layers, hidden_size):
         # Set initial states
@@ -109,9 +112,9 @@ class ModelAttRNN(nn.Module):
             pw_stds2 = torch.reshape(pw_stds2, (-1, self.seq_len, 1)).float()
             out2 = torch.cat((out2, ipd_stds2, pw_stds2), 2)  # (N, L, C)
         if self.is_sn:
-            sns = torch.reshape(sns, (-1, self.seq_len, 1)).float()
+            sns = sns.unsqueeze(1).expand(-1, self.seq_len, -1).float()
             out1 = torch.cat((out1, sns), 2)  # (N, L, C)
-            sns2 = torch.reshape(sns2, (-1, self.seq_len, 1)).float()
+            sns2 = sns2.unsqueeze(1).expand(-1, self.seq_len, -1).float()
             out2 = torch.cat((out2, sns2), 2)  # (N, L, C)
         if self.is_map:
             maps = torch.reshape(maps, (-1, self.seq_len, 1)).float()
@@ -122,9 +125,6 @@ class ModelAttRNN(nn.Module):
         out1, n_states1 = self.rnn(out1, self.init_hidden(out1.size(0),
                                                           self.num_layers,
                                                           self.hidden_size))  # (N, L, nhid*2)
-        # out2, n_states2 = self.rnn2(out2, self.init_hidden(out2.size(0),
-        #                                                    self.num_layers,
-        #                                                    self.hidden_size))  # (N, L, nhid*2)
         out2, n_states2 = self.rnn(out2, self.init_hidden(out2.size(0),
                                                           self.num_layers,
                                                           self.hidden_size))  # (N, L, nhid*2)
@@ -140,7 +140,6 @@ class ModelAttRNN(nn.Module):
         h_n2 = n_states2[0] if self.rnn_cell == "lstm" else n_states2
         h_n2 = h_n2.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
         h_n2 = h_n2.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
-        # out2, att_weights2 = self._att3_2(h_n2, out2)
         out2, att_weights2 = self._att3(h_n2, out2)
 
         out = torch.cat((out1, out2), 1)
@@ -149,6 +148,74 @@ class ModelAttRNN(nn.Module):
         out = self.fc1(out)
 
         return out, self.softmax(out)
+
+
+class EmbedBlockPlus(nn.Module):
+    def __init__(self, d_model=4, kernel_size=3, stride=1, padding=1, bias=False):
+        super(EmbedBlockPlus, self).__init__()
+        self.d_model = d_model
+        self.conv_embed = nn.Sequential(nn.Conv1d(in_channels=d_model,
+                                                  out_channels=d_model,
+                                                  kernel_size=kernel_size,
+                                                  stride=stride,
+                                                  padding=padding,
+                                                  bias=bias),
+                                        nn.BatchNorm1d(num_features=d_model),
+                                        nn.ReLU(inplace=True),
+                                        nn.MaxPool1d(kernel_size=kernel_size,
+                                                     stride=stride,
+                                                     padding=padding)
+                                        )
+    def forward(self, x):  # input (N, C, L)
+        return self.conv_embed(x)
+
+
+class SrcEmbed(nn.Module):  # for src_embed, no dropout
+    def __init__(self, intpu_dim=1, d_model=4, block_plus=1, kernel_size=3, stride=1, padding=1, bias=False):
+        super(SrcEmbed, self).__init__()
+        self.d_model = d_model
+        # self.fc1 = nn.Linear(intpu_dim, d_model)
+        self.conv_embed = nn.Sequential(nn.Conv1d(in_channels=intpu_dim, 
+                                                  out_channels=self.d_model // 2,
+                                                  kernel_size=kernel_size,
+                                                  stride=stride,
+                                                  padding=padding,
+                                                  bias=bias),
+                                        nn.BatchNorm1d(num_features=self.d_model // 2),
+                                        nn.ReLU(inplace=True),
+                                        nn.MaxPool1d(kernel_size=kernel_size,
+                                                        stride=stride,
+                                                        padding=padding),
+                                        nn.Conv1d(in_channels=self.d_model // 2,
+                                                    out_channels=self.d_model,
+                                                    kernel_size=kernel_size,
+                                                    stride=stride,
+                                                    padding=padding,
+                                                    bias=bias),
+                                        nn.BatchNorm1d(num_features=self.d_model),
+                                        nn.ReLU(inplace=True),
+                                        nn.MaxPool1d(kernel_size=kernel_size,
+                                                        stride=stride,
+                                                        padding=padding)
+                                        )
+        self.conv_embed_plus = None
+        if block_plus >= 1:
+            layers = []
+            for i in range(block_plus):
+                layers.append(EmbedBlockPlus(d_model=self.d_model,
+                                             kernel_size=kernel_size,
+                                             stride=stride,
+                                             padding=padding,
+                                             bias=bias))
+            self.conv_embed_plus = nn.Sequential(*layers)
+    
+    def forward(self, x):  # input (N, L, C)
+        x = x.transpose(-1, -2)  # (N, C, L)
+        x = self.conv_embed(x)
+        if self.conv_embed_plus is not None:
+            x = self.conv_embed_plus(x)
+        x = x.transpose(-1, -2)  # (N, L, C)
+        return x
 
 
 class ModelAttRNN2(nn.Module):
@@ -190,7 +257,7 @@ class ModelAttRNN2(nn.Module):
         if self.is_sn:
             self.feas_ccs += 1
             self.nembed_all += NEMBED_SN
-            self.sn_embed = SrcEmbed(1, NEMBED_SN, block_plus=0,
+            self.sn_embed = SrcEmbed(4, NEMBED_SN, block_plus=0,
                                      kernel_size=3, stride=1, padding=1, bias=False)
         if self.is_map:
             self.feas_ccs += 1
@@ -217,8 +284,29 @@ class ModelAttRNN2(nn.Module):
 
         self.softmax = nn.Softmax(1)
 
+        self.init_weights()
+
     def get_model_type(self):
         return self.model_type
+    
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.seq_embed.weight, -initrange, initrange)
+        nn.init.uniform_(self.ipd_embed.weight, -initrange, initrange)
+        nn.init.uniform_(self.pw_embed.weight, -initrange, initrange)
+        if self.is_stds:
+            None  # placeholder
+        if self.is_npass:
+            nn.init.uniform_(self.npass_embed.weight, -initrange, initrange)
+        if self.is_sn:
+            None  # placeholder
+        if self.is_map:
+            nn.init.uniform_(self.map_embed.weight, -initrange, initrange)
+        for m in self.classifier.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.uniform_(m.weight, -initrange, initrange)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
 
     def init_hidden(self, batch_size, num_layers, hidden_size):
         # Set initial states
@@ -257,9 +345,9 @@ class ModelAttRNN2(nn.Module):
             pw_stds2 = self.pw_std_embed(torch.reshape(pw_stds2, (-1, self.seq_len, 1)).float())
             out2 = torch.cat((out2, ipd_stds2, pw_stds2), 2)  # (N, L, C)
         if self.is_sn:
-            sns = self.sn_embed(torch.reshape(sns, (-1, self.seq_len, 1)).float())
+            sns = self.sn_embed(sns.unsqueeze(1).expand(-1, self.seq_len, -1).float())
             out1 = torch.cat((out1, sns), 2)  # (N, L, C)
-            sns2 = self.sn_embed(torch.reshape(sns2, (-1, self.seq_len, 1)).float())
+            sns2 = self.sn_embed(sns2.unsqueeze(1).expand(-1, self.seq_len, -1).float())
             out2 = torch.cat((out2, sns2), 2)  # (N, L, C)
         if self.is_map:
             maps = self.map_embed(maps)
@@ -280,12 +368,12 @@ class ModelAttRNN2(nn.Module):
         h_n1 = n_states1[0] if self.rnn_cell == "lstm" else n_states1
         h_n1 = h_n1.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
         h_n1 = h_n1.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
-        out1, att_weights1 = self._att3(h_n1, out1)
+        out1, _ = self._att3(h_n1, out1)
 
         h_n2 = n_states2[0] if self.rnn_cell == "lstm" else n_states2
         h_n2 = h_n2.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
         h_n2 = h_n2.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
-        out2, att_weights2 = self._att3(h_n2, out2)
+        out2, _ = self._att3(h_n2, out2)
 
         out = torch.cat((out1, out2), 1)
 
@@ -345,72 +433,19 @@ class PositionalEncoding(nn.Module):
         return self.dropout(x)
 
 
-class EmbedBlockPlus(nn.Module):
-    def __init__(self, d_model=4, kernel_size=3, stride=1, padding=1, bias=False):
-        super(EmbedBlockPlus, self).__init__()
-        self.d_model = d_model
-        self.conv_embed = nn.Sequential(nn.Conv1d(in_channels=d_model,
-                                                  out_channels=d_model,
-                                                  kernel_size=kernel_size,
-                                                  stride=stride,
-                                                  padding=padding,
-                                                  bias=bias),
-                                        nn.BatchNorm1d(num_features=d_model),
-                                        nn.ReLU(inplace=True),
-                                        nn.MaxPool1d(kernel_size=kernel_size,
-                                                     stride=stride,
-                                                     padding=padding)
-                                        )
-    def forward(self, x):  # input (N, C, L)
-        return self.conv_embed(x)
+class PositionalEmbedding(nn.Module):
+    def __init__(self, seq_len, d_model, dropout=0.1):
+        super(PositionalEmbedding, self).__init__()
+        self.dropout = nn.Dropout(p=dropout)
 
-
-class SrcEmbed(nn.Module):  # for src_embed, no dropout
-    def __init__(self, intpu_dim=1, d_model=4, block_plus=1, kernel_size=3, stride=1, padding=1, bias=False):
-        super(SrcEmbed, self).__init__()
-        self.d_model = d_model
-        # self.fc1 = nn.Linear(intpu_dim, d_model)
-        self.conv_embed = nn.Sequential(nn.Conv1d(in_channels=intpu_dim, 
-                                                  out_channels=self.d_model // 2,
-                                                  kernel_size=kernel_size,
-                                                  stride=stride,
-                                                  padding=padding,
-                                                  bias=bias),
-                                       nn.BatchNorm1d(num_features=self.d_model // 2),
-                                       nn.ReLU(inplace=True),
-                                       nn.MaxPool1d(kernel_size=kernel_size,
-                                                    stride=stride,
-                                                    padding=padding),
-                                       nn.Conv1d(in_channels=self.d_model // 2,
-                                                 out_channels=self.d_model,
-                                                 kernel_size=kernel_size,
-                                                 stride=stride,
-                                                 padding=padding,
-                                                 bias=bias),
-                                       nn.BatchNorm1d(num_features=self.d_model),
-                                       nn.ReLU(inplace=True),
-                                       nn.MaxPool1d(kernel_size=kernel_size,
-                                                    stride=stride,
-                                                    padding=padding)
-                                       )
-        self.conv_embed_plus = None
-        if block_plus >= 1:
-            layers = []
-            for i in range(block_plus):
-                layers.append(EmbedBlockPlus(d_model=self.d_model,
-                                             kernel_size=kernel_size,
-                                             stride=stride,
-                                             padding=padding,
-                                             bias=bias))
-            self.conv_embed_plus = nn.Sequential(*layers)
+        self.seq_len = seq_len
+        self.pos_embed = nn.Embedding(seq_len, d_model)
     
-    def forward(self, x):  # input (N, L, C)
-        x = x.transpose(-1, -2)  # (N, C, L)
-        x = self.conv_embed(x)
-        if self.conv_embed_plus is not None:
-            x = self.conv_embed_plus(x)
-        x = x.transpose(-1, -2)  # (N, L, C)
-        return x
+    def forward(self, x):
+        pos = torch.arange(0, self.seq_len, dtype=torch.int, device=x.device)
+        pos = pos.unsqueeze(0).expand(x.size(0), -1)
+        x = x + self.pos_embed(pos)
+        return self.dropout(x)
 
 
 class ModelTransEnc(nn.Module):
@@ -456,7 +491,7 @@ class ModelTransEnc(nn.Module):
         if self.is_sn:
             self.feas_ccs += 1
             self.nembed_all += NEMBED_SN
-            self.sn_embed = SrcEmbed(1, NEMBED_SN, block_plus=0,
+            self.sn_embed = SrcEmbed(4, NEMBED_SN, block_plus=0,
                                      kernel_size=3, stride=1, padding=1, bias=False)
         if self.is_map:
             self.feas_ccs += 1
@@ -467,7 +502,8 @@ class ModelTransEnc(nn.Module):
                                     kernel_size=3, stride=1, padding=1, bias=False)
         self.src_mask = None
 
-        self.pos_encoder = PositionalEncoding(self.d_model, dropout_rate)
+        # self.pos_encoder = PositionalEncoding(self.d_model, dropout_rate)
+        self.pos_encoder = PositionalEmbedding(self.seq_len, self.d_model, dropout_rate)
         encoder_layer = TransformerEncoderLayer(d_model=self.d_model, nhead=nhead, dim_feedforward=dim_ff, 
                                                 dropout=dropout_rate, batch_first=True)
         self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
@@ -482,10 +518,35 @@ class ModelTransEnc(nn.Module):
 
         self.softmax = nn.Softmax(1)
 
+        self.init_weights()
+
     # def _generate_square_subsequent_mask(self, sz):
     #     mask = (torch.triu(torch.ones(sz, sz)) == 1).transpose(0, 1)
     #     mask = mask.float().masked_fill(mask == 0, float('-inf')).masked_fill(mask == 1, float(0.0))
     #     return mask
+    
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.seq_embed.weight, -initrange, initrange)
+        nn.init.uniform_(self.ipd_embed.weight, -initrange, initrange)
+        nn.init.uniform_(self.pw_embed.weight, -initrange, initrange)
+        if self.is_stds:
+            None  # placeholder
+        if self.is_npass:
+            nn.init.uniform_(self.npass_embed.weight, -initrange, initrange)
+        if self.is_sn:
+            None  # placeholder
+        if self.is_map:
+            nn.init.uniform_(self.map_embed.weight, -initrange, initrange)
+        for m in self.classifier.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.uniform_(m.weight, -initrange, initrange)
+                if m.bias is not None:
+                    nn.init.zeros_(m.bias)
+        if isinstance(self.pos_encoder, nn.Linear):
+            nn.init.uniform_(self.pos_encoder.weight, -initrange, initrange)
+            if self.pos_encoder.bias is not None:
+                nn.init.zeros_(self.pos_encoder.bias)
 
     def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, sns, maps,
                 kmer2, kpass2, ipd_means2, ipd_stds2, pw_means2, pw_stds2, sns2, maps2, 
@@ -513,9 +574,9 @@ class ModelTransEnc(nn.Module):
             pw_stds2 = self.pw_std_embed(torch.reshape(pw_stds2, (-1, self.seq_len, 1)).float())
             out2 = torch.cat((out2, ipd_stds2, pw_stds2), 2)  # (N, L, C)
         if self.is_sn:
-            sns = self.sn_embed(torch.reshape(sns, (-1, self.seq_len, 1)).float())
+            sns = self.sn_embed(sns.unsqueeze(1).expand(-1, self.seq_len, -1).float())
             out1 = torch.cat((out1, sns), 2)  # (N, L, C)
-            sns2 = self.sn_embed(torch.reshape(sns2, (-1, self.seq_len, 1)).float())
+            sns2 = self.sn_embed(sns2.unsqueeze(1).expand(-1, self.seq_len, -1).float())
             out2 = torch.cat((out2, sns2), 2)  # (N, L, C)
         if self.is_map:
             maps = self.map_embed(maps)
