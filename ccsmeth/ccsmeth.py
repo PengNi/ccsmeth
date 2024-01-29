@@ -218,10 +218,12 @@ def main():
                           help="file path of the trained model (.ckpt)")
     # model param
     scm_call.add_argument('--model_type', type=str, default="attbigru2s",
-                          choices=["attbilstm2s", "attbigru2s", "transencoder2s"],
+                          choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
+                                   "attbilstm2s2", "attbigru2s2",],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', default: attbigru2s")
+                               "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                               "default: attbigru2s")
     scm_call.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
     scm_call.add_argument('--is_npass', type=str, default="yes", required=False,

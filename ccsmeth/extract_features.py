@@ -651,9 +651,9 @@ def main():
                                 " 0 or 1, default 1")
     p_extract.add_argument("--norm", action="store", type=str, 
                            choices=["zscore", "min-mean", "min-max", "mad", "none"],
-                           default="none", required=False,
+                           default="zscore", required=False,
                            help="method for normalizing ipd/pw in subread level. "
-                                "zscore, min-mean, min-max, mad, or none. default none")
+                                "zscore, min-mean, min-max, mad, or none. default zscore")
     p_extract.add_argument("--no_decode", action="store_true", default=False, required=False,
                            help="not use CodecV1 to decode ipd/pw")
     # p_extract.add_argument("--path_to_samtools", type=str, default=None, required=False,
