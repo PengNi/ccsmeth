@@ -93,11 +93,11 @@ conda install pytorch==2.1.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 ## Trained models
 See [models](/models):
 
-For `ccsmeth call_mods` module:
+For the `ccsmeth call_mods` module:
   - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v3.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v3.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads. (**for version >=0.5.0**)
   - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads. (**for version <=0.4.1**)
 
-For **_aggregate_** mode of `ccsmeth call_freqb` module:
+For the **_aggregate_** mode of `ccsmeth call_freqb` module:
   - [_model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2p.ckpt_](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2p.ckpt): model of **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_** detection, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
 ## Demo data
