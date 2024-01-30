@@ -8,11 +8,13 @@ v0.5.0
 ----------
 bug fixes
 
-change feature QUAL to SNratio, didn't work though
+change feature QUAL to SNratio, didn't work though?
 
 hid '--n_vocab' and '--n_embed' in model params
 
 add attbigru2s2/attbilstm2s2 models
+
+update new version of pretrained model params
 
 
 v0.4.1

@@ -87,13 +87,17 @@ conda install pbccs pbmm2 samtools -c bioconda
 
 Also install the cuda version of pytoch and cudatoolkit (>=10.2) if you want use **GPU** to run ccsmeth in your GPU machine. Uninstall the wrong pytorch first if you have installed it before.
 ```shell
-conda install pytorch::pytorch==1.11.0 cudatoolkit=10.2 -c pytorch
+conda install pytorch==2.1.0 pytorch-cuda=11.8 -c pytorch -c nvidia
 ``` 
 
 ## Trained models
 See [models](/models):
 
-  - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
+For `ccsmeth call_mods` module:
+  - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v3.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v3.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads. (**for version >=0.5.0**)
+  - [_model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt_](/models/model_ccsmeth_5mCpG_call_mods_attbigru2s_b21.v2.ckpt): model of ccsmeth **_call_mods_** module for **_5mCpG_** detection, trained using NA12898 pcr/MSssI and HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads. (**for version <=0.4.1**)
+
+For **_aggregate_** mode of `ccsmeth call_freqb` module:
   - [_model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2p.ckpt_](/models/model_ccsmeth_5mCpG_aggregate_attbigru_b11.v2p.ckpt): model of **_aggregate_** mode of ccsmeth _**call_freqb**_ module for **_5mCpG_** detection, trained using HG002 native (BS-seq as standard) PacBio Sequel II (kit 2.0) CCS reads.
 
 ## Demo data
@@ -136,7 +140,7 @@ ccsmeth align_hifi \
 # outputs: [--output].[--call_mode].all.bed
 # if the input bam file contains haplotags, 
 # there will be [--output].[--call_mode].[hp1/hp2].bed in outputs.
-# use '--call_mode count':
+# use '--call_mode count' (default):
 ccsmeth call_freqb \
   --input_bam /path/to/output.hifi.call_mods.modbam.pbmm2.bam \
   --ref /path/to/genome.fa \
@@ -326,23 +330,22 @@ ccsmeth call_mods -h
 usage: ccsmeth call_mods [-h] --input INPUT [--holes_batch HOLES_BATCH]
                          --output OUTPUT [--gzip] [--keep_pulse] [--no_sort]
                          --model_file MODEL_FILE
-                         [--model_type {attbilstm2s,attbigru2s}]
+                         [--model_type {attbilstm2s,attbigru2s,transencoder2s,attbilstm2s2,attbigru2s2}]
                          [--seq_len SEQ_LEN] [--is_npass IS_NPASS]
-                         [--is_qual IS_QUAL] [--is_map IS_MAP]
-                         [--is_stds IS_STDS] [--class_num CLASS_NUM]
-                         [--dropout_rate DROPOUT_RATE]
-                         [--batch_size BATCH_SIZE] [--n_vocab N_VOCAB]
-                         [--n_embed N_EMBED] [--layer_rnn LAYER_RNN]
-                         [--hid_rnn HID_RNN] [--mode {denovo,align}]
-                         [--holeids_e HOLEIDS_E] [--holeids_ne HOLEIDS_NE]
-                         [--motifs MOTIFS] [--mod_loc MOD_LOC]
-                         [--methy_label {1,0}]
+                         [--is_stds IS_STDS] [--is_sn IS_SN] [--is_map IS_MAP]
+                         [--class_num CLASS_NUM] [--dropout_rate DROPOUT_RATE]
+                         [--batch_size BATCH_SIZE] [--layer_rnn LAYER_RNN]
+                         [--hid_rnn HID_RNN] [--layer_trans LAYER_TRANS]
+                         [--nhead NHEAD] [--d_model D_MODEL] [--dim_ff DIM_FF]
+                         [--mode {denovo,align}] [--holeids_e HOLEIDS_E]
+                         [--holeids_ne HOLEIDS_NE] [--motifs MOTIFS]
+                         [--mod_loc MOD_LOC] [--methy_label {1,0}]
                          [--norm {zscore,min-mean,min-max,mad,none}]
                          [--no_decode] [--ref REF] [--mapq MAPQ]
                          [--identity IDENTITY] [--no_supplementary]
-                         [--is_mapfea IS_MAPFEA]
                          [--skip_unmapped SKIP_UNMAPPED] [--threads THREADS]
                          [--threads_call THREADS_CALL] [--tseed TSEED]
+                         [--use_compile USE_COMPILE]
 
 call modifications
 
@@ -355,6 +358,9 @@ optional arguments:
                         trained models, no more than threads/3 is suggested.
                         default 3.
   --tseed TSEED         random seed for torch
+  --use_compile USE_COMPILE
+                        if using torch.compile, yes or no, default no ('yes'
+                        only works in pytorch>=2.0)
 
 INPUT:
   --input INPUT, -i INPUT
@@ -379,23 +385,35 @@ OUTPUT:
 CALL:
   --model_file MODEL_FILE, -m MODEL_FILE
                         file path of the trained model (.ckpt)
-  --model_type {attbilstm2s,attbigru2s}
+  --model_type {attbilstm2s,attbigru2s,transencoder2s,attbilstm2s2,attbigru2s2}
                         type of model to use, 'attbilstm2s', 'attbigru2s',
+                        'transencoder2s', 'attbilstm2s2', 'attbigru2s2',
                         default: attbigru2s
   --seq_len SEQ_LEN     len of kmer. default 21
   --is_npass IS_NPASS   if using num_pass features, yes or no, default yes
-  --is_qual IS_QUAL     if using base_quality features, yes or no, default no
-  --is_map IS_MAP       if using mapping features, yes or no, default no
   --is_stds IS_STDS     if using std features, yes or no, default no
+  --is_sn IS_SN         if using signal-to-noise-ratio features, yes or no,
+                        default no. Effects both MODEL input and feature
+                        EXTRACTION
+  --is_map IS_MAP       if using mapping features, yes or no, default no.
+                        Effects both MODEL input and feature EXTRACTION, only
+                        works in EXTRACTION-ALIGN-MODE
   --class_num CLASS_NUM
   --dropout_rate DROPOUT_RATE
   --batch_size BATCH_SIZE, -b BATCH_SIZE
                         batch size, default 512
-  --n_vocab N_VOCAB     base_seq vocab_size (15 base kinds from iupac)
-  --n_embed N_EMBED     base_seq embedding_size
+
+CALL MODEL_HYPER RNN:
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 3
   --hid_rnn HID_RNN     BiRNN hidden_size, default 256
+
+CALL MODEL_HYPER TRANSFORMER:
+  --layer_trans LAYER_TRANS
+                        TransformerEncoder nlayers, default 6
+  --nhead NHEAD         TransformerEncoder nhead, default 4
+  --d_model D_MODEL     TransformerEncoder input feature numbers, default 256
+  --dim_ff DIM_FF       TransformerEncoder dim_feedforward, default 512
 
 EXTRACTION:
   --mode {denovo,align}
@@ -430,8 +448,6 @@ EXTRACTION ALIGN_MODE:
   --identity IDENTITY   identity cutoff for selecting alignment items, [0.0,
                         1.0], default 0.0
   --no_supplementary    not use supplementary alignment
-  --is_mapfea IS_MAPFEA
-                        if extract mapping features, yes or no, default no
   --skip_unmapped SKIP_UNMAPPED
                         if skipping unmapped sites in reads, yes or no,
                         default yes
@@ -636,10 +652,11 @@ usage: ccsmeth extract [-h] --input INPUT [--holeids_e HOLEIDS_E]
                        [--motifs MOTIFS] [--mod_loc MOD_LOC]
                        [--methy_label {1,0}]
                        [--norm {zscore,min-mean,min-max,mad,none}]
-                       [--no_decode] [--holes_batch HOLES_BATCH] [--ref REF]
+                       [--no_decode] [--holes_batch HOLES_BATCH]
+                       [--is_sn IS_SN] [--is_map IS_MAP] [--ref REF]
                        [--mapq MAPQ] [--identity IDENTITY]
-                       [--no_supplementary] [--is_mapfea IS_MAPFEA]
-                       [--skip_unmapped SKIP_UNMAPPED] [--threads THREADS]
+                       [--no_supplementary] [--skip_unmapped SKIP_UNMAPPED]
+                       [--threads THREADS]
 
 extract features from hifi reads.
 
@@ -687,6 +704,10 @@ EXTRACTION:
   --holes_batch HOLES_BATCH
                         number of holes/hifi-reads in an batch to get/put in
                         queues, default 50
+  --is_sn IS_SN         if extracting signal-to-noise features, yes or no,
+                        default no
+  --is_map IS_MAP       if extracting mapping features, yes or no, default no.
+                        only works in ALIGN-MODE
 
 EXTRACTION ALIGN_MODE:
   --ref REF             path to genome reference to be aligned, in fasta/fa
@@ -696,8 +717,6 @@ EXTRACTION ALIGN_MODE:
   --identity IDENTITY   identity cutoff for selecting alignment items, [0.0,
                         1.0], default 0.0
   --no_supplementary    not use supplementary alignment
-  --is_mapfea IS_MAPFEA
-                        if extract mapping features, yes or no, default no
   --skip_unmapped SKIP_UNMAPPED
                         if skipping unmapped sites in reads, yes or no,
                         default yes
@@ -709,12 +728,13 @@ EXTRACTION ALIGN_MODE:
 ccsmeth train -h
 usage: ccsmeth train [-h] --train_file TRAIN_FILE --valid_file VALID_FILE
                      --model_dir MODEL_DIR
-                     [--model_type {attbilstm2s,attbigru2s}]
-                     [--seq_len SEQ_LEN] [--is_npass IS_NPASS]
-                     [--is_qual IS_QUAL] [--is_map IS_MAP] [--is_stds IS_STDS]
+                     [--model_type {attbilstm2s,attbigru2s,transencoder2s,attbilstm2s2,attbigru2s2}]
+                     [--seq_len SEQ_LEN] [--is_npass IS_NPASS] [--is_sn IS_SN]
+                     [--is_map IS_MAP] [--is_stds IS_STDS]
                      [--class_num CLASS_NUM] [--dropout_rate DROPOUT_RATE]
-                     [--n_vocab N_VOCAB] [--n_embed N_EMBED]
                      [--layer_rnn LAYER_RNN] [--hid_rnn HID_RNN]
+                     [--layer_trans LAYER_TRANS] [--nhead NHEAD]
+                     [--d_model D_MODEL] [--dim_ff DIM_FF]
                      [--optim_type {Adam,RMSprop,SGD,Ranger,LookaheadAdam}]
                      [--batch_size BATCH_SIZE]
                      [--lr_scheduler {StepLR,ReduceLROnPlateau}] [--lr LR]
@@ -726,6 +746,7 @@ usage: ccsmeth train [-h] --train_file TRAIN_FILE --valid_file VALID_FILE
                      [--step_interval STEP_INTERVAL]
                      [--dl_num_workers DL_NUM_WORKERS] [--dl_offsets]
                      [--init_model INIT_MODEL] [--tseed TSEED]
+                     [--use_compile USE_COMPILE]
 
 train a model, need two independent datasets for training and validating
 
@@ -740,21 +761,30 @@ OUTPUT:
   --model_dir MODEL_DIR
 
 TRAIN MODEL_HYPER:
-  --model_type {attbilstm2s,attbigru2s}
+  --model_type {attbilstm2s,attbigru2s,transencoder2s,attbilstm2s2,attbigru2s2}
                         type of model to use, 'attbilstm2s', 'attbigru2s',
+                        'transencoder2s', 'attbilstm2s2', 'attbigru2s2',
                         default: attbigru2s
   --seq_len SEQ_LEN     len of kmer. default 21
   --is_npass IS_NPASS   if using num_pass features, yes or no, default yes
-  --is_qual IS_QUAL     if using base_quality features, yes or no, default no
+  --is_sn IS_SN         if using signal-to-noise-ratio features, yes or no,
+                        default no
   --is_map IS_MAP       if using mapping features, yes or no, default no
   --is_stds IS_STDS     if using std features, yes or no, default no
   --class_num CLASS_NUM
   --dropout_rate DROPOUT_RATE
-  --n_vocab N_VOCAB     base_seq vocab_size (15 base kinds from iupac)
-  --n_embed N_EMBED     base_seq embedding_size
+
+TRAIN MODEL_HYPER RNN:
   --layer_rnn LAYER_RNN
                         BiRNN layer num, default 3
   --hid_rnn HID_RNN     BiRNN hidden_size, default 256
+
+TRAIN MODEL_HYPER TRANSFORMER:
+  --layer_trans LAYER_TRANS
+                        TransformerEncoder nlayers, default 6
+  --nhead NHEAD         TransformerEncoder nhead, default 4
+  --d_model D_MODEL     TransformerEncoder input feature numbers, default 256
+  --dim_ff DIM_FF       TransformerEncoder dim_feedforward, default 512
 
 TRAINING:
   --optim_type {Adam,RMSprop,SGD,Ranger,LookaheadAdam}
@@ -785,6 +815,9 @@ TRAINING:
                         file path of pre-trained model parameters to load
                         before training
   --tseed TSEED         random seed for pytorch
+  --use_compile USE_COMPILE
+                        if using torch.compile, yes or no, default no ('yes'
+                        only works in pytorch>=2.0)
 ```
 
 See also `ccsmeth trainm -h` for multi-gpu distributed training.
