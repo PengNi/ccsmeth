@@ -198,7 +198,7 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
 
         # b_labels = np.array(labels[batch_s:batch_e])
         if len(b_sampleinfo) > 0:
-            voutputs, vlogits = model(FloatTensor(b_fkmers, device), FloatTensor(b_fpasss, device),
+            _, vlogits = model(FloatTensor(b_fkmers, device), FloatTensor(b_fpasss, device),
                                       FloatTensor(b_fipdms, device), FloatTensor(b_fipdsds, device),
                                       FloatTensor(b_fpwms, device), FloatTensor(b_fpwsds, device),
                                       FloatTensor(b_fsns, device), FloatTensor(b_fmaps, device),

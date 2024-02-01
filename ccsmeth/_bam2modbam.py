@@ -220,7 +220,7 @@ def _refill_tags(all_tags, mm_values, ml_values, rm_pulse=True):
         new_tags.append((tagtuple[0], tagtuple[1]))
     if mm_values is not None:
         # new_tags.append(('MM', 'C+m,' + ",".join(list(map(str, mm_values))), 'Z'))
-        new_tags.append(('MM', 'C+m,' + ",".join(list(map(str, mm_values))) + ";"))
+        new_tags.append(('MM', 'C+m?,' + ",".join(list(map(str, mm_values))) + ";"))
         # new_tags.append(('ML', ml_values, 'B'))
         new_tags.append(('ML', ml_values))
     return new_tags

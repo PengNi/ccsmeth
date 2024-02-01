@@ -56,10 +56,10 @@ class ModelAttRNN(nn.Module):
         else:
             raise ValueError("--model_type not set right!")
 
+        self._att3 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
+
         self.dropout1 = nn.Dropout(p=dropout_rate)
         self.fc1 = nn.Linear(self.hidden_size * 2 * 2, self.num_classes)  # 2 for bidirection, another 2 for 2 strands
-
-        self._att3 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
 
         self.softmax = nn.Softmax(1)
 
@@ -135,12 +135,12 @@ class ModelAttRNN(nn.Module):
         h_n1 = n_states1[0] if self.rnn_cell == "lstm" else n_states1
         h_n1 = h_n1.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
         h_n1 = h_n1.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
-        out1, att_weights1 = self._att3(h_n1, out1)
+        out1, _ = self._att3(h_n1, out1)
 
         h_n2 = n_states2[0] if self.rnn_cell == "lstm" else n_states2
         h_n2 = h_n2.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
         h_n2 = h_n2.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
-        out2, att_weights2 = self._att3(h_n2, out2)
+        out2, _ = self._att3(h_n2, out2)
 
         out = torch.cat((out1, out2), 1)
 
