@@ -620,6 +620,7 @@ class ModelTransEnc(nn.Module):
         return out, self.softmax(out)
 
 
+# the 'aggregate' model
 # Using BS-seq modfreqs as gold standard to train a AggrAttRNN regression model, no softmax
 class AggrAttRNN(nn.Module):
     def __init__(self, seq_len=11, num_layers=1, num_classes=1,
@@ -691,3 +692,115 @@ class AggrAttRNN(nn.Module):
         # out = self.softmax(out)
 
         return out
+
+
+# single strand ===========================================================================================
+class ModelAttRNNss(nn.Module):
+    def __init__(self, seq_len=21, num_layers=3, num_classes=2,
+                 dropout_rate=0.5, hidden_size=256,
+                 is_npass=True, is_sn=False, is_map=False, is_stds=False, 
+                 model_type="attbigru1s",
+                 device=0):
+        super(ModelAttRNNss, self).__init__()
+        self.model_type = model_type
+        self.device = device
+
+        self.seq_len = seq_len
+        self.num_layers = num_layers
+        self.num_classes = num_classes
+        self.hidden_size = hidden_size
+        self.n_embed = NEMBED_BASE
+
+        self.embed = nn.Embedding(N_VOCAB, self.n_embed)  # for dna/rna base
+
+        self.is_stds = is_stds
+        self.is_npass = is_npass
+        self.is_sn = is_sn
+        self.is_map = is_map
+        self.feas_ccs = 2
+        if self.is_stds:
+            self.feas_ccs += 2
+        if self.is_npass:
+            self.feas_ccs += 1
+        if self.is_sn:
+            self.feas_ccs += 4
+        if self.is_map:
+            self.feas_ccs += 1
+        if self.model_type == "attbilstm1s":
+            self.rnn_cell = "lstm"
+            self.rnn = nn.LSTM(self.n_embed + self.feas_ccs, self.hidden_size, self.num_layers,
+                               dropout=dropout_rate, batch_first=True, bidirectional=True)
+        elif self.model_type == "attbigru1s":
+            self.rnn_cell = "gru"
+            self.rnn = nn.GRU(self.n_embed + self.feas_ccs, self.hidden_size, self.num_layers,
+                              dropout=dropout_rate, batch_first=True, bidirectional=True)
+        else:
+            raise ValueError("--model_type not set right!")
+
+        self._att3 = Attention(self.hidden_size * 2, self.hidden_size * 2, self.hidden_size)
+
+        self.dropout1 = nn.Dropout(p=dropout_rate)
+        self.fc1 = nn.Linear(self.hidden_size * 2, self.num_classes)  # 2 for bidirection
+
+        self.softmax = nn.Softmax(1)
+
+        self.init_weights()
+
+    def get_model_type(self):
+        return self.model_type
+    
+    def init_weights(self):
+        initrange = 0.1
+        nn.init.uniform_(self.embed.weight, -initrange, initrange)
+        nn.init.zeros_(self.fc1.bias)
+        nn.init.uniform_(self.fc1.weight, -initrange, initrange)
+
+    def init_hidden(self, batch_size, num_layers, hidden_size):
+        # Set initial states
+        h0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
+        if use_cuda:
+            h0 = h0.cuda(self.device)
+        if self.rnn_cell == "lstm":
+            c0 = torch.randn(num_layers * 2, batch_size, hidden_size, requires_grad=True)
+            if use_cuda:
+                c0 = c0.cuda(self.device)
+            return h0, c0
+        return h0
+
+    def forward(self, kmer, kpass, ipd_means, ipd_stds, pw_means, pw_stds, sns, maps):
+        kmer_embed = self.embed(kmer.int())
+        ipd_means = torch.reshape(ipd_means, (-1, self.seq_len, 1)).float()
+        pw_means = torch.reshape(pw_means, (-1, self.seq_len, 1)).float()
+
+        out = torch.cat((kmer_embed, ipd_means, pw_means), 2)  # (N, L, C)
+
+        if self.is_npass:
+            kpass = torch.reshape(kpass, (-1, self.seq_len, 1)).float()
+            out = torch.cat((out, kpass), 2)  # (N, L, C)
+        if self.is_stds:
+            ipd_stds = torch.reshape(ipd_stds, (-1, self.seq_len, 1)).float()
+            pw_stds = torch.reshape(pw_stds, (-1, self.seq_len, 1)).float()
+            out = torch.cat((out, ipd_stds, pw_stds), 2)  # (N, L, C)
+        if self.is_sn:
+            sns = sns.unsqueeze(1).expand(-1, self.seq_len, -1).float()
+            out = torch.cat((out, sns), 2)  # (N, L, C)
+        if self.is_map:
+            maps = torch.reshape(maps, (-1, self.seq_len, 1)).float()
+            out = torch.cat((out, maps), 2)  # (N, L, C)
+
+        out, n_states = self.rnn(out, self.init_hidden(out.size(0),
+                                                       self.num_layers,
+                                                       self.hidden_size))  # (N, L, nhid*2)
+
+        # attention_net3 ======
+        # h_n: (num_layer * 2, N, nhid), h_0, c_0 -> h_n, c_n not affected by batch_first
+        # h_n (last layer) = out[:, -1, :self.hidden_size] concats out1[:, 0, self.hidden_size:]
+        h_n = n_states[0] if self.rnn_cell == "lstm" else n_states
+        h_n = h_n.reshape(self.num_layers, 2, -1, self.hidden_size)[-1]  # last layer (2, N, nhid)
+        h_n = h_n.transpose(0, 1).reshape(-1, 1, 2 * self.hidden_size)
+        out, _ = self._att3(h_n, out)
+
+        out = self.dropout1(out)
+        out = self.fc1(out)
+
+        return out, self.softmax(out)

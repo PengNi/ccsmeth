@@ -21,6 +21,9 @@ from .models import ModelAttRNN
 from .models import ModelTransEnc
 from .models import ModelAttRNN2
 
+from .dataloader import FeaData3ss
+from .models import ModelAttRNNss
+
 from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
 from .utils.process_utils import str2bool
@@ -136,6 +139,15 @@ def train_worker(local_rank, global_world_size, args):
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=local_rank)
+    if args.model_type in {"attbigru1s", "attbilstm1s"}:
+        model = ModelAttRNNss(args.seq_len, args.layer_rnn, args.class_num,
+                              args.dropout_rate, args.hid_rnn,
+                              is_sn=str2bool(args.is_sn),
+                              is_map=str2bool(args.is_map),
+                              is_stds=str2bool(args.is_stds),
+                              is_npass=str2bool(args.is_npass),
+                              model_type=args.model_type,
+                              device=local_rank)
     else:
         raise ValueError("--model_type not right!")
 
@@ -162,31 +174,35 @@ def train_worker(local_rank, global_world_size, args):
     # 2. define dataloader
     sys.stderr.write("training_process-{} reading data..\n".format(os.getpid()))
     if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "attbigru2s2", "attbilstm2s2"}:
-        train_linenum = count_line_num(args.train_file, False)
-        train_offsets = generate_offsets(args.train_file)
-        train_dataset = FeaData3(args.train_file, train_offsets, train_linenum)
-        train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset,
-                                                                        shuffle=True)
-        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
-                                                   batch_size=args.batch_size,
-                                                   shuffle=False,
-                                                   num_workers=args.dl_num_workers,
-                                                   pin_memory=True,
-                                                   sampler=train_sampler)
-
-        valid_linenum = count_line_num(args.valid_file, False)
-        valid_offsets = generate_offsets(args.valid_file)
-        valid_dataset = FeaData3(args.valid_file, valid_offsets, valid_linenum)
-        valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_dataset,
-                                                                        shuffle=True)
-        valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
-                                                   batch_size=args.batch_size,
-                                                   shuffle=False,
-                                                   num_workers=args.dl_num_workers,
-                                                   pin_memory=True,
-                                                   sampler=valid_sampler)
+        feature_data = FeaData3
+    elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+        feature_data = FeaData3ss
     else:
         raise ValueError("--model_type not right!")
+    
+    train_linenum = count_line_num(args.train_file, False)
+    train_offsets = generate_offsets(args.train_file)
+    train_dataset = feature_data(args.train_file, train_offsets, train_linenum)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_dataset,
+                                                                    shuffle=True)
+    train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                               batch_size=args.batch_size,
+                                               shuffle=False,
+                                               num_workers=args.dl_num_workers,
+                                               pin_memory=True,
+                                               sampler=train_sampler)
+
+    valid_linenum = count_line_num(args.valid_file, False)
+    valid_offsets = generate_offsets(args.valid_file)
+    valid_dataset = feature_data(args.valid_file, valid_offsets, valid_linenum)
+    valid_sampler = torch.utils.data.distributed.DistributedSampler(valid_dataset,
+                                                                    shuffle=True)
+    valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
+                                               batch_size=args.batch_size,
+                                               shuffle=False,
+                                               num_workers=args.dl_num_workers,
+                                               pin_memory=True,
+                                               sampler=valid_sampler)
 
     # Loss and optimizer
     weight_rank = torch.from_numpy(np.array([1, args.pos_weight])).float()
@@ -265,8 +281,22 @@ def train_worker(local_rank, global_world_size, args):
 
                 labels = labels.cuda(local_rank, non_blocking=True)
                 # Forward pass
-                outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap,
+                outputs, _ = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap,
                                         rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap)
+                loss = criterion(outputs, labels)
+            elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+                _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, labels = sfeatures
+                fkmer = fkmer.cuda(local_rank, non_blocking=True)
+                fpass = fpass.cuda(local_rank, non_blocking=True)
+                fipdm = fipdm.cuda(local_rank, non_blocking=True)
+                fipdsd = fipdsd.cuda(local_rank, non_blocking=True)
+                fpwm = fpwm.cuda(local_rank, non_blocking=True)
+                fpwsd = fpwsd.cuda(local_rank, non_blocking=True)
+                fsn = fsn.cuda(local_rank, non_blocking=True)
+                fmap = fmap.cuda(local_rank, non_blocking=True)
+                labels = labels.cuda(local_rank, non_blocking=True)
+                # Forward pass
+                outputs, _ = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap)
                 loss = criterion(outputs, labels)
             else:
                 raise ValueError("--model_type is not right!")
@@ -327,6 +357,20 @@ def train_worker(local_rank, global_world_size, args):
                                               vfpwsd, vfsn, vfmap,
                                               vrkmer, vrpass, vripdm, vripdsd, vrpwm,
                                               vrpwsd, vrsn, vrmap)
+                    vloss = criterion(voutputs, vlabels)
+                elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+                    _, vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap, vlabels = vsfeatures
+                    vfkmer = vfkmer.cuda(local_rank, non_blocking=True)
+                    vfpass = vfpass.cuda(local_rank, non_blocking=True)
+                    vfipdm = vfipdm.cuda(local_rank, non_blocking=True)
+                    vfipdsd = vfipdsd.cuda(local_rank, non_blocking=True)
+                    vfpwm = vfpwm.cuda(local_rank, non_blocking=True)
+                    vfpwsd = vfpwsd.cuda(local_rank, non_blocking=True)
+                    vfsn = vfsn.cuda(local_rank, non_blocking=True)
+                    vfmap = vfmap.cuda(local_rank, non_blocking=True)
+                    vlabels = vlabels.cuda(local_rank, non_blocking=True)
+                    # Forward pass
+                    voutputs, vlogits = model(vfkmer, vfpass, vfipdm, vfipdsd, vfpwm, vfpwsd, vfsn, vfmap)
                     vloss = criterion(voutputs, vlabels)
                 else:
                     raise ValueError("--model_type is not right!")
@@ -458,10 +502,12 @@ def main():
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
-                                   "attbilstm2s2", "attbigru2s2",],
+                                   "attbilstm2s2", "attbigru2s2", 
+                                   "attbigru1s", "attbilstm1s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
                                "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                               "'attbigru1s', 'attbilstm1s', "
                                "default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
@@ -530,7 +576,8 @@ def main():
     st_training.add_argument('--tseed', type=int, default=1234,
                              help='random seed for pytorch')
     st_training.add_argument('--use_compile', type=str, default="no", required=False,
-                             help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
+                             help="[EXPERIMENTAL] if using torch.compile, yes or no, "
+                                  "default no ('yes' only works in pytorch>=2.0)")
 
     st_trainingp = parser.add_argument_group("TRAINING PARALLEL")
     st_trainingp.add_argument("--nodes", default=1, type=int,

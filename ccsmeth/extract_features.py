@@ -363,7 +363,8 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
             rkmer_pm = pwmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
             rkmer_psd = "."
             # rkmer_qual = np.flip(seq_qual[(rev_loc - num_bases):(rev_loc + num_bases + 1)])
-            rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            # rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            rkmer_sn = snratio if str2bool(args.is_sn) else "."
 
             if q_to_r_poss is not None:
                 chrom = ref_name
@@ -430,7 +431,7 @@ def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne
     return holeidxes, feature_list, total_num, failed_num
 
 
-def _features_to_str(features):
+def _features_to_str(features, ss=False):
     """
 
     :param features: a tuple

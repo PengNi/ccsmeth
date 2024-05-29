@@ -320,7 +320,8 @@ def main():
     sub_call_mods.add_argument('--tseed', type=int, default=1234,
                                help='random seed for torch')
     sub_call_mods.add_argument('--use_compile', type=str, default="no", required=False,
-                               help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
+                               help="[EXPERIMENTAL]if using torch.compile, yes or no, "
+                                    "default no ('yes' only works in pytorch>=2.0)")
 
     sub_call_mods.set_defaults(func=main_call_mods)
 
@@ -639,7 +640,8 @@ def main():
     st_training.add_argument('--tseed', type=int, default=1234,
                              help='random seed for pytorch')
     st_training.add_argument('--use_compile', type=str, default="no", required=False,
-                             help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
+                             help="[EXPERIMENTAL]if using torch.compile, yes or no, "
+                                  "default no ('yes' only works in pytorch>=2.0)")
 
     sub_train.set_defaults(func=main_train)
 
@@ -655,10 +657,12 @@ def main():
     # model param
     stm_train.add_argument('--model_type', type=str, default="attbigru2s",
                            choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
-                                    "attbilstm2s2", "attbigru2s2",],
+                                    "attbilstm2s2", "attbigru2s2", 
+                                    "attbigru1s", "attbilstm1s"],
                            required=False,
                            help="type of model to use, 'attbilstm2s', 'attbigru2s', "
                                 "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                                "'attbigru1s', 'attbilstm1s', "
                                 "default: attbigru2s")
     stm_train.add_argument('--seq_len', type=int, default=21, required=False,
                            help="len of kmer. default 21")
@@ -727,7 +731,8 @@ def main():
     stm_training.add_argument('--tseed', type=int, default=1234,
                               help='random seed for pytorch')
     stm_training.add_argument('--use_compile', type=str, default="no", required=False,
-                              help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
+                              help="[EXPERIMENTAL]if using torch.compile, yes or no, "
+                                   "default no ('yes' only works in pytorch>=2.0)")
 
     stm_trainingp = sub_trainm.add_argument_group("TRAINING PARALLEL")
     stm_trainingp.add_argument("--nodes", default=1, type=int,

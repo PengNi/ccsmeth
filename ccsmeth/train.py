@@ -426,7 +426,8 @@ def main():
     st_training.add_argument('--tseed', type=int, default=1234,
                              help='random seed for pytorch')
     st_training.add_argument('--use_compile', type=str, default="no", required=False,
-                             help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
+                             help="[EXPERIMENTAL]if using torch.compile, yes or no, "
+                                  "default no ('yes' only works in pytorch>=2.0)")
 
     args = parser.parse_args()
 

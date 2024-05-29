@@ -169,8 +169,8 @@ def worker_extract_features_with_holeinfo(input_header, holebatch_q, features_q,
 # call mods =============================================================
 def _call_mods2s(features_batch, model, batch_size, device=0):
     sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fsns, fmaps, \
-        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rsns, rmaps, labels = features_batch
-    labels = np.reshape(labels, (len(labels)))
+        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rsns, rmaps, _ = features_batch
+    # labels = np.reshape(labels, (len(labels)))
 
     pred_info = []
     batch_num = 0
@@ -206,13 +206,13 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
                                       FloatTensor(b_ripdms, device), FloatTensor(b_ripdsds, device),
                                       FloatTensor(b_rpwms, device), FloatTensor(b_rpwsds, device),
                                       FloatTensor(b_rsns, device), FloatTensor(b_rmaps, device))
-            _, vpredicted = torch.max(vlogits.data, 1)
+            # _, vpredicted = torch.max(vlogits.data, 1)
             if use_cuda:
                 vlogits = vlogits.cpu()
-                vpredicted = vpredicted.cpu()
+                # vpredicted = vpredicted.cpu()
 
-            # predicted = vpredicted.numpy()
             logits = vlogits.data.numpy()
+            # predicted = vpredicted.numpy()
 
             for idx in range(len(b_sampleinfo)):
                 # chromosome, pos, strand, holeid, loc, depth, prob_0, prob_1, called_label, seq
@@ -743,7 +743,8 @@ def main():
     parser.add_argument('--tseed', type=int, default=1234,
                         help='random seed for torch')
     parser.add_argument('--use_compile', type=str, default="no", required=False,
-                        help="if using torch.compile, yes or no, default no ('yes' only works in pytorch>=2.0)")
+                        help="[EXPERIMENTAL]if using torch.compile, yes or no, "
+                             "default no ('yes' only works in pytorch>=2.0)")
 
     args = parser.parse_args()
     display_args(args)

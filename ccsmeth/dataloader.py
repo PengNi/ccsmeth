@@ -192,3 +192,54 @@ class AggreFeaData(Dataset):
 
     def close(self):
         pass
+
+
+# single strand ==================================================================
+def parse_a_liness(line):
+    # chrom, chrom_pos, strand, seq_name, loc,
+    #     fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd,
+    #     fkmer_sn, fkmer_map,
+    #     methy_label
+    words = line.strip().split("\t")
+
+    sampleinfo = "\t".join(words[0:5])
+
+    fkmer = np.array([base2code_dna[x] for x in words[5]])
+    fpass = np.array([int(words[6])] * len(fkmer))
+    fipdm = np.array([float(x) for x in words[7].split(",")], dtype=float)
+    fipdsd = np.array([float(x) for x in words[8].split(",")], dtype=float) if words[8] != "." else 0
+    fpwm = np.array([float(x) for x in words[9].split(",")], dtype=float)
+    fpwsd = np.array([float(x) for x in words[10].split(",")], dtype=float) if words[10] != "." else 0
+    fsn = np.array([float(x) for x in words[11].split(",")], dtype=float) if words[11] != "." else 0
+    fmap = np.array([float(x) for x in words[12].split(",")], dtype=float) if words[12] != "." else 0
+
+    label = int(words[13])
+
+    return sampleinfo, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, label
+
+
+class FeaData3ss(Dataset):
+    def __init__(self, filename, offsets, linenum, transform=None):
+        self._filename = os.path.abspath(filename)
+        self._total_data = linenum
+        self._transform = transform
+
+        self._offsets = offsets
+        # self._data_stream = open(self._filename, 'r')
+        self._current_offset = 0
+
+    def __getitem__(self, idx):
+        offset = self._offsets[idx]
+        with open(self._filename, "r") as rf:
+            rf.seek(offset)
+            line = rf.readline()
+        output = parse_a_liness(line)
+        if self._transform is not None:
+            output = self._transform(output)
+        return output
+
+    def __len__(self):
+        return self._total_data
+
+    def close(self):
+        pass

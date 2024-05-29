@@ -829,3 +829,5 @@ See also `ccsmeth trainm -h` for multi-gpu distributed training.
 
 ## TODO
 - [ ] Check if the kinetics values (IPD and PW) are encoded or not in the bam file automatically, disable the `--no_decode` arg.
+- [ ] Provide a table in README for the illustration of the pre-trained models.
+- [ ] Reorganize the way of presenting arguments in the help message.
