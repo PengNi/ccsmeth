@@ -273,8 +273,7 @@ def _call_mods_q(model_path, features_batch_q, pred_str_q, args, device=0):
     if args.model_type in {"attbigru2s", "attbilstm2s"}:
         model = ModelAttRNN(args.seq_len, args.layer_rnn, args.class_num,
                             args.dropout_rate, args.hid_rnn,
-                            args.n_vocab, args.n_embed,
-                            is_qual=str2bool(args.is_qual),
+                            is_sn=str2bool(args.is_sn),
                             is_map=str2bool(args.is_map),
                             is_stds=str2bool(args.is_stds),
                             is_npass=str2bool(args.is_npass),

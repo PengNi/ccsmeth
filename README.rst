@@ -8,8 +8,6 @@ v0.5.1
 ----------
 bug fixes
 
-add strand-specific model
-
 
 v0.5.0
 ----------
