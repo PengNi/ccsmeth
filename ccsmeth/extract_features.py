@@ -258,6 +258,155 @@ def _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases, q_to_r_mapinfo):
     return fkmer_map, rkmer_map
 
 
+def _get_rev_offset_loc(motif_len, mod_loc):  # get the offset location of the mod_loc in reverse strand, motif must be symmetric
+    rev_offset_loc = (motif_len - 1 - mod_loc) - mod_loc
+    return rev_offset_loc
+
+
+def _extract_features_from_double_strand_read_ds(seq_seq, seq_rc, kinetics, aligninfo, motifs, args):
+    ipdmean_fwd, ipdmean_rev, pwmean_fwd, pwmean_rev, npass_fwd, npass_rev, snratio = kinetics
+    seq_name, seq_start, seq_end, ref_name, ref_start, ref_end, reverse, q_to_r_poss, q_to_r_mapinfo = aligninfo
+    
+    # WARN: motifs needs to be symmetric seq, like CG/GATC
+    motif_len = len(motifs[0])
+    rev_offset_loc = _get_rev_offset_loc(motif_len, args.mod_loc)
+    tsite_locs = get_refloc_of_methysite_in_motif(seq_seq, set(motifs), args.mod_loc)
+    num_bases = (args.seq_len - 1) // 2
+    feature_list = []
+    for loc in tsite_locs:
+        rev_loc = loc + rev_offset_loc
+        rev_loc_in_rev = len(seq_seq) - 1 - rev_loc
+        if num_bases <= loc < len(seq_seq) - num_bases and num_bases <= rev_loc_in_rev < len(seq_seq) - num_bases:
+            fkmer_seq = seq_seq[(loc - num_bases):(loc + num_bases + 1)]
+            fkmer_im = ipdmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
+            fkmer_isd = "."
+            fkmer_pm = pwmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
+            fkmer_psd = "."
+            # fkmer_qual = seq_qual[(loc - num_bases):(loc + num_bases + 1)]
+            # fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            fkmer_sn = snratio if str2bool(args.is_sn) else "."
+
+            rkmer_seq = seq_rc[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
+            rkmer_im = ipdmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
+            rkmer_isd = "."
+            rkmer_pm = pwmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
+            rkmer_psd = "."
+            # rkmer_qual = np.flip(seq_qual[(rev_loc - num_bases):(rev_loc + num_bases + 1)])
+            # rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            rkmer_sn = snratio if str2bool(args.is_sn) else "."
+
+            if q_to_r_poss is not None:
+                chrom = ref_name
+                chrom_pos = default_ref_loc
+                strand = "-" if reverse else "+"
+                fkmer_map = "."
+                rkmer_map = "."
+
+                if seq_start <= loc < seq_end:
+                    offset_idx = loc - seq_start
+                    offset_revidx = rev_loc - seq_start
+                    if q_to_r_poss[offset_idx] != -1:
+                        if reverse:
+                            chrom_pos = ref_end - 1 - q_to_r_poss[offset_idx]
+                        else:
+                            chrom_pos = q_to_r_poss[offset_idx] + ref_start
+
+                    if str2bool(args.is_map):
+                        fkmer_map, rkmer_map = _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases,
+                                                                    q_to_r_mapinfo)
+                else:
+                    if str2bool(args.skip_unmapped):  # skip soft clip region
+                        continue
+                    if str2bool(args.is_map):
+                        fkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
+                        rkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
+            else:
+                chrom = "."
+                chrom_pos = default_ref_loc
+                strand = "."
+                fkmer_map = "."
+                rkmer_map = "."
+            feature_list.append([chrom, chrom_pos, strand, seq_name, loc,
+                                 fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd,
+                                 fkmer_sn, fkmer_map,
+                                 rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd,
+                                 rkmer_sn, rkmer_map,
+                                 args.methy_label])
+    return feature_list
+
+
+def _extract_features_from_double_strand_read_ss(seq_seq, seq_rc, kinetics, aligninfo, motifs, args):
+    ipdmean_fwd, ipdmean_rev, pwmean_fwd, pwmean_rev, npass_fwd, npass_rev, snratio = kinetics
+    seq_name, seq_start, seq_end, ref_name, ref_start, ref_end, reverse, q_to_r_poss, q_to_r_mapinfo = aligninfo
+    
+    # WARN: motifs needs to be symmetric seq, like CG/GATC
+    motif_len = len(motifs[0])
+    rev_offset_loc = _get_rev_offset_loc(motif_len, args.mod_loc)
+    tsite_locs = get_refloc_of_methysite_in_motif(seq_seq, set(motifs), args.mod_loc)
+    num_bases = (args.seq_len - 1) // 2
+    feature_list = []
+    for loc in tsite_locs:
+        rev_loc = loc + rev_offset_loc
+        rev_loc_in_rev = len(seq_seq) - 1 - rev_loc
+        if num_bases <= loc < len(seq_seq) - num_bases and num_bases <= rev_loc_in_rev < len(seq_seq) - num_bases:
+            fkmer_seq = seq_seq[(loc - num_bases):(loc + num_bases + 1)]
+            fkmer_im = ipdmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
+            fkmer_isd = "."
+            fkmer_pm = pwmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
+            fkmer_psd = "."
+            # fkmer_qual = seq_qual[(loc - num_bases):(loc + num_bases + 1)]
+            # fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            fkmer_sn = snratio if str2bool(args.is_sn) else "."
+
+            rkmer_seq = seq_rc[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
+            rkmer_im = ipdmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
+            rkmer_isd = "."
+            rkmer_pm = pwmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
+            rkmer_psd = "."
+            # rkmer_qual = np.flip(seq_qual[(rev_loc - num_bases):(rev_loc + num_bases + 1)])
+            # rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
+            rkmer_sn = snratio if str2bool(args.is_sn) else "."
+
+            if q_to_r_poss is not None:
+                chrom = ref_name
+                chrom_pos = default_ref_loc
+                strand = "-" if reverse else "+"
+                fkmer_map = "."
+                rkmer_map = "."
+
+                if seq_start <= loc < seq_end:
+                    offset_idx = loc - seq_start
+                    offset_revidx = rev_loc - seq_start
+                    if q_to_r_poss[offset_idx] != -1:
+                        if reverse:
+                            chrom_pos = ref_end - 1 - q_to_r_poss[offset_idx]
+                        else:
+                            chrom_pos = q_to_r_poss[offset_idx] + ref_start
+
+                    if str2bool(args.is_map):
+                        fkmer_map, rkmer_map = _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases,
+                                                                    q_to_r_mapinfo)
+                else:
+                    if str2bool(args.skip_unmapped):  # skip soft clip region
+                        continue
+                    if str2bool(args.is_map):
+                        fkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
+                        rkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
+            else:
+                chrom = "."
+                chrom_pos = default_ref_loc
+                strand = "."
+                fkmer_map = "."
+                rkmer_map = "."
+            feature_list.append([chrom, chrom_pos, strand, seq_name, loc,
+                                 fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd,
+                                 fkmer_sn, fkmer_map,
+                                 rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd,
+                                 rkmer_sn, rkmer_map,
+                                 args.methy_label])
+    return feature_list
+
+
 def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids_e, holeids_ne, dnacontigs,
                                              args):
     seq_name, qalign_start, qalign_end, fwd_seq, _, ref_name, ref_start, ref_end, \
@@ -338,72 +487,12 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
 
     snratio = np.around(np.array(tag_sn, dtype=float), decimals=6) if str2bool(args.is_sn) else None
 
-    # WARN: motifs needs to be symmetric seq, like CG/GATC
-    motif_len = len(motifs[0])
-    rev_offset_loc = (motif_len - 1 - args.mod_loc) - args.mod_loc
-    tsite_locs = get_refloc_of_methysite_in_motif(seq_seq, set(motifs), args.mod_loc)
-    num_bases = (args.seq_len - 1) // 2
-    feature_list = []
-    for loc in tsite_locs:
-        rev_loc = loc + rev_offset_loc
-        rev_loc_in_rev = len(seq_seq) - 1 - rev_loc
-        if num_bases <= loc < len(seq_seq) - num_bases and num_bases <= rev_loc_in_rev < len(seq_seq) - num_bases:
-            fkmer_seq = seq_seq[(loc - num_bases):(loc + num_bases + 1)]
-            fkmer_im = ipdmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
-            fkmer_isd = "."
-            fkmer_pm = pwmean_fwd[(loc - num_bases):(loc + num_bases + 1)]
-            fkmer_psd = "."
-            # fkmer_qual = seq_qual[(loc - num_bases):(loc + num_bases + 1)]
-            # fkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in fkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
-            fkmer_sn = snratio if str2bool(args.is_sn) else "."
-
-            rkmer_seq = seq_rc[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
-            rkmer_im = ipdmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
-            rkmer_isd = "."
-            rkmer_pm = pwmean_rev[(rev_loc_in_rev - num_bases):(rev_loc_in_rev + num_bases + 1)]
-            rkmer_psd = "."
-            # rkmer_qual = np.flip(seq_qual[(rev_loc - num_bases):(rev_loc + num_bases + 1)])
-            # rkmer_sn = np.array([snratio[SEQ_ENCODE[nbase]] for nbase in rkmer_seq], dtype=float) if str2bool(args.is_sn) else "."
-            rkmer_sn = snratio if str2bool(args.is_sn) else "."
-
-            if q_to_r_poss is not None:
-                chrom = ref_name
-                chrom_pos = default_ref_loc
-                strand = "-" if reverse else "+"
-                fkmer_map = "."
-                rkmer_map = "."
-
-                if seq_start <= loc < seq_end:
-                    offset_idx = loc - seq_start
-                    offset_revidx = rev_loc - seq_start
-                    if q_to_r_poss[offset_idx] != -1:
-                        if reverse:
-                            chrom_pos = ref_end - 1 - q_to_r_poss[offset_idx]
-                        else:
-                            chrom_pos = q_to_r_poss[offset_idx] + ref_start
-
-                    if str2bool(args.is_map):
-                        fkmer_map, rkmer_map = _get_fr_kmer_mapinfo(offset_idx, offset_revidx, num_bases,
-                                                                    q_to_r_mapinfo)
-                else:
-                    if str2bool(args.skip_unmapped):  # skip soft clip region
-                        continue
-                    if str2bool(args.is_map):
-                        fkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
-                        rkmer_map = np.full(args.seq_len, 1, dtype=np.int32)
-            else:
-                chrom = "."
-                chrom_pos = default_ref_loc
-                strand = "."
-                fkmer_map = "."
-                rkmer_map = "."
-            feature_list.append([chrom, chrom_pos, strand, seq_name, loc,
-                                 fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd,
-                                 fkmer_sn, fkmer_map,
-                                 rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd,
-                                 rkmer_sn, rkmer_map,
-                                 args.methy_label])
-    return feature_list
+    aligninfo = (seq_name, seq_start, seq_end, ref_name, ref_start, ref_end, reverse, q_to_r_poss, q_to_r_mapinfo)
+    kinetics = (ipdmean_fwd, ipdmean_rev, pwmean_fwd, pwmean_rev, npass_fwd, npass_rev, snratio)
+    if args.ss:
+        return []
+    else:
+        return _extract_features_from_double_strand_read_ds(seq_seq, seq_rc, kinetics, aligninfo, motifs, args)
 
 
 def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne, dnacontigs, args):
@@ -626,6 +715,8 @@ def main():
                                "If not specified, use input_prefix.tsv as default.")
     p_output.add_argument("--gzip", action="store_true", default=False, required=False,
                           help="if compressing the output using gzip")
+    p_output.add_argument("--ss", action="store_true", default=False, required=False,
+                          help="if using single strand mode to extract features")
 
     p_extract = parser.add_argument_group("EXTRACTION")
     p_extract.add_argument("--mode", type=str, default="denovo", required=False,

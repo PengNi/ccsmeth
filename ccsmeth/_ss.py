@@ -7,12 +7,7 @@ import torch
 from .utils.constants_torch import use_cuda, FloatTensor
 
 
-# for extract_features.py ====================================================
-def _split_features():
-    pass
-
-
-# call mods =============================================================
+# for call_modifications.py ==================================================
 def _call_mods1s_1time(features_onebatch, model, device):
     bkmers, bpasss, bipdms, bipdsds, bpwms, bpwsds, bsns, bmaps = features_onebatch
     _, vlogits = model(FloatTensor(bkmers, device), FloatTensor(bpasss, device),
@@ -26,7 +21,7 @@ def _call_mods1s_1time(features_onebatch, model, device):
 
 def _call_mods1s(features_batch, model, batch_size, device=0):
     sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fsns, fmaps, \
-        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rsns, rmaps, labels = features_batch
+        rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rsns, rmaps, _ = features_batch
     # labels = np.reshape(labels, (len(labels)))
 
     pred_info_f, pred_info_r = [], []
