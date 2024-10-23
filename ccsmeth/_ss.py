@@ -11,9 +11,9 @@ from .utils.constants_torch import use_cuda, FloatTensor
 def _call_mods1s_1time(features_onebatch, model, device):
     bkmers, bpasss, bipdms, bipdsds, bpwms, bpwsds, bsns, bmaps = features_onebatch
     _, vlogits = model(FloatTensor(bkmers, device), FloatTensor(bpasss, device),
-                         FloatTensor(bipdms, device), FloatTensor(bipdsds, device),
-                         FloatTensor(bpwms, device), FloatTensor(bpwsds, device),
-                         FloatTensor(bsns, device), FloatTensor(bmaps, device))
+                       FloatTensor(bipdms, device), FloatTensor(bipdsds, device),
+                       FloatTensor(bpwms, device), FloatTensor(bpwsds, device),
+                       FloatTensor(bsns, device), FloatTensor(bmaps, device))
     if use_cuda:
         vlogits = vlogits.cpu()
     return vlogits.data.numpy()
