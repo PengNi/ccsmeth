@@ -8,11 +8,11 @@ import random
 from collections import namedtuple
 
 import numpy as np
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, roc_curve, auc
 
 
-# num_sites = [10000, 100000, 200000, 1000000000]
-num_sites = [100000, ]
+num_sites = [1000, 10000, 100000, 1000000000]
+# num_sites = [100000, ]
 CallRecord = namedtuple('CallRecord', ['chrom', 'pos', 'strand',
                                        'holeid', 'loc', 'depth',
                                        'prob0', 'prob1',
@@ -149,7 +149,7 @@ if __name__ == '__main__':
     pr_writer = open(result_file, 'w')
     pr_writer.write("tested_type\tTP\tFN\tTN\tFP\t"
                     "accuracy\trecall\tspecificity\tprecision\t"
-                    "fallout\tmiss_rate\tFDR\tNPV\tAUC\tsamplenum\tdepth_cutoff\tprob_cf\tnum_rounds\n")
+                    "fallout\tmiss_rate\tFDR\tNPV\tAUC\tAUC2\tsamplenum\tdepth_cutoff\tprob_cf\tnum_rounds\n")
 
     for depth_cf in depth_cfs:
         for prob_cf in prob_cfs:
@@ -221,23 +221,25 @@ if __name__ == '__main__':
                         else:
                             npv = 0
                         auroc = roc_auc_score(np.array(y_truelabel), np.array(y_scores))
+                        fpr, tpr, _ = roc_curve(np.array(y_truelabel), np.array(y_scores))
+                        auroc2 = auc(fpr, tpr)
                     metrics.append([tp, fn, tn, fp, accuracy, recall, specificity, precision,
-                                    fall_out, miss_rate, fdr, npv, auroc, len(tested_sites)])
+                                    fall_out, miss_rate, fdr, npv, auroc, auroc2, len(tested_sites)])
                 print("")
                 # cal mean
                 metrics = np.array(metrics, dtype=float)
 
                 metrics_mean = np.mean(metrics, 0)
                 mean_tpfntnfp = "\t".join([str(round(x, 1)) for x in metrics_mean[:4]])
-                mean_perf = "\t".join([str(round(x, 4)) for x in metrics_mean[4:13]])
-                mean_numlen = str(round(metrics_mean[13]))
+                mean_perf = "\t".join([str(round(x, 4)) for x in metrics_mean[4:14]])
+                mean_numlen = str(round(metrics_mean[14]))
                 pr_writer.write("\t".join([str(site_num), mean_tpfntnfp, mean_perf, mean_numlen,
                                            str(depth_cf), str(prob_cf), str(num_rounds)]) + "\n")
 
                 metrics_std = np.std(metrics, 0)
                 std_tpfntnfp = "\t".join([str(round(x, 1)) for x in metrics_std[:4]])
-                std_perf = "\t".join([str(round(x, 4)) for x in metrics_std[4:13]])
-                std_numlen = str(round(metrics_std[13]))
+                std_perf = "\t".join([str(round(x, 4)) for x in metrics_std[4:14]])
+                std_numlen = str(round(metrics_std[14]))
                 pr_writer.write("\t".join([str(site_num) + "_std", std_tpfntnfp, std_perf, std_numlen,
                                            str(depth_cf), str(prob_cf), str(num_rounds)]) + "\n")
                 pr_writer.flush()
