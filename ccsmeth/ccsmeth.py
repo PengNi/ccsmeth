@@ -341,6 +341,8 @@ def main():
                                 "If not specified, use input_prefix.tsv as default.")
     se_output.add_argument("--gzip", action="store_true", default=False, required=False,
                            help="if compressing the output using gzip")
+    se_output.add_argument("--ss", action="store_true", default=False, required=False,
+                          help="if using single strand mode to extract features")
 
     se_extract = sub_extract.add_argument_group("EXTRACTION")
     se_extract.add_argument("--mode", type=str, default="denovo", required=False,
