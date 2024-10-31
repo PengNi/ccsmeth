@@ -345,6 +345,8 @@ def _extract_features_from_double_strand_read_ss(seq_seq, seq_rc, kinetics, alig
     tsite_locs = get_refloc_of_methysite_in_motif(seq_seq, set(motifs), args.mod_loc)
     num_bases = (args.seq_len - 1) // 2
     feature_list = []
+    feature_list_f = []
+    feature_list_r = []
     for loc in tsite_locs:
         rev_loc = loc + rev_offset_loc
         rev_loc_in_rev = len(seq_seq) - 1 - rev_loc
@@ -371,6 +373,8 @@ def _extract_features_from_double_strand_read_ss(seq_seq, seq_rc, kinetics, alig
                 chrom = ref_name
                 chrom_pos = default_ref_loc
                 strand = "-" if reverse else "+"
+                strand_f = "-" if reverse else "+"
+                strand_r = "+" if reverse else "-"
                 fkmer_map = "."
                 rkmer_map = "."
 
@@ -396,15 +400,19 @@ def _extract_features_from_double_strand_read_ss(seq_seq, seq_rc, kinetics, alig
                 chrom = "."
                 chrom_pos = default_ref_loc
                 strand = "."
+                strand_f = "(+)"
+                strand_r = "(-)"
                 fkmer_map = "."
                 rkmer_map = "."
-            feature_list.append([chrom, chrom_pos, strand, seq_name, loc,
+            feature_list_f.append([chrom, chrom_pos, strand_f, seq_name, loc,
                                  fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd,
                                  fkmer_sn, fkmer_map,
-                                 rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd,
-                                 rkmer_sn, rkmer_map,
                                  args.methy_label])
-    return feature_list
+            feature_list_r.append([chrom, chrom_pos, strand_r, seq_name, loc+1, #or rev_loc_in_rev
+                                   rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd,
+                                   rkmer_sn, rkmer_map,
+                                   args.methy_label])   
+    return feature_list_f, feature_list_r
 
 
 def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids_e, holeids_ne, dnacontigs,
@@ -490,7 +498,7 @@ def extract_features_from_double_strand_read(alignedsegment_tmp, motifs, holeids
     aligninfo = (seq_name, seq_start, seq_end, ref_name, ref_start, ref_end, reverse, q_to_r_poss, q_to_r_mapinfo)
     kinetics = (ipdmean_fwd, ipdmean_rev, pwmean_fwd, pwmean_rev, npass_fwd, npass_rev, snratio)
     if args.ss:
-        return []
+        return _extract_features_from_double_strand_read_ss(seq_seq, seq_rc, kinetics, aligninfo, motifs, args)
     else:
         return _extract_features_from_double_strand_read_ds(seq_seq, seq_rc, kinetics, aligninfo, motifs, args)
 
@@ -504,15 +512,37 @@ def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne
     for read_idx, readinfo in enumerate(holebatch):
         try:
             alignedsegment_tmp = pysam.AlignedSegment.from_dict(readinfo, input_header)  # not necessary?
-            features_one = extract_features_from_double_strand_read(alignedsegment_tmp,
+            # features_one = extract_features_from_double_strand_read(alignedsegment_tmp,
+            #                                                         motifs, holeids_e, holeids_ne,
+            #                                                         dnacontigs,
+            #                                                         args)
+            if args.ss:
+                features_one_f, features_one_r = extract_features_from_double_strand_read(alignedsegment_tmp,
                                                                     motifs, holeids_e, holeids_ne,
                                                                     dnacontigs,
                                                                     args)
-            if len(features_one) == 0:
-                failed_num += 1
+                if len(features_one_f) == 0:
+                    failed_num += 1
+                else:
+                    # feature_list += features_one_f
+                    # feature_list += features_one_r
+                    feature_list += [item for pair in zip(features_one_f, features_one_r) for item in pair]
+                    holeidxes += [read_idx] * len(features_one_f)
             else:
-                feature_list += features_one
-                holeidxes += [read_idx] * len(features_one)
+                features_one = extract_features_from_double_strand_read(alignedsegment_tmp,
+                                                                    motifs, holeids_e, holeids_ne,
+                                                                    dnacontigs,
+                                                                    args)
+                if len(features_one) == 0:
+                    failed_num += 1
+                else:
+                    feature_list += features_one
+                    holeidxes += [read_idx] * len(features_one)
+            # if len(features_one) == 0:
+            #     failed_num += 1
+            # else:
+            #     feature_list += features_one
+            #     holeidxes += [read_idx] * len(features_one)
         except Exception as e:
             LOGGER.warning("{}: {} in read:{}".format(type(e).__name__, e, readinfo['name']))
             failed_num += 1
@@ -526,7 +556,18 @@ def _features_to_str(features, ss=False):
     :param features: a tuple
     :return:
     """
-    chrom, chrom_pos, strand, seq_name, loc, \
+    if ss:
+        features_f, features_r = features
+        chrom_f, chrom_pos_f, strand_f, seq_name_f, loc_f, \
+        fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd, \
+        fkmer_sn, fkmer_map, \
+        label_f = features_f
+        chrom_s, chrom_pos_s, strand_s, seq_name_s, loc_s, \
+        rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd, \
+        rkmer_sn, rkmer_map, \
+        label_r = features_r
+    else:
+        chrom, chrom_pos, strand, seq_name, loc, \
         fkmer_seq, npass_fwd, fkmer_im, fkmer_isd, fkmer_pm, fkmer_psd, \
         fkmer_sn, fkmer_map, \
         rkmer_seq, npass_rev, rkmer_im, rkmer_isd, rkmer_pm, rkmer_psd, \
@@ -547,13 +588,23 @@ def _features_to_str(features, ss=False):
     rkmer_sn_str = ",".join([str(x) for x in rkmer_sn]) if type(rkmer_sn) is not str else "."
     rkmer_map_str = ",".join([str(x) for x in rkmer_map]) if type(rkmer_map) is not str else "."
 
-    return "\t".join([chrom, str(chrom_pos), strand, seq_name, str(loc),
+    if ss:
+        forward_str = "\t".join([chrom_f, str(chrom_pos_f), strand_f, seq_name_f, str(loc_f),
+                                 fkmer_seq, str(npass_fwd), fkmer_im_str, fkmer_isd_str, fkmer_pm_str, fkmer_psd_str,
+                                 fkmer_sn_str, fkmer_map_str,
+                                 str(label_f)])
+        reverse_str = "\t".join([chrom_s, str(chrom_pos_s), strand_s, seq_name_s, str(loc_s),
+                                 rkmer_seq, str(npass_rev), rkmer_im_str, rkmer_isd_str, rkmer_pm_str, rkmer_psd_str,
+                                 rkmer_sn_str, rkmer_map_str,
+                                 str(label_r)])
+        return forward_str, reverse_str
+    else:
+        return "\t".join([chrom, str(chrom_pos), strand, seq_name, str(loc),
                       fkmer_seq, str(npass_fwd), fkmer_im_str, fkmer_isd_str, fkmer_pm_str, fkmer_psd_str,
                       fkmer_sn_str, fkmer_map_str,
                       rkmer_seq, str(npass_rev), rkmer_im_str, rkmer_isd_str, rkmer_pm_str, rkmer_psd_str,
                       rkmer_sn_str, rkmer_map_str,
                       str(label)])
-
 
 def worker_extract_features_from_holebatches(input_header, holebatch_q, features_q,
                                              motifs, holeids_e, holeids_ne, dnacontigs, args):
@@ -584,8 +635,15 @@ def worker_extract_features_from_holebatches(input_header, holebatch_q, features
         if len(feature_list) > 0:
             features_batch = []
             # to str
-            for feature in feature_list:
-                features_batch.append(_features_to_str(feature))
+            if args.ss:
+                for i in range(0, len(feature_list), 2):
+                    feature = (feature_list[i], feature_list[i+1])
+                    forward_str, reverse_str = _features_to_str(feature, args.ss)
+                    features_batch.append(forward_str)
+                    features_batch.append(reverse_str)
+            else:
+                for feature in feature_list:
+                    features_batch.append(_features_to_str(feature, args.ss))
             features_q.put(features_batch)
             # while features_q.qsize() > queue_size_border:
             while features_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
