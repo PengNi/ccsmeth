@@ -13,11 +13,14 @@ from torch.optim.lr_scheduler import ReduceLROnPlateau
 
 from .dataloader import FeaData
 from .dataloader import FeaData2
+from .dataloader import FeaData2ss
+from .dataloader import FeaDatass
 from .dataloader import clear_linecache
 
 from .models import ModelAttRNN
 from .models import ModelTransEnc
 from .models import ModelAttRNN2
+from .models import ModelAttRNNss
 
 from .utils.constants_torch import use_cuda
 from .utils.process_utils import display_args
@@ -65,6 +68,30 @@ def train(args):
                                                    batch_size=args.batch_size,
                                                    shuffle=False,
                                                    num_workers=args.dl_num_workers)
+    elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+        # 
+        if args.dl_offsets:
+            if args.dl_num_workers > 1:
+                raise ValueError("--dl_num_workers should not be >1 when --dl_offsets is True!")
+            from .utils.process_utils import count_line_num
+            from .dataloader import generate_offsets
+            train_linenum = count_line_num(args.train_file, False)
+            train_offsets = generate_offsets(args.train_file)
+            train_dataset = FeaData2ss(args.train_file, train_offsets, train_linenum)
+            valid_linenum = count_line_num(args.valid_file, False)
+            valid_offsets = generate_offsets(args.valid_file)
+            valid_dataset = FeaData2ss(args.valid_file, valid_offsets, valid_linenum)
+        else:
+            train_dataset = FeaDatass(args.train_file)
+            valid_dataset = FeaDatass(args.valid_file)
+        train_loader = torch.utils.data.DataLoader(dataset=train_dataset,
+                                                   batch_size=args.batch_size,
+                                                   shuffle=True,
+                                                   num_workers=args.dl_num_workers)
+        valid_loader = torch.utils.data.DataLoader(dataset=valid_dataset,
+                                                   batch_size=args.batch_size,
+                                                   shuffle=False,
+                                                   num_workers=args.dl_num_workers)
     else:
         raise ValueError("--model_type not right!")
 
@@ -104,6 +131,15 @@ def train(args):
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=device)
+    elif args.model_type in {"attbigru1s", "attbilstm1s"}:                                                                                                                                                                                                                                                                                                                                                                                                                         
+        model = ModelAttRNNss(args.seq_len, args.layer_rnn, args.class_num,
+                              args.dropout_rate, args.hid_rnn,
+                              is_sn=str2bool(args.is_sn),
+                              is_map=str2bool(args.is_map),
+                              is_stds=str2bool(args.is_stds),
+                              is_npass=str2bool(args.is_npass),
+                              model_type=args.model_type,
+                              device=device)
     else:
         raise ValueError("--model_type not right!")
 
@@ -155,7 +191,7 @@ def train(args):
         except ImportError:
             raise ImportError("please check if lookahead.py is in utils/ dir!")
         optimizer = LookaheadAdam(model.parameters(), lr=args.lr)
-    else:
+    else: 
         raise ValueError("--optim_type is not right!")
 
     if args.lr_scheduler == "StepLR":
@@ -209,6 +245,22 @@ def train(args):
                                         rkmer, rpass, ripdm, ripdsd, rpwm, rpwsd, rsn, rmap)
                 loss = criterion(outputs, labels)
                 tlosses.append(loss.detach().item())
+            elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+                _, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, labels = sfeatures
+                if use_cuda:
+                    fkmer = fkmer.to(device)
+                    fpass = fpass.to(device)
+                    fipdm = fipdm.to(device)
+                    fipdsd = fipdsd.to(device)
+                    fpwm = fpwm.to(device)
+                    fpwsd = fpwsd.to(device)
+                    fsn = fsn.to(device)
+                    fmap = fmap.to(device)
+                    labels = labels.to(device)
+                # Forward pass
+                outputs, logits = model(fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap)
+                loss = criterion(outputs, labels)
+                tlosses.append(loss.detach().item())
             else:
                 raise ValueError("--model_type is not right!")
 
@@ -252,6 +304,21 @@ def train(args):
                                                       vfpwsd, vfsn, vfmap,
                                                       vrkmer, vrpass, vripdm, vripdsd, vrpwm,
                                                       vrpwsd, vrsn, vrmap)
+                            vloss = criterion(voutputs, vlabels)
+                        elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+                            _, vkmer, vpass, vipdm, vipdsd, vpwm, vpwsd, vsn, vmap, vlabels = vsfeatures
+                            if use_cuda:
+                                vkmer = vkmer.to(device)
+                                vpass = vpass.to(device)
+                                vipdm = vipdm.to(device)
+                                vipdsd = vipdsd.to(device)
+                                vpwm = vpwm.to(device)
+                                vpwsd = vpwsd.to(device)
+                                vsn = vsn.to(device)
+                                vmap = vmap.to(device)
+                                vlabels = vlabels.to(device)
+                            # Forward pass
+                            voutputs, vlogits = model(vkmer, vpass, vipdm, vipdsd, vpwm, vpwsd, vsn, vmap)
                             vloss = criterion(voutputs, vlabels)
                         else:
                             raise ValueError("--model_type is not right!")
@@ -353,10 +420,10 @@ def main():
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
-                                   "attbilstm2s2", "attbigru2s2",],
+                                   "attbilstm2s2", "attbigru2s2","attbigru1s", "attbilstm1s",],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                               "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', 'attbigru1s', 'attbilstm1s', "
                                "default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")

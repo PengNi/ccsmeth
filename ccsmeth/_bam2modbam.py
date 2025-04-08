@@ -18,6 +18,7 @@ from .utils.logging import mylogger
 LOGGER = mylogger(__name__)
 
 base = "C"
+base_r = "G"
 pred_base = "CG"
 
 queue_size_border = max_queue_size
@@ -202,13 +203,31 @@ def _convert_locs_to_mmtag(locs, seq_fwseq):
         mm_idxes.append(base_orders[i] - 1 - base_orders[i-1])
     return mm_idxes
 
+def _convert_locs_to_mmtag_r(locs, seq_fwseq):
+    assert len(locs) > 0
+    base_alllocs = [i.start() for i in re.finditer(base_r, seq_fwseq)]
+    base_orders = [-1] * len(locs)
+    order_idx = 0
+    for base_idx in range(0, len(base_alllocs)):
+        try:
+            if base_alllocs[base_idx] == locs[order_idx]:
+                base_orders[order_idx] = base_idx
+                order_idx += 1
+        except IndexError:
+            break
+    assert base_orders[-1] != -1
+    mm_idxes = [base_orders[0]]
+    for i in range(1, len(base_orders)):
+        mm_idxes.append(base_orders[i] - 1 - base_orders[i-1])
+    return mm_idxes
+
 
 def _convert_probs_to_mltag(probs):
     # force returned values in [0, 255]
     return [math.floor(prob * 256) if prob < 1 else 255 for prob in probs]
 
 
-def _refill_tags(all_tags, mm_values, ml_values, rm_pulse=True):
+def _refill_tags(all_tags, mm_values, ml_values, rm_pulse=True, ss=False):
     new_tags = []
     # TODO: if with_value_type, pysam has a bug (0.19.0, pysam/libcalignedsegment.pyx line 396)
     for tagtuple in all_tags:
@@ -219,14 +238,21 @@ def _refill_tags(all_tags, mm_values, ml_values, rm_pulse=True):
         # new_tags.append(tagtuple)
         new_tags.append((tagtuple[0], tagtuple[1]))
     if mm_values is not None:
-        # new_tags.append(('MM', 'C+m,' + ",".join(list(map(str, mm_values))), 'Z'))
-        new_tags.append(('MM', 'C+m?,' + ",".join(list(map(str, mm_values))) + ";"))
-        # new_tags.append(('ML', ml_values, 'B'))
-        new_tags.append(('ML', ml_values))
+        if ss:
+            mm_values_c, mm_values_g = mm_values
+            mm_str = f"C+m?,{','.join(map(str, mm_values_c))};G-m,{','.join(map(str, mm_values_g))};"
+            new_tags.append(('MM', mm_str))
+            new_tags.append(('ML', ml_values)) 
+
+        else:
+            # new_tags.append(('MM', 'C+m,' + ",".join(list(map(str, mm_values))), 'Z'))
+            new_tags.append(('MM', 'C+m?,' + ",".join(list(map(str, mm_values))) + ";"))
+            # new_tags.append(('ML', ml_values, 'B'))
+            new_tags.append(('ML', ml_values))
     return new_tags
 
 
-def _worker_process_reads_batch(rreads_q, wreads_q, tabix_file, rm_pulse=True):
+def _worker_process_reads_batch(rreads_q, wreads_q, tabix_file, rm_pulse=True, ss=False):
     # perread_tbx = pysam.TabixFile(tabix_file)
     perread_tbx = tabix.open(tabix_file)
     while True:
@@ -247,6 +273,10 @@ def _worker_process_reads_batch(rreads_q, wreads_q, tabix_file, rm_pulse=True):
             mm_values = ml_values = None
             mm_flag = 0
             locs, probs = query_locs_probs_of_a_read(seq_name, perread_tbx)
+            c_locs = []
+            g_locs = []
+            c_probs = []
+            g_probs = []
             if locs is not None:
                 try:
                     mm_values = _convert_locs_to_mmtag(locs, seq_fwdseq)
@@ -257,7 +287,7 @@ def _worker_process_reads_batch(rreads_q, wreads_q, tabix_file, rm_pulse=True):
                     #       "\tDetails: {}, {}, {}\n".format(seq_name, locs, probs))
                     LOGGER.warning("AssertionError, skip this alignment-{}.".format(seq_name))
                     continue
-            new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse)
+            new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse, ss)
             wreads_tmp.append((seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, tlen,
                                seq_seq, seq_qual, new_tags, mm_flag))
         if len(wreads_tmp) > 0:
@@ -316,7 +346,7 @@ def _worker_write_modbam(wreads_q, modbamfile, inputbamfile, threads=1):
 
 def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
                           rm_pulse=True, threads=3,
-                          reads_batch=100, mode="align"):
+                          reads_batch=100, mode="align", ss=False):
     LOGGER.info("[generate_modbam_file]starts")
     # sys.stderr.flush()
     start = time.time()
@@ -346,7 +376,7 @@ def add_mm_ml_tags_to_bam(bamfile, per_readsite, modbamfile,
     ps_gen = []
     for _ in range(nproc - threads_r - threads_w):
         p_gen = mp.Process(target=_worker_process_reads_batch,
-                           args=(rreads_q, wreads_q, per_read_file, rm_pulse))
+                           args=(rreads_q, wreads_q, per_read_file, rm_pulse, ss))
         p_gen.daemon = True
         p_gen.start()
         ps_gen.append(p_gen)
@@ -403,12 +433,14 @@ def main():
                         required=False, help="number of threads to be used, default 10.")
     parser.add_argument("--batch_size", type=int, required=False, default=100,
                         help="batch size of reads to be processed at one time, default 100")
+    parser.add_argument("--ss",action="store_true", default=False, required=False,
+                          help="single strand mode , default false")
 
     args = parser.parse_args()
 
     add_mm_ml_tags_to_bam(args.bam, args.per_readsite, args.modbam,
                           args.rm_pulse, args.threads,
-                          args.batch_size)
+                          args.batch_size, args.ss)
 
 
 if __name__ == '__main__':

@@ -31,6 +31,7 @@ from collections import OrderedDict
 from .models import ModelAttRNN
 from .models import ModelTransEnc
 from .models import ModelAttRNN2
+from .models import ModelAttRNNss
 
 from .utils.process_utils import base2code_dna
 from .utils.process_utils import display_args
@@ -53,6 +54,7 @@ from .extract_features import _open_inputfile
 
 from ._bam2modbam import _get_necessary_alignment_items
 from ._bam2modbam import _convert_locs_to_mmtag
+from ._bam2modbam import _convert_locs_to_mmtag_r
 from ._bam2modbam import _convert_probs_to_mltag
 from ._bam2modbam import _refill_tags
 
@@ -122,6 +124,37 @@ def _batch_feature_list2s(feature_list):
     return sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fsns, fmaps, \
         rkmers, rpasss, ripdms, ripdsds, rpwms, rpwsds, rsns, rmaps, labels
 
+def _batch_feature_list1s(feature_list):
+    sampleinfo = []  # contains: chrom, abs_loc, strand, holeid, loc
+
+    fkmers = []
+    fpasss = []
+    fipdms = []
+    fipdsds = []
+    fpwms = []
+    fpwsds = []
+    fsns = []
+    fmaps = []
+
+    labels = []
+    for featureline in feature_list:
+        chrom, abs_loc, strand, holeid, loc, \
+            kmer_seq, kmer_pass, kmer_ipdm, kmer_ipds, kmer_pwm, kmer_pws, kmer_sn, kmer_map, \
+            label = featureline
+
+        sampleinfo.append("\t".join(list(map(str, [chrom, abs_loc, strand, holeid, loc]))))
+
+        fkmers.append(np.array([base2code_dna[x] for x in kmer_seq]))
+        fpasss.append(np.array([kmer_pass] * len(kmer_seq)))
+        fipdms.append(np.array(kmer_ipdm, dtype=float))
+        fipdsds.append(np.array(kmer_ipds, dtype=float) if type(kmer_ipds) is not str else 0)
+        fpwms.append(np.array(kmer_pwm, dtype=float))
+        fpwsds.append(np.array(kmer_pws, dtype=float) if type(kmer_pws) is not str else 0)
+        fsns.append(np.array(kmer_sn, dtype=float) if type(kmer_sn) is not str else 0)
+        fmaps.append(np.array(kmer_map, dtype=float) if type(kmer_map) is not str else 0)
+
+        labels.append(label)
+    return sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fsns, fmaps, labels
 
 def worker_extract_features_with_holeinfo(input_header, holebatch_q, features_q,
                                           motifs, holeids_e, holeids_ne, dnacontigs, args):
@@ -150,12 +183,22 @@ def worker_extract_features_with_holeinfo(input_header, holebatch_q, features_q,
         total_num_batch += total_num
         failed_num_batch += failed_num
         if len(feature_list) > 0:
-            feature_batch = _batch_feature_list2s(feature_list)
-            features_oneholebatch = (holebatch, holeidxes, feature_batch)
-            features_q.put(features_oneholebatch)
-            # while features_q.qsize() > queue_size_border:
-            while features_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
-                time.sleep(time_wait)
+            if args.ss:
+                feature_batch = _batch_feature_list1s(feature_list)
+                # 
+                
+                features_oneholebatch = (holebatch, holeidxes, feature_batch)
+                features_q.put(features_oneholebatch)
+                # while features_q.qsize() > queue_size_border:
+                while features_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
+                    time.sleep(time_wait)
+            else:
+                feature_batch = _batch_feature_list2s(feature_list)
+                features_oneholebatch = (holebatch, holeidxes, feature_batch)
+                features_q.put(features_oneholebatch)
+                # while features_q.qsize() > queue_size_border:
+                while features_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
+                    time.sleep(time_wait)
         cnt_holesbatch += 1
     LOGGER.info("extract_features process-{} ending, proceed {} "
                 "hole_batches({}): {} holes/reads in total, "
@@ -226,8 +269,53 @@ def _call_mods2s(features_batch, model, batch_size, device=0):
 
     return pred_info, batch_num
 
+def _call_mods1s(features_batch, model, batch_size, device=0):
+    sampleinfo, fkmers, fpasss, fipdms, fipdsds, fpwms, fpwsds, fsns, fmaps, _ = features_batch
+    # labels = np.reshape(labels, (len(labels)))    
 
-def _add_modinfo2alignedseg(read_info, pred_info, input_header, rm_pulse):
+    pred_info = []
+    batch_num = 0
+    for i in np.arange(0, len(sampleinfo), batch_size):
+        batch_s, batch_e = i, i + batch_size
+        b_sampleinfo = sampleinfo[batch_s:batch_e]
+
+        b_fkmers = np.array(fkmers[batch_s:batch_e])
+        b_fpasss = np.array(fpasss[batch_s:batch_e])
+        b_fipdms = np.array(fipdms[batch_s:batch_e])
+        b_fipdsds = np.array(fipdsds[batch_s:batch_e])
+        b_fpwms = np.array(fpwms[batch_s:batch_e])
+        b_fpwsds = np.array(fpwsds[batch_s:batch_e])
+        b_fsns = np.array(fsns[batch_s:batch_e])
+        b_fmaps = np.array(fmaps[batch_s:batch_e])
+
+        # b_labels = np.array(labels[batch_s:batch_e])
+        if len(b_sampleinfo) > 0:
+            _, vlogits = model(FloatTensor(b_fkmers, device), FloatTensor(b_fpasss, device),
+                                      FloatTensor(b_fipdms, device), FloatTensor(b_fipdsds, device),
+                                      FloatTensor(b_fpwms, device), FloatTensor(b_fpwsds, device),
+                                      FloatTensor(b_fsns, device), FloatTensor(b_fmaps, device))
+            # _, vpredicted = torch.max(vlogits.data, 1)
+            if use_cuda:
+                vlogits = vlogits.cpu()
+                # vpredicted = vpredicted.cpu()
+
+            logits = vlogits.data.numpy()
+            # predicted = vpredicted.numpy()
+
+            for idx in range(len(b_sampleinfo)):
+                # chromosome, pos, strand, holeid, loc, depth, prob_0, prob_1, called_label, seq
+                b_sampleinfo[idx] = b_sampleinfo[idx].split("\t")
+                holeid = b_sampleinfo[idx][3]
+                loc = int(b_sampleinfo[idx][4])
+                prob_0, prob_1 = logits[idx][0], logits[idx][1]
+                prob_1_norm = round(prob_1 / (prob_0 + prob_1), 6)
+                pred_info.append((holeid, loc, prob_1_norm))
+            batch_num += 1
+
+
+    return pred_info, batch_num
+
+def _add_modinfo2alignedseg(read_info, pred_info, input_header, rm_pulse, args):
     segment_tmp = pysam.AlignedSegment.from_dict(read_info, input_header)
 
     seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, \
@@ -237,7 +325,7 @@ def _add_modinfo2alignedseg(read_info, pred_info, input_header, rm_pulse):
     mm_values = ml_values = None
     mm_flag = 0
     if len(pred_info) == 0:
-        new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse)
+        new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse, args.ss)
         return (seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, tlen,
                 seq_seq, seq_qual, new_tags, mm_flag)
     
@@ -252,33 +340,49 @@ def _add_modinfo2alignedseg(read_info, pred_info, input_header, rm_pulse):
     try:
         locs_probs = sorted(locs_probs, key=lambda x: x[0])
         locs_probs = list(zip(*locs_probs))
-        locs = locs_probs[0]
-        probs = locs_probs[1]
-        mm_values = _convert_locs_to_mmtag(locs, seq_fwdseq)
-        ml_values = _convert_probs_to_mltag(probs)
-        mm_flag = 1
+        if args.ss:
+            locs_c = locs_probs[0][::2]
+            locs_g = locs_probs[0][1::2]
+            probs_c = locs_probs[1][::2]
+            probs_g = locs_probs[1][1::2]
+            mm_values_c = _convert_locs_to_mmtag(locs_c, seq_fwdseq)
+            mm_values_g = _convert_locs_to_mmtag_r(locs_g, seq_fwdseq)
+            ml_values_c = _convert_probs_to_mltag(probs_c)
+            ml_values_g = _convert_probs_to_mltag(probs_g)
+            mm_values = (mm_values_c, mm_values_g)
+            ml_values = ml_values_c + ml_values_g
+            mm_flag = 1
+        # LOGGER.info("locs: {}".format(locs))
+        # LOGGER.info("seq_fwdseq: {}".format(seq_fwdseq))
+        else:
+            locs = locs_probs[0]
+            probs = locs_probs[1]
+            mm_values = _convert_locs_to_mmtag(locs, seq_fwdseq)
+            ml_values = _convert_probs_to_mltag(probs)
+            mm_flag = 1
+
     except AssertionError:
         # sys.stderr.write("AssertionError, skip this alignment.\n"
         #       "\tDetails: {}, {}, {}\n".format(seq_name, locs, probs))
         LOGGER.info("AssertionError, skip this alignment-{}.".format(seq_name))
-    new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse)
+    new_tags = _refill_tags(all_tags, mm_values, ml_values, rm_pulse, args.ss)
     return (seq_name, flag, ref_name, ref_start, mapq, cigartuples, rnext, pnext, tlen,
             seq_seq, seq_qual, new_tags, mm_flag)
 
 
-def _add_modinfo2alignedseg_batch(holebatch, holeidxes, preds_info, input_header, rm_pulse):
+def _add_modinfo2alignedseg_batch(holebatch, holeidxes, preds_info, input_header, rm_pulse, args):
     new_read_infos = []
 
     def catch_up(holebatch_cnt, cur_holeid):
         while holebatch_cnt < cur_holeid:
-            new_read_info = _add_modinfo2alignedseg(holebatch[holebatch_cnt], [], input_header, rm_pulse)
+            new_read_info = _add_modinfo2alignedseg(holebatch[holebatch_cnt], [], input_header, rm_pulse, args)
             new_read_infos.append(new_read_info)
             holebatch_cnt += 1
         return holebatch_cnt
     
     if len(holeidxes) == 0:
         for idx, read_info in enumerate(holebatch):
-            new_read_info = _add_modinfo2alignedseg(read_info, [], input_header, rm_pulse)
+            new_read_info = _add_modinfo2alignedseg(read_info, [], input_header, rm_pulse, args)
             new_read_infos.append(new_read_info)
         return new_read_infos
 
@@ -290,7 +394,7 @@ def _add_modinfo2alignedseg_batch(holebatch, holeidxes, preds_info, input_header
         if holeid != cur_holeid:
             holebatch_cnt = catch_up(holebatch_cnt, cur_holeid)
             assert holebatch_cnt == cur_holeid
-            new_read_info = _add_modinfo2alignedseg(holebatch[holebatch_cnt], pred_info_tmp, input_header, rm_pulse)
+            new_read_info = _add_modinfo2alignedseg(holebatch[holebatch_cnt], pred_info_tmp, input_header, rm_pulse, args)
             new_read_infos.append(new_read_info)
             pred_info_tmp = []
             holebatch_cnt += 1
@@ -299,12 +403,12 @@ def _add_modinfo2alignedseg_batch(holebatch, holeidxes, preds_info, input_header
     # last pred_info
     holebatch_cnt = catch_up(holebatch_cnt, cur_holeid)
     assert holebatch_cnt == cur_holeid
-    new_read_info = _add_modinfo2alignedseg(holebatch[holebatch_cnt], pred_info_tmp, input_header, rm_pulse)
+    new_read_info = _add_modinfo2alignedseg(holebatch[holebatch_cnt], pred_info_tmp, input_header, rm_pulse, args)
     new_read_infos.append(new_read_info)
     # last holebatches
     if holebatch_cnt < len(holebatch) - 1:
         for idx in range(holebatch_cnt + 1, len(holebatch)):
-            new_read_info = _add_modinfo2alignedseg(holebatch[idx], [], input_header, rm_pulse)
+            new_read_info = _add_modinfo2alignedseg(holebatch[idx], [], input_header, rm_pulse, args)
             new_read_infos.append(new_read_info)
     assert len(holebatch) == len(new_read_infos)
     return new_read_infos
@@ -336,6 +440,15 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
                               is_npass=str2bool(args.is_npass), is_sn=str2bool(args.is_sn),
                               is_map=str2bool(args.is_map), is_stds=str2bool(args.is_stds), 
                               model_type=args.model_type, device=device)
+    elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+        model = ModelAttRNNss(args.seq_len, args.layer_rnn, args.class_num,
+                              args.dropout_rate, args.hid_rnn,
+                              is_sn=str2bool(args.is_sn),
+                              is_map=str2bool(args.is_map),
+                              is_stds=str2bool(args.is_stds),
+                              is_npass=str2bool(args.is_npass),
+                              model_type=args.model_type,
+                              device=device)
     else:
         raise ValueError("--model_type not right!")
 
@@ -390,10 +503,13 @@ def _call_mods_q(model_path, features_batch_q, out_info_q, input_header, args, d
         if args.model_type in {"attbigru2s", "attbilstm2s", "transencoder2s", "attbigru2s2", "attbilstm2s2"}:
             pred_info, batch_num = _call_mods2s(features_oneholebatch, model, args.batch_size, device)
             del features_oneholebatch
+        elif args.model_type in {"attbigru1s", "attbilstm1s"}:
+            pred_info, batch_num = _call_mods1s(features_oneholebatch, model, args.batch_size, device)
+            del features_oneholebatch
         else:
             raise ValueError("--model_type not right!")
         
-        new_read_infos = _add_modinfo2alignedseg_batch(holebatch, holeidxes, pred_info, input_header2, rm_pulse)
+        new_read_infos = _add_modinfo2alignedseg_batch(holebatch, holeidxes, pred_info, input_header2, rm_pulse, args)
         out_info_q.put(new_read_infos)
         # while out_info_q.qsize() > queue_size_border:
         while out_info_q.qsize() > (args.threads if args.threads > 1 else 2) * 3:
@@ -624,6 +740,8 @@ def main():
     p_input.add_argument("--holes_batch", type=int, default=50, required=False,
                          help="number of holes/hifi-reads in an batch to get/put in queues, default 50. "
                               "only used when --input is bam/sam")
+    p_input.add_argument("--ss", action="store_true", default=False, required=False,
+                          help="single strand mode , default false")
     
     p_output = parser.add_argument_group("OUTPUT")
     p_output.add_argument("--output", "-o", action="store", type=str, required=True,
@@ -642,10 +760,11 @@ def main():
     # model param
     p_call.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
-                                   "attbilstm2s2", "attbigru2s2",],
+                                   "attbilstm2s2", "attbigru2s2","attbigru1s", "attbilstm1s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
-                               "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                               "'transencoder2s', 'attbilstm2s2', 'attbigru2s2',"
+                               "'attbigru1s', 'attbilstm1s', "
                                "default: attbigru2s")
     p_call.add_argument('--seq_len', type=int, default=21, required=False,
                         help="len of kmer. default 21")

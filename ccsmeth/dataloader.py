@@ -218,6 +218,64 @@ def parse_a_liness(line):
     return sampleinfo, fkmer, fpass, fipdm, fipdsd, fpwm, fpwsd, fsn, fmap, label
 
 
+class FeaDatass(Dataset):
+    def __init__(self, filename, transform=None):
+        # print(">>>using linecache to access '{}'<<<\n"
+        #       ">>>after done using the file, "
+        #       "remember to use linecache.clearcache() to clear cache for safety<<<".format(filename))
+        self._filename = os.path.abspath(filename)
+        self._total_data = 0
+        self._transform = transform
+        # self.max_subreads = max_subreads
+        with open(filename, "r") as f:
+            self._total_data = len(f.readlines())
+
+    def __getitem__(self, idx):
+        line = linecache.getline(self._filename, idx + 1)
+        if line == "":
+            return None
+        else:
+            output = parse_a_liness(line)
+            if self._transform is not None:
+                output = self._transform(output)
+            return output
+
+    def __len__(self):
+        return self._total_data
+
+    def close(self):
+        pass
+
+
+class FeaData2ss(Dataset):
+    def __init__(self, filename, offsets, linenum, transform=None):
+        self._filename = os.path.abspath(filename)
+        self._total_data = linenum
+        self._transform = transform
+
+        self._offsets = offsets
+        self._data_stream = open(self._filename, 'r')
+        self._current_offset = 0
+
+    def __getitem__(self, idx):
+        offset = self._offsets[idx]
+        self._data_stream.seek(offset)
+        line = self._data_stream.readline()
+        # with open(self._filename, "r") as rf:
+        #     rf.seek(offset)
+        #     line = rf.readline()
+        output = parse_a_liness(line)
+        if self._transform is not None:
+            output = self._transform(output)
+        return output
+
+    def __len__(self):
+        return self._total_data
+
+    def close(self):
+        self._data_stream.close()
+
+
 class FeaData3ss(Dataset):
     def __init__(self, filename, offsets, linenum, transform=None):
         self._filename = os.path.abspath(filename)
@@ -243,3 +301,4 @@ class FeaData3ss(Dataset):
 
     def close(self):
         pass
+ 
