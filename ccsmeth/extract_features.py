@@ -528,6 +528,7 @@ def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne
                     # feature_list += features_one_r
                     feature_list += [item for pair in zip(features_one_f, features_one_r) for item in pair]
                     holeidxes += [read_idx] * len(features_one_f)*2
+
             else:
                 features_one = extract_features_from_double_strand_read(alignedsegment_tmp,
                                                                     motifs, holeids_e, holeids_ne,
