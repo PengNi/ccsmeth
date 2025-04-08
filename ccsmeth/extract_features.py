@@ -303,7 +303,7 @@ def _extract_features_from_double_strand_read_ds(seq_seq, seq_rc, kinetics, alig
                 rkmer_map = "."
 
                 if seq_start <= loc < seq_end:
-                    offset_idx = loc - seq_start
+                    offset_idx = loc - seq_start  
                     offset_revidx = rev_loc - seq_start
                     if q_to_r_poss[offset_idx] != -1:
                         if reverse:
@@ -527,7 +527,8 @@ def process_one_holebatch(input_header, holebatch, motifs, holeids_e, holeids_ne
                     # feature_list += features_one_f
                     # feature_list += features_one_r
                     feature_list += [item for pair in zip(features_one_f, features_one_r) for item in pair]
-                    holeidxes += [read_idx] * len(features_one_f)
+                    holeidxes += [read_idx] * len(features_one_f)*2
+
             else:
                 features_one = extract_features_from_double_strand_read(alignedsegment_tmp,
                                                                     motifs, holeids_e, holeids_ne,

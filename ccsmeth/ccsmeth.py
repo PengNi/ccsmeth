@@ -201,6 +201,8 @@ def main():
     scm_input.add_argument("--holes_batch", type=int, default=50, required=False,
                            help="number of holes/hifi-reads in an batch to get/put in queues, default 50. "
                                 "only used when --input is bam/sam")
+    scm_input.add_argument("--ss", action="store_true", default=False, required=False,
+                          help="single strand mode , default false")
     
     scm_output = sub_call_mods.add_argument_group("OUTPUT")
     scm_output.add_argument("--output", "-o", action="store", type=str, required=True,
@@ -219,10 +221,11 @@ def main():
     # model param
     scm_call.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
-                                   "attbilstm2s2", "attbigru2s2",],
+                                   "attbilstm2s2", "attbigru2s2","attbigru1s", "attbilstm1s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
                                "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                               "'attbigru1s', 'attbilstm1s', "
                                "default: attbigru2s")
     scm_call.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")
@@ -473,6 +476,8 @@ def main():
                                  "default None, which means all chromosomes will be processed.")
     scfb_input.add_argument('--chunk_len', type=int, required=False, default=500000,
                             help="chunk length, default 500000")
+    scfb_input.add_argument("--ss", action="store_true", default=False, required=False,
+                          help="if using single strand mode , MM tags contains C+m and G-m")
 
     scfb_output = sub_call_freqb.add_argument_group("OUTPUT")
     scfb_output.add_argument('--output', '-o', action="store", type=str, required=True,
@@ -569,10 +574,12 @@ def main():
     # model param
     st_train.add_argument('--model_type', type=str, default="attbigru2s",
                           choices=["attbilstm2s", "attbigru2s", "transencoder2s", 
-                                   "attbilstm2s2", "attbigru2s2",],
+                                   "attbilstm2s2", "attbigru2s2",
+                                   "attbigru1s", "attbilstm1s"],
                           required=False,
                           help="type of model to use, 'attbilstm2s', 'attbigru2s', "
                                "'transencoder2s', 'attbilstm2s2', 'attbigru2s2', "
+                               "'attbigru1s', 'attbilstm1s', "
                                "default: attbigru2s")
     st_train.add_argument('--seq_len', type=int, default=21, required=False,
                           help="len of kmer. default 21")

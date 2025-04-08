@@ -123,7 +123,7 @@ def _get_all_modbase_positions(fwd_seq, modbase):
     return [i.start() for i in re.finditer(modbase, fwd_seq)]
 
 
-def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
+def _get_moddict_in_tags(args, readitem, modbase="C", modification="m"):
     mmtag, mltag = None, None
     try:
         mmtag = readitem.get_tag('MM')
@@ -132,11 +132,40 @@ def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
         pass
     if mmtag is None or mltag is None:
         return {}
-    else:
-        seq_fwdseq = readitem.get_forward_sequence()
-        seq_len = len(seq_fwdseq)
-        is_reverse = readitem.is_reverse
+    
+    seq_fwdseq = readitem.get_forward_sequence()
+    seq_len = len(seq_fwdseq)
+    is_reverse = readitem.is_reverse
+    if args.ss:
+        moddict = {}
+        mltag_idx = 0
+        for x in mmtag.split(';'):
+            if not x:
+                continue
+            modtype_end = x.find(',')
+            if modtype_end == -1:
+                continue
+            modtype = x[:modtype_end]
 
+            mod_iters = _get_mm_position_iters([int(y) for y in x[modtype_end + 1:].split(",")])
+
+            modbases_all = _get_all_modbase_positions(seq_fwdseq, modtype[0])
+            try:
+                modbases = [modbases_all[idx - 1] for idx in mod_iters]
+                moddict[modtype] = {}
+                for modloc in modbases:
+                    if is_reverse:
+                        modloc = seq_len - 1 - modloc
+                    moddict[modtype][modloc] = _cal_mod_prob(mltag[mltag_idx])
+                    mltag_idx += 1
+                # LOGGER.info("mltag_idx: {}".format(mltag_idx))
+            except IndexError:
+                LOGGER.warning("read {}: MM tag length does not match length of modbases "
+                            "in read!".format(readitem.query_name))
+                return {}
+        # LOGGER.info("moddict for read {}: {}".format(readitem.query_name, moddict))
+        return moddict           
+    else:
         # parse MM/ML tags
         mod_iters = None
         for x in mmtag.split(';'):
@@ -170,7 +199,7 @@ def _get_moddict_in_tags(readitem, modbase="C", modification="m"):
             return {}
 
 
-def _get_moddict(readitem, modbase="C", modification="m"):
+def _get_moddict(args, readitem, modbase="C", modification="m"):
     """
 
     :param readitem:
@@ -179,22 +208,39 @@ def _get_moddict(readitem, modbase="C", modification="m"):
 
     # first try to use .modified_bases (pysam>=0.19.0) instead of MM/ML tags to get moddict
     modinfo = readitem.modified_bases
+    # LOGGER.info("modinfo: {}".format(modinfo))
     if not (modinfo is None or len(modinfo) == 0):
-        modtuple = None
-        for modkey in modinfo.keys():
-            if modkey[0] == modbase and modkey[2] == modification:
-                modtuple = modinfo[modkey]
-                break
-        if modtuple is None:
-            return {}
-        moddict = dict(modtuple)
-        for modloc in moddict.keys():
-            moddict[modloc] = _cal_mod_prob(moddict[modloc])
+        # LOGGER.info("use readitem")
+        if args.ss:
+            moddict = {'C+m': {}, 'G-m': {}}
+            for modkey in modinfo.keys():
+                base, strand, mod = modkey
+                
+                if base == 'C' and mod.startswith(modification):
+                    for pos, prob in modinfo[modkey]:
+                        moddict['C+m'][pos] = _cal_mod_prob(prob)
+                elif base == 'G' and mod.startswith(modification):
+                    for pos, prob in modinfo[modkey]:
+                        moddict['G-m'][pos] = _cal_mod_prob(prob)
+        else:
+            modtuple = None
+            for modkey in modinfo.keys():
+                if modkey[0] == modbase and modkey[2] == modification:
+                    modtuple = modinfo[modkey]
+                    break
+            if modtuple is None:
+                return {}
+            moddict = dict(modtuple)
+            for modloc in moddict.keys():
+                moddict[modloc] = _cal_mod_prob(moddict[modloc])
+
+        # LOGGER.info("moddict:{}".format(moddict))        
         return moddict
     else:
         # case 1: the MM tag is "MM:Z:C+m?,..."?
         # case 2: there are no MM/ML tags
-        return _get_moddict_in_tags(readitem, modbase, modification)
+        # LOGGER.info("not use readitem")
+        return _get_moddict_in_tags(args, readitem, modbase, modification)
 
 
 def _cal_modfreq_in_count_mode(modprobs, prob_cf=0, no_amb_cov=False):
@@ -505,38 +551,107 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
             except KeyError:
                 hap = 0
             is_reverse = 1 if readitem.is_reverse else 0
-            moddict = _get_moddict(readitem, modbase, modification)
-            modlocs = set(moddict.keys())
+            moddict = _get_moddict(args, readitem, modbase, modification)
+            # LOGGER.info(f"moddict structure: {moddict}")
+            if args.ss:
+                modlocs_C = set()
+                modlocs_G = set()
+                for key in moddict:
+                    if key.startswith('C+m'):
+                        modlocs_C.update(moddict[key].keys())
+                    elif key.startswith('G-m'):
+                        modlocs_G.update(moddict[key].keys())
+                modlocs = modlocs_C | modlocs_G
+                # modlocs = modlocs_C
+            else:
+                modlocs = set(moddict.keys())
+            
             matches_only = False if args.refsites_all else True
             aligned_pairs = readitem.get_aligned_pairs(matches_only=matches_only)
             if args.base_clip > 0:
                 aligned_pairs = aligned_pairs[args.base_clip:(-args.base_clip)]
-            if is_reverse:
-                for q_pos, r_pos in aligned_pairs:
-                    if r_pos is not None and ref_start <= r_pos < ref_end:
-                        if q_pos is not None and q_pos in modlocs:
-                            if r_pos not in refposes_rev:
-                                refposes_rev.add(r_pos)
-                                refposinfo_rev[r_pos] = []
-                            refposinfo_rev[r_pos].append((moddict[q_pos], hap))
-                        elif args.refsites_all and (r_pos in refmotifsites_rev):
-                            if r_pos not in refposes_rev:
-                                refposes_rev.add(r_pos)
-                                refposinfo_rev[r_pos] = []
-                            refposinfo_rev[r_pos].append((0.0, hap))
-            else:
-                for q_pos, r_pos in aligned_pairs:
-                    if r_pos is not None and ref_start <= r_pos < ref_end:
-                        if q_pos is not None and q_pos in modlocs:
-                            if r_pos not in refposes:
-                                refposes.add(r_pos)
-                                refposinfo[r_pos] = []
-                            refposinfo[r_pos].append((moddict[q_pos], hap))
-                        elif args.refsites_all and (r_pos in refmotifsites):
-                            if r_pos not in refposes:
-                                refposes.add(r_pos)
-                                refposinfo[r_pos] = []
-                            refposinfo[r_pos].append((0.0, hap))
+            
+            if not args.ss:
+                if is_reverse:
+                    for q_pos, r_pos in aligned_pairs:
+                        if r_pos is not None and ref_start <= r_pos < ref_end:
+                            if q_pos is not None and q_pos in modlocs:
+                                if r_pos not in refposes_rev:
+                                    refposes_rev.add(r_pos)
+                                    refposinfo_rev[r_pos] = []
+                                refposinfo_rev[r_pos].append((moddict[q_pos], hap))
+                            elif q_pos is not None and q_pos in modlocs:
+                                pass
+                            elif args.refsites_all and (r_pos in refmotifsites_rev):
+                                if r_pos not in refposes_rev:
+                                    refposes_rev.add(r_pos)
+                                    refposinfo_rev[r_pos] = []
+                                refposinfo_rev[r_pos].append((0.0, hap))
+                else:
+                    for q_pos, r_pos in aligned_pairs:
+                        if r_pos is not None and ref_start <= r_pos < ref_end:
+                            if q_pos is not None and q_pos in modlocs:
+                                if r_pos not in refposes:
+                                    refposes.add(r_pos)
+                                    refposinfo[r_pos] = []
+                                refposinfo[r_pos].append((moddict[q_pos], hap))
+                            elif args.refsites_all and (r_pos in refmotifsites):
+                                if r_pos not in refposes:
+                                    refposes.add(r_pos)
+                                    refposinfo[r_pos] = []
+                                refposinfo[r_pos].append((0.0, hap))
+
+            if args.ss:
+                if is_reverse:
+                    for q_pos, r_pos in aligned_pairs:
+                        if r_pos is not None and ref_start <= r_pos < ref_end:
+                            if q_pos is not None and q_pos in modlocs_C:
+                                if r_pos not in refposes_rev:
+                                    refposes_rev.add(r_pos)
+                                if r_pos not in refposinfo_rev:
+                                    refposinfo_rev[r_pos] = []
+                                for key in moddict:
+                                    if key.startswith('C+m'):
+                                        refposinfo_rev[r_pos].append((moddict[key].get(q_pos, 0.0), hap))
+                            elif q_pos is not None and q_pos in modlocs_G:
+                                if r_pos not in refposes_rev:
+                                    refposes.add(r_pos)
+                                if r_pos not in refposinfo:
+                                    refposinfo[r_pos] = []
+                                for key in moddict:
+                                    if key.startswith('G-m'):
+                                        refposinfo[r_pos].append((moddict[key].get(q_pos, 0.0), hap))
+                            elif args.refsites_all and (r_pos in refmotifsites_rev):
+                                if r_pos not in refposes_rev:
+                                    refposes_rev.add(r_pos)
+                                    refposinfo_rev[r_pos] = []
+                                refposinfo_rev[r_pos].append((0.0, hap))              
+                else:
+                    for q_pos, r_pos in aligned_pairs:
+                        if r_pos is not None and ref_start <= r_pos < ref_end:
+                            if q_pos is not None and q_pos in modlocs_C:
+                                if r_pos not in refposes:
+                                    refposes.add(r_pos)
+                                if r_pos not in refposinfo:
+                                    refposinfo[r_pos] = []
+                                for key in moddict:
+                                    if key.startswith('C+m'):
+                                        refposinfo[r_pos].append((moddict[key].get(q_pos, 0.0), hap))
+                            elif q_pos is not None and q_pos in modlocs_G:
+                                if r_pos not in refposes:
+                                    refposes_rev.add(r_pos)
+                                if r_pos not in refposinfo_rev:
+                                    refposinfo_rev[r_pos] = []
+                                for key in moddict:
+                                    if key.startswith('G-m'):
+                                        refposinfo_rev[r_pos].append((moddict[key].get(q_pos, 0.0), hap))
+                            elif args.refsites_all and (r_pos in refmotifsites):
+                                if r_pos not in refposes:
+                                    refposes.add(r_pos)
+                                    refposinfo[r_pos] = []
+                                refposinfo[r_pos].append((0.0, hap))
+                # LOGGER.info("refposinfo_rev:{}".format(refposinfo_rev))
+                # LOGGER.info("refposinfo:{}".format(refposinfo))
             cnt_used += 1
     except ValueError:
         LOGGER.warning("worker_gen_bed process-%d: "
@@ -544,7 +659,7 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
                                                                      ref_start, ref_end))
         return [], [], []
     
-    if args.motifs == "CG" and not args.no_comb:
+    if args.motifs == "CG" and not args.no_comb and not args.ss:
         for rev_pos in refposes_rev:
             if rev_pos == 0:
                 continue
@@ -574,7 +689,7 @@ def _readmods_to_bed_of_one_region(bam_reader, regioninfo, dnacontigs, motifs_fi
             bed_hp1.append((ref_name, refpos, "+", hp1_info[0], hp1_info[1], hp1_info[2]))
         if hp2_info is not None:
             bed_hp2.append((ref_name, refpos, "+", hp2_info[0], hp2_info[1], hp2_info[2]))
-    if not (args.motifs == "CG" and not args.no_comb):
+    if not (args.motifs == "CG" and not args.no_comb) or args.ss:
         refposrev_res = _call_modfreq_of_one_region(refposinfo_rev, args)
         for refpositem in refposrev_res:
             refpos, total_info, hp1_info, hp2_info = refpositem
@@ -623,12 +738,21 @@ def _worker_generate_bed_of_regions(inputbam, region_q, bed_q, dnacontigs, motif
                                                                               cnt_regions))
 
 
-def _write_one_line(beditem, wf, is_bed):
+def _write_one_line(beditem, wf, is_bed, ss):
     ref_name, refpos, strand, cov, met, metprob = beditem
-    if is_bed:
+    if is_bed and not ss:
         wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), ".", str(cov),
                             strand, str(refpos), str(refpos + 1),
                             "0,0,0", str(cov), str(int(round(metprob * 100 + 0.001, 0)))]) + "\n")
+    elif is_bed and ss:
+        if strand == "+":
+            wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), ".", str(cov),
+                                strand, str(refpos), str(refpos + 1),
+                                "0,0,0", str(cov), str(int(round(metprob * 100 + 0.001, 0)))]) + "\n")
+        elif strand == "-":
+            wf.write("\t".join([ref_name, str(refpos - 1), str(refpos), ".", str(cov),
+                                strand, str(refpos - 1), str(refpos),
+                                "0,0,0", str(cov), str(int(round(metprob * 100 + 0.001, 0)))]) + "\n")
     else:
         wf.write("\t".join([ref_name, str(refpos), str(refpos + 1), strand, ".", ".", str(met),
                             str(cov-met), str(cov), str(round(metprob + 0.000001, 4)), "."]) + "\n")
@@ -653,11 +777,11 @@ def _worker_write_bed_result(output_prefix, bed_q, args):
             break
         bed_all, bed_hp1, bed_hp2 = bed_res
         for beditem in bed_all:
-            _write_one_line(beditem, wf_all, args.bed)
+            _write_one_line(beditem, wf_all, args.bed, args.ss)
         for beditem in bed_hp1:
-            _write_one_line(beditem, wf_hp1, args.bed)
+            _write_one_line(beditem, wf_hp1, args.bed, args.ss)
         for beditem in bed_hp2:
-            _write_one_line(beditem, wf_hp2, args.bed)
+            _write_one_line(beditem, wf_hp2, args.bed, args.ss)
     wf_all.close()
     wf_hp1.close()
     wf_hp2.close()
@@ -754,6 +878,8 @@ def main():
                                  "default None, which means all chromosomes will be processed.")
     scfb_input.add_argument('--chunk_len', type=int, required=False, default=500000,
                             help="chunk length, default 500000")
+    scfb_input.add_argument("--ss", action="store_true", default=False, required=False,
+                          help="if using single strand mode , MM tags contains C+m and G-m")
 
     scfb_output = parser.add_argument_group("OUTPUT")
     scfb_output.add_argument('--output', '-o', action="store", type=str, required=True,
